@@ -11,7 +11,7 @@ from pathlib import Path
 import pandas as pd
 import click
 
-from preprocessing.data_preprocessing import parse_segmentation_data
+from preprocessing.data_preprocessing import parse_segmentation_data, preprocess_dataset
 
 
 @click.group()

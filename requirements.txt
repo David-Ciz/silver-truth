@@ -1,0 +1,17 @@
+# Core dependencies
+pandas
+numpy
+tqdm
+
+# Image processing
+tifffile
+scikit-learn
+
+# CLI interface
+click
+
+# Add any additional dependencies your project might need
+# For example:
+matplotlib
+imagecodecs
+# scipy
