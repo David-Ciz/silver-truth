@@ -86,7 +86,7 @@ def preprocess_dataset(dataset_df_path: Path, merged_images_out_dir: Path) -> No
             current_gt_mask_file = gt_mask_file
 
         gt_mask = gt_masks == label
-        merged_gt_image= merge_source_with_mask(pred_masks, gt_source, gt_mask, label, j_value)
+        merged_gt_image = merge_source_with_mask(pred_masks, gt_source, gt_mask, label, j_value)
 
         merged_image_path = modify_file_path(mask_file, label, merged_images_out_dir)
         merged_image_path.parent.mkdir(parents=True, exist_ok=True)
