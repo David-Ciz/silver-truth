@@ -59,7 +59,10 @@ def get_label_mask(
     """
     unique_mask_labels = np.unique(pred_masks)
     unique_mask_labels = np.setdiff1d(unique_mask_labels, list(used_labels))
-
+    # check if the label even has mask
+    if j_value == 0:
+        empty_mask = np.zeros_like(pred_masks)
+        return empty_mask, np.inf
     # Try the given label first
     if label in unique_mask_labels:
         exp_pred_mask = pred_masks == label
