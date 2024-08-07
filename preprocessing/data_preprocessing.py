@@ -68,7 +68,6 @@ def preprocess_dataset(dataset_df_path: Path, merged_images_out_dir: Path) -> No
     gt_masks: Optional[np.ndarray] = None
     pred_masks: Optional[np.ndarray] = None
     gt_source: Optional[np.ndarray] = None
-    used_labels: Set[int] = set()
 
     for row in tqdm.tqdm(dataset_df.itertuples(), total=len(dataset_df)):
         mask_file, gt_source_file, gt_mask_file = row.Mask_file, row.Gt_source_file, row.Gt_mask_file
@@ -77,7 +76,6 @@ def preprocess_dataset(dataset_df_path: Path, merged_images_out_dir: Path) -> No
         if current_mask_file != mask_file:
             pred_masks = tifffile.imread(mask_file)
             current_mask_file = mask_file
-            used_labels = set()
 
         if current_gt_source_file != gt_source_file:
             gt_source = tifffile.imread(gt_source_file)
@@ -88,8 +86,7 @@ def preprocess_dataset(dataset_df_path: Path, merged_images_out_dir: Path) -> No
             current_gt_mask_file = gt_mask_file
 
         gt_mask = gt_masks == label
-        merged_gt_image, used_label = merge_source_with_mask(pred_masks, gt_source, gt_mask, label, j_value, used_labels)
-        used_labels.add(used_label)
+        merged_gt_image= merge_source_with_mask(pred_masks, gt_source, gt_mask, label, j_value)
 
         merged_image_path = modify_file_path(mask_file, label, merged_images_out_dir)
         merged_image_path.parent.mkdir(parents=True, exist_ok=True)
