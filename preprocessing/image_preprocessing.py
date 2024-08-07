@@ -63,15 +63,15 @@ def get_label_mask(
     # Try the given label first
     if label in unique_mask_labels:
         exp_pred_mask = pred_masks == label
-        calculated_j_value = jaccard_score(gt_mask, exp_pred_mask, average="micro")
-        if np.isclose(calculated_j_value, j_value, rtol=1e-6):
+        calculated_j_value = np.round(jaccard_score(gt_mask, exp_pred_mask, average="micro"),6)
+        if calculated_j_value == j_value:
             return exp_pred_mask, label
 
     # If not found, try other labels
     for mask_label in unique_mask_labels[unique_mask_labels != 0]:
         exp_pred_mask = pred_masks == mask_label
-        calculated_j_value = jaccard_score(gt_mask, exp_pred_mask, average="micro")
-        if np.isclose(calculated_j_value, j_value, rtol=1e-6):
+        calculated_j_value = np.round(jaccard_score(gt_mask, exp_pred_mask, average="micro"),6)
+        if calculated_j_value == j_value:
             return exp_pred_mask, mask_label
 
     return None, None
