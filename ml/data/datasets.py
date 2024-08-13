@@ -2,7 +2,7 @@ import random
 
 import numpy as np
 from torch.utils.data import Dataset
-from PIL import Image
+import tifffile
 import torch
 from torchvision.transforms import functional as TF
 from torchvision import transforms, datasets
@@ -17,17 +17,20 @@ class CustomDataset(Dataset):
         return len(self.dataframe)
 
     def __getitem__(self, idx):
-        img_path = self.dataframe.iloc[idx, 0]
-        image = Image.open(img_path)
-        # if we want to do mapping to values between 0-1, uncomment the following for the scaling
-        #image = np.array(image)/65535.0
-        image = np.array(image)/1.0
-        image = Image.fromarray(image)
+        img_path = self.dataframe.iloc[idx, -1]
+        image = tifffile.imread(img_path)
+
+        # Normalize the original image (grayscale values from 0-255 to 0-1)
+        original_normalized = image[0] / 255.0
+
+        # Stack the normalized image and binary mask
+        combined = np.stack([original_normalized, image[1]], axis=2)
+
         label = self.dataframe.iloc[idx, -2]
-        label = torch.tensor(label, dtype=torch.float).reshape(-1, 1)
+        label = torch.tensor(label, dtype=torch.float32)
 
         if self.transform:
-            image = self.transform(image)
+            image = self.transform(combined)
 
         return image, label
 
