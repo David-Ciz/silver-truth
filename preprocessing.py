@@ -80,7 +80,7 @@ def create_dataset_csv(dataset_dir, gt_dir):
             dataset_df = parse_segmentation_data(segmentation_log, gt_dir)
             dataset_dfs.append(dataset_df)
     dataset_df = pd.concat(dataset_dfs)
-    return dataset_df
+    dataset_df.to_csv(f"{dataset_dir.name}.csv")
 
 
 def find_gt_mask_tif(gt_number: int, gt_dir_path: Path, seg_log_path: Path) -> str:
