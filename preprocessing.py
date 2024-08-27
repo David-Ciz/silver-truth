@@ -71,8 +71,9 @@ def get_label_mask(pred_masks, gt_mask, label, j_value):
 @click.argument('dataset-dir', )
 @click.argument('gt-dir',)
 def create_dataset_csv(dataset_dir, gt_dir):
+    pathlib.Path(dataset_dir, gt_dir)
     dataset_dfs = []
-    competitor_folders = [x for x in dataset_dir.iterdir() if x.is_dir() and x.name not in ('01_GT', '02_GT', '01')]
+    competitor_folders = [x for x in dataset_dir.iterdir() if x.is_dir() and x.name not in ('01_GT', '02_GT', '01', '02')]
     for competitor_folder in competitor_folders:
         segmentation_logs = list(competitor_folder.glob("**/*.txt"))
         for segmentation_log in segmentation_logs:

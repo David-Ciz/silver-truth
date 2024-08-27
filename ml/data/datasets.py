@@ -27,7 +27,7 @@ class CustomDataset(Dataset):
         combined = np.stack([original_normalized, image[1]], axis=2)
 
         label = self.dataframe.iloc[idx, -2]
-        label = torch.tensor(label, dtype=torch.float32)
+        label = torch.tensor(label, dtype=torch.float32).unsqueeze(0)
 
         if self.transform:
             image = self.transform(combined)

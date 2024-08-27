@@ -1,3 +1,4 @@
+import numpy as np
 from sklearn.metrics import f1_score, precision_score, recall_score, accuracy_score, confusion_matrix
 from sklearn.metrics import mean_squared_error, mean_absolute_error
 
@@ -21,7 +22,7 @@ def calculate_classification_metrics(phase, labels, predictions) -> dict:
     return metrics
 
 
-def calculate_regression_metrics(prefix, true_labels, predictions, np=None):
+def calculate_regression_metrics(prefix, true_labels, predictions):
     mse = mean_squared_error(true_labels, predictions)
     mae = mean_absolute_error(true_labels, predictions)
 

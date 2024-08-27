@@ -6,7 +6,7 @@ tqdm
 # Image processing
 tifffile
 scikit-learn
-
+opencv-python
 # CLI interface
 click
 
@@ -15,3 +15,6 @@ click
 matplotlib
 imagecodecs
 # scipy
+
+# ML part
+tensorboard
