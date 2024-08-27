@@ -8,7 +8,7 @@ from pathlib import Path
 import pandas as pd
 import click
 from sklearn.metrics import jaccard_score
-
+import logging
 
 @click.group()
 def cli():
@@ -68,8 +68,8 @@ def get_label_mask(pred_masks, gt_mask, label, j_value):
 
 
 @cli.command()
-@click.argument('dataset-dir', )
-@click.argument('gt-dir',)
+@click.argument('dataset-dir', type=click.Path(file_okay=False, dir_okay=True, writable=False, path_type=Path))
+@click.argument('gt-dir',type=click.Path(file_okay=False, dir_okay=True, writable=False, path_type=Path))
 def create_dataset_csv(dataset_dir, gt_dir):
     pathlib.Path(dataset_dir, gt_dir)
     dataset_dfs = []
