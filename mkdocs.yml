@@ -1,0 +1,4 @@
+site_name: Silver-truth 3.0 Documentation
+site_url: https://silver-truth-3-0.readthedocs.io/
+theme:
+  name: readthedocs
