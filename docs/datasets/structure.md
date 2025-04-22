@@ -28,29 +28,53 @@ The project contains 16 distinct biological datasets from the Cell Tracking Chal
 ## Directory Structure
 
 Each dataset follows this structure:
+<pre>
 Dataset/
+
 ├── 01/                 # First sequence raw images
+
 ├── 01_GT/             # Ground truth for first sequence
+
 │   ├── SEG/           # Segmentation ground truth (sparse)
+
 │   └── TRA/           # Tracking ground truth (point annotations)
+
 ├── 01_GT_sync/        # Synchronized ground truth
+
 ├── 01_ST/             # Silver truth for first sequence
+
 ├── 01_ST_sync/        # Synchronized silver truth
+
 ├── 02/                # Second sequence raw images
+
 ├── 02_GT/             # Ground truth for second sequence
+
 │   ├── SEG/           # Segmentation ground truth (sparse)
+
 │   └── TRA/           # Tracking ground truth (point annotations)
+
 ├── 02_GT_sync/        # Synchronized ground truth
+
 ├── 02_ST/             # Silver truth for second sequence
+
 ├── 02_ST_sync/        # Synchronized silver truth
+
 └── Competitors/       # Competitor results
+
 ├── CALT-US/
+
 │   ├── 01_RES/    # Results for first sequence
+
 │   └── 02_RES/    # Results for second sequence
+
 ├── DREX-US/
+
 ├── KIT-Sch-GE/
+
 ├── KTH-SE/
+
 └── MU-Lux-CZ/
+</pre>
 ## Data Types
 
 ### Raw Images (01/ and 02/)

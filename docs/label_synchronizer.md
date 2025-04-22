@@ -2,108 +2,112 @@
 
 ## Overview
 
-This documentation describes the process of synchronizing labels between silver truth, competitors, ground truth, and tracking files using the ImageJ/Fiji plugin 'Annotation Label Sync2'. The synchronization ensures consistent labeling across different data sources and temporal sequences.
+This documentation describes the process of synchronizing labels between silver truth, competitors, ground truth, and tracking files using standalone cell tracking challenge Java application. **Note:** We are no longer using a separate Fiji installation (except for when packaged inside the JAR file). The entire synchronization functionality is now contained within the JAR file.
 
 ## Prerequisites
 
-- [ImageJ/Fiji](https://fiji.sc/) installed
-- 'Annotation Label Sync2' plugin installed in ImageJ/Fiji
-- Input data organized in the specified structure
+- A Java Runtime Environment (JRE) installed.
+- The standalone JAR file for the 'Annotation Label Sync2' plugin, which contains all necessary dependencies.
+- Input data organized in the dataset structure.
+- Large amount of disk space for the output data, the synchronizer does not compress the data.
 
-## Directory Structure
+## Obtaining the JAR File
+To generate the JAR file, follow these steps:
 
-data/
-├── raw/
-│   ├── segmentation_results/     # Segmentation data to be synchronized
-│   └── tra_markers/             # TRA marker files
-└── processed/                   # Output synchronized data
-## Input Data Requirements
+### Step 1: Clone the Repository
 
-### Segmentation Results
-- Format: [specify format, e.g., TIFF sequences, individual masks]
-- Naming convention: [specify if there's a required naming pattern]
-- Expected structure: [describe how files should be organized]
+Clone the repository containing the source code for the 'Annotation Label Sync2' plugin.
 
-### TRA Markers
-- Format: [specify format]
-- Required files: [list any specific files needed]
-- File organization: [describe expected directory structure]
+````bash
+git clone https://github.com/David-Ciz/label-fusion-ng-fork
+````
+
+### Step 2: Build the JAR File
+
+Navigate to the root directory of the cloned repository and run the following command to build the JAR file:
+
+````bash
+mvn clean package
+````
+
+The JAR file will be generated in the `target` directory.
 
 ## Running the Synchronization
 
-### Using ImageJ/Fiji GUI
+### Using python interface
 
-1. Open ImageJ/Fiji
-2. Navigate to `Plugins > Annotation Label Sync2`
-3. In the dialog:
-   - Select input segmentation folder
-   - Select TRA markers folder
-   - Choose output directory
-4. Click "Run"
+You can use the provided Python wrapper script to run the synchronization process in the preprocessing.py file. The script reads the configuration file and runs the synchronization process using the standalone JAR. 
 
-### Using Command Line (if applicable)
+````bash
+python preprocessing.py synchronize_dataset data/inputs-2020-07 data/synchronize_data
+````
+**Notes:**
+- Replace `data/inputs-2020-07` with the path to the input data directory (it should contain folders with datasets).
+- Replace `data/synchronize_data` with the path to the output directory.
 
-```bash
-ImageJ-linux64 --headless --run "Annotation Label Sync2" \
-  "input_dir='/path/to/segmentation',tra_dir='/path/to/tra',output_dir='/path/to/output'"
-```
-### Configuration
+### Using the Command Line
 
-Create a config.yml file in the configs/ directory:paths:
-  segmentation_dir: "data/raw/segmentation_results"
-  tra_markers_dir: "data/raw/tra_markers"
-  output_dir: "data/processed/synchronized"
+Since we have moved the synchronization functionality into a standalone JAR file, the synchronization can now be run via a standard Java command without needing a separate Fiji installation. Use the following command:
 
-fiji:
-  executable_path: "/path/to/ImageJ-linux64"
-  plugin_name: "Annotation Label Sync2"
+````bash
+java -cp target/LabelSyncer2Runner-1.0-SNAPSHOT-jar-with-dependencies.jar de.mpicbg.ulman.fusion.RunLabelSyncer2 /absolute/path/to/segmentation/results /absolute/path/to/tra/markers /absolute/path/to/output
+````
 
-logging:
-  level: INFO
-  file: "logs/label_sync.log"
-Output StructureThe synchronized results will be saved in the specified output directory with the following structure:output_dir/
-├── synchronized_masks/
-│   ├── t000.tif
-│   ├── t001.tif
+**Notes:**
+- Ensure that all paths provided are absolute.
+- Replace `/absolute/path/to/segmentation/results`, `/absolute/path/to/tra/markers`, and `/absolute/path/to/output` with the actual paths on your system.
+- If you prefer, you can move the JAR to a convenient directory and adjust the command accordingly.
+- It is highly recommended to compress the output data after synchronization to save disk space.
+
+
+
+### Results
+
+The synchronized data will be saved in the specified output directory with the following structure:
+
+<pre>
+output_dir/
+├── Dataset1/
+│   ├── Competitor1/
+│   │   ├── t001.tif
+│   ├── Competitor2/
+│   │   ├── t001.tif
 │   └── ...
-└── metadata.json
-ValidationTo verify successful synchronization:
-Check that the number of output files matches the input
-Verify that labels are consistent across temporal sequences
-Confirm that the metadata.json file contains expected information
-Common Issues and SolutionsIssuePossible CauseSolutionMissing output filesIncorrect input pathsVerify input directory pathsInconsistent labelsTRA markers mismatchCheck TRA marker file formatPlugin errorImageJ version mismatchUpdate ImageJ/FijiProcessing ScriptThe synchronization can be automated using our Python wrapper script:from pathlib import Path
-import subprocess
-import yaml
+</pre>
 
-def run_label_sync(config_path: str):
-    """
-    Run the label synchronization process using ImageJ/Fiji.
-    
-    Args:
-        config_path: Path to the configuration YAML file
-    """
-    with open(config_path) as f:
-        config = yaml.safe_load(f)
-    
-    # Construct ImageJ command
-    cmd = [
-        config['fiji']['executable_path'],
-        '--headless',
-        '--run', config['fiji']['plugin_name'],
-        f"input_dir='{config['paths']['segmentation_dir']}',"
-        f"tra_dir='{config['paths']['tra_markers_dir']}',"
-        f"output_dir='{config['paths']['output_dir']}'"
-    ]
-    
-    # Run synchronization
-    subprocess.run(cmd, check=True)
-Usage Example# From the project root
-python src/data_processing/label_synchronizer.py --config configs/label_sync_config.yml
-Version HistoryDateVersionChangesAuthor[Current Date]1.0Initial documentation[Your Name]References
-ImageJ/Fiji Documentation: [link]
-Annotation Label Sync2 Plugin Documentation: [link]
-Related Publications: [links]
-SupportFor issues with:
-The synchronization process: [contact information]
-The ImageJ plugin: [plugin maintainer contact]
-This documentation: [your contact]
+
+## Validation
+
+To verify a successful synchronization:
+- Check that the number of output files matches the input.
+- Verify that labels are consistent across temporal sequences.
+- Confirm that the `metadata.json` file contains the expected information.
+
+## Common Issues and Solutions
+
+- **Missing Output Files:**  
+  *Possible Cause:* Incorrect input paths.  
+  *Solution:* Verify that the input directories are correct and contain valid data.
+
+- **Inconsistent Labels:**  
+  *Possible Cause:* TRA markers mismatch.  
+  *Solution:* Check that the TRA marker files follow the expected format.
+
+- **Plugin Error:**  
+  *Possible Cause:* Java version mismatch or dependency issues.  
+  *Solution:* Ensure you are using a compatible Java version and that all dependencies are included in the JAR file.
+
+## Version History
+
+Date       | Version | Changes                              | Author  
+-----------|---------|--------------------------------------|---------
+2025-03-27 | 1.0     | Initial documentation update         | David Číž
+
+## References
+
+- [Java Documentation](https://docs.oracle.com/)
+- [Annotation Label Sync2 Plugin Documentation](#)
+- [Related Publications](#)
+- https://github.com/CellTrackingChallenge/label-fusion-ng/tree/master
+
+```markdown
