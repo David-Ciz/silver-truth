@@ -17,3 +17,17 @@ Generated a code to replace the original synchronized images with their compress
 
 Going to try and modify the label synchronized algorithm.
 
+
+
+ 248   0.123664
+
+but SEG_log has GT_label=31 J=0.0
+
+for 02 campaign, image 02_1585.tif
+BF-C2DL-HSC 
+DREX US
+
+
+Why is that?
+
+I see overlap in them, seems to me my calculation is correct
