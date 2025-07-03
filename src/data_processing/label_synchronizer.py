@@ -3,6 +3,7 @@ This module contains the Label synchronization logic,
 which is used to synchronize the labels and tracking data and in turn,
 synchronize the labels between competitors, silver-truth, and the ground truth.
 """
+
 import os
 import re
 import shutil
@@ -14,19 +15,16 @@ from scipy.spatial.distance import jaccard
 
 import logging
 
-import imagej
 import tqdm
 from tifffile import tifffile
 
-import os
-import tifffile
-import numpy as np
 from PIL import Image
-import pathlib
 import click
 
 
-def process_segmentation_folders(segmentation_folders, tracking_folder, dataset_output_directory, dataset_type, debug):
+def process_segmentation_folders(
+    segmentation_folders, tracking_folder, dataset_output_directory, dataset_type, debug
+):
     """Process segmentation folders and synchronize with tracking markers."""
     if not segmentation_folders:
         logging.warning(f"No segmentation folders found for {dataset_type}")
@@ -40,33 +38,37 @@ def process_segmentation_folders(segmentation_folders, tracking_folder, dataset_
     if not output_dataset_tracking_folder.exists():
         shutil.copytree(tracking_folder, output_dataset_tracking_folder)
 
-    for segmentation_folder in tqdm.tqdm(segmentation_folders, desc=f"Synchronizing {dataset_type} segmentations"):
+    for segmentation_folder in tqdm.tqdm(
+        segmentation_folders, desc=f"Synchronizing {dataset_type} segmentations"
+    ):
         # Extract the last two parts of the path
         last_two_parts = segmentation_folder.parts[-2:]
         # Join the last two parts back into a path
         competitor_subfolder = Path(*last_two_parts)
         output_dataset_folder = dataset_output_directory / competitor_subfolder
         if output_dataset_folder.is_dir():
-            logging.info(f"Output directory already exists, skipping: {output_dataset_folder}")
+            logging.info(
+                f"Output directory already exists, skipping: {output_dataset_folder}"
+            )
             continue
         if not output_dataset_folder.is_dir():
             logging.info(f"Creating output directory: {output_dataset_folder}")
             output_dataset_folder.mkdir(parents=True, exist_ok=True)
         synchronize_labels_with_tracking_markers(
-            segmentation_folder,
-            tracking_folder,
-            output_dataset_folder,
-            debug
+            segmentation_folder, tracking_folder, output_dataset_folder, debug
         )
+
 
 def synchronize_dataset():
     pass
 
 
-def synchronize_labels_with_tracking_markers(input_segmentation_folder: str,
-                                             tra_markers_folder: str,
-                                             output_directory: str,
-                                             debug: bool = False) -> None:
+def synchronize_labels_with_tracking_markers(
+    input_segmentation_folder: str,
+    tra_markers_folder: str,
+    output_directory: str,
+    debug: bool = False,
+) -> None:
     """
     Synchronize segmentation labels with tracking markers using the standalone Java jar.
     The command invoked is:
@@ -88,8 +90,11 @@ def synchronize_labels_with_tracking_markers(input_segmentation_folder: str,
     current_script_dir = os.path.dirname(os.path.abspath(__file__))
 
     # Path to the jar file relative to the current script directory
-    jar_path = os.path.join(current_script_dir, "cell_tracking_java_helpers",
-                            "label-fusion-ng-2.2.0-SNAPSHOT-jar-with-dependencies.jar")
+    jar_path = os.path.join(
+        current_script_dir,
+        "cell_tracking_java_helpers",
+        "label-fusion-ng-2.2.0-SNAPSHOT-jar-with-dependencies.jar",
+    )
 
     logging.info(f"Running LabelSyncer2 using jar at '{jar_path}'")
     logging.info(f"Input Segmentation Folder: {input_segmentation_folder}")
@@ -99,29 +104,39 @@ def synchronize_labels_with_tracking_markers(input_segmentation_folder: str,
     # Prepare the command to run the Java application
     command = [
         "java",
-        "-cp", jar_path,
+        "-cp",
+        jar_path,
         "de.mpicbg.ulman.fusion.RunLabelSyncer2",
         # If the class is in a package, use the fully-qualified name (e.g., de.mpicbg.ulman.fusion.RunLabelSyncer2)
         input_segmentation_folder,
         tra_markers_folder,
-        output_directory
+        output_directory,
     ]
 
     if debug:
         subprocess.run(command)
     else:
         subprocess.run(command, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
+
 # Clean up
-    # os.remove(macro_file)
+# os.remove(macro_file)
+
 
 def get_numeric_part(filename):
-    match = re.search(r'(\d+)\.tif$', filename)
+    match = re.search(r"(\d+)\.tif$", filename)
     return match.group(1) if match else None
 
 
 def verify_folder_synchronization_logic(label_folder, tracking_folder):
-    label_files = {get_numeric_part(f): f for f in os.listdir(label_folder) if f.endswith('.tif')}
-    tracking_files = {get_numeric_part(f): f for f in os.listdir(tracking_folder) if f.endswith('.tif')}
+    label_files = {
+        get_numeric_part(f): f for f in os.listdir(label_folder) if f.endswith(".tif")
+    }
+    tracking_files = {
+        get_numeric_part(f): f
+        for f in os.listdir(tracking_folder)
+        if f.endswith(".tif")
+    }
 
     common_keys = set(label_files.keys()).intersection(tracking_files.keys())
     desynchronized_images = []
@@ -188,7 +203,7 @@ def compress_tif_file(file_path, dryrun=False):
     """Compress a TIF file using LZW compression and overwrite the original file."""
     try:
         # Check if file is a TIFF
-        if not file_path.lower().endswith(('.tif', '.tiff')):
+        if not file_path.lower().endswith((".tif", ".tiff")):
             return False, f"Skipped: {file_path} (not a TIFF file)"
 
         # Get file size before compression
@@ -202,7 +217,7 @@ def compress_tif_file(file_path, dryrun=False):
             img = tifffile.imread(file_path)
 
             # Create a temporary file
-            temp_file = file_path + '.temp'
+            temp_file = file_path + ".temp"
 
             # Save with LZW compression
             tifffile.imwrite(temp_file, img, compression="lzw")
@@ -220,7 +235,7 @@ def compress_tif_file(file_path, dryrun=False):
                 img = Image.open(file_path)
 
                 # Create a temporary file
-                temp_file = file_path + '.temp'
+                temp_file = file_path + ".temp"
 
                 # Save with LZW compression
                 img.save(temp_file, compression="tiff_lzw")
@@ -238,7 +253,10 @@ def compress_tif_file(file_path, dryrun=False):
         # Get file size after compression
         new_size = os.path.getsize(file_path) / (1024 * 1024)  # MB
 
-        return True, f"Compressed: {file_path} ({original_size:.2f}MB → {new_size:.2f}MB, saved {original_size - new_size:.2f}MB)"
+        return (
+            True,
+            f"Compressed: {file_path} ({original_size:.2f}MB → {new_size:.2f}MB, saved {original_size - new_size:.2f}MB)",
+        )
 
     except Exception as e:
         return False, f"Error: {file_path} ({str(e)})"
@@ -256,11 +274,15 @@ def process_directory(directory, recursive=True, dryrun=False, verbose=False):
     if recursive:
         for root, _, files in os.walk(directory):
             for file in files:
-                if file.lower().endswith(('.tif', '.tiff')):
+                if file.lower().endswith((".tif", ".tiff")):
                     tiff_files.append(os.path.join(root, file))
     else:
-        tiff_files = [os.path.join(directory, f) for f in os.listdir(directory)
-                      if os.path.isfile(os.path.join(directory, f)) and f.lower().endswith(('.tif', '.tiff'))]
+        tiff_files = [
+            os.path.join(directory, f)
+            for f in os.listdir(directory)
+            if os.path.isfile(os.path.join(directory, f))
+            and f.lower().endswith((".tif", ".tiff"))
+        ]
 
     if not tiff_files:
         click.echo(f"No TIFF files found in {directory}")
@@ -269,7 +291,11 @@ def process_directory(directory, recursive=True, dryrun=False, verbose=False):
     click.echo(f"Found {len(tiff_files)} TIFF files to process")
 
     if dryrun:
-        click.echo(click.style("DRY RUN MODE: No files will be modified", fg="yellow", bold=True))
+        click.echo(
+            click.style(
+                "DRY RUN MODE: No files will be modified", fg="yellow", bold=True
+            )
+        )
 
     # Process each TIFF file with a progress bar
     with click.progressbar(tiff_files, label="Compressing TIF files") as bar:
@@ -298,10 +324,14 @@ def process_directory(directory, recursive=True, dryrun=False, verbose=False):
     # Summary
     click.echo("\nCompression Summary:")
     click.echo(f"Total files processed: {total_count}")
-    click.echo(f"Successfully {('would be ' if dryrun else '')}compressed: {success_count}")
+    click.echo(
+        f"Successfully {('would be ' if dryrun else '')}compressed: {success_count}"
+    )
 
     if not dryrun:
-        click.echo(click.style(f"Total space saved: {total_saved_mb:.2f} MB", fg="green"))
+        click.echo(
+            click.style(f"Total space saved: {total_saved_mb:.2f} MB", fg="green")
+        )
 
     if total_count - success_count > 0:
         click.echo(click.style(f"Failed: {total_count - success_count}", fg="red"))

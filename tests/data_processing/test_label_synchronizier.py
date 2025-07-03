@@ -2,8 +2,8 @@ import unittest
 import numpy as np
 from src.data_processing.label_synchronizer import verify_synchronization
 
-class TestVerifySynchronization(unittest.TestCase):
 
+class TestVerifySynchronization(unittest.TestCase):
     def test_both_images_none(self):
         self.assertFalse(verify_synchronization(None, None))
 
@@ -37,5 +37,6 @@ class TestVerifySynchronization(unittest.TestCase):
         tracking_img = np.array([[1, 2], [4, 3]])
         self.assertFalse(verify_synchronization(label_img, tracking_img))
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     unittest.main()

@@ -1,19 +1,23 @@
 import logging
-import os
-import re
 import shutil
 from pathlib import Path
 
 import click
 import pandas as pd
-import tifffile
 import tqdm
-from src.data_processing.label_synchronizer import verify_synchronization, synchronize_labels_with_tracking_markers, \
-    process_segmentation_folders, verify_folder_synchronization_logic, process_directory
-from collections import defaultdict
+from src.data_processing.label_synchronizer import (
+    synchronize_labels_with_tracking_markers,
+    process_segmentation_folders,
+    verify_folder_synchronization_logic,
+    process_directory,
+)
 
-from src.data_processing.utils.dataset_dataframe_creation import convert_to_dataframe, is_valid_competitor_folder, \
-    process_dataset_directory, save_dataframe_to_parquet_with_metadata
+from src.data_processing.utils.dataset_dataframe_creation import (
+    convert_to_dataframe,
+    is_valid_competitor_folder,
+    process_dataset_directory,
+    save_dataframe_to_parquet_with_metadata,
+)
 
 # Constants
 RAW_DATA_FOLDERS = {"01", "02"}
@@ -25,15 +29,18 @@ RES_FOLDER_FIRST = "01_RES"
 RES_FOLDER_SECOND = "02_RES"
 
 # Configure logging globally
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
-
+logging.basicConfig(
+    level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
+)
 
 
 @click.command()
-@click.argument('dataset_dir', type=click.Path(exists=True))
-@click.argument('tracking_dir_01', type=click.Path(exists=True))
-@click.argument('tracking_dir_02', type=click.Path(exists=True))
-def verify_dataset_synchronization(dataset_dir: Path | str, tracking_dir_01: Path | str, tracking_dir_02: Path | str):
+@click.argument("dataset_dir", type=click.Path(exists=True))
+@click.argument("tracking_dir_01", type=click.Path(exists=True))
+@click.argument("tracking_dir_02", type=click.Path(exists=True))
+def verify_dataset_synchronization(
+    dataset_dir: Path | str, tracking_dir_01: Path | str, tracking_dir_02: Path | str
+):
     """
     This script verifies the synchronization between segmentations and tracking markers in a dataset.
 
@@ -47,7 +54,7 @@ def verify_dataset_synchronization(dataset_dir: Path | str, tracking_dir_01: Pat
 
     dataset_data = {
         "01": {"segmentations": [], "tracking_folder": tracking_dir_01},
-        "02": {"segmentations": [], "tracking_folder": tracking_dir_02}
+        "02": {"segmentations": [], "tracking_folder": tracking_dir_02},
     }
     for dataset_subfolder in dataset_dir.iterdir():
         if not dataset_subfolder.is_dir():
@@ -78,38 +85,49 @@ def verify_dataset_synchronization(dataset_dir: Path | str, tracking_dir_01: Pat
     desynchronized_subfolders = set()
     for dataset_type, data in tqdm.tqdm(dataset_data.items()):
         if data["segmentations"] is None:
-            logging.error(f"⚠️ Segmentation folder not found for dataset, type {dataset_type}")
+            logging.error(
+                f"⚠️ Segmentation folder not found for dataset, type {dataset_type}"
+            )
         else:
-            click.echo(f"Verifying synchronization for subfolder {data['segmentations']}")
+            click.echo(
+                f"Verifying synchronization for subfolder {data['segmentations']}"
+            )
             # Choose the corresponding tracking folder based on dataset type
             tracking_folder = data["tracking_folder"]
-            desynchronized_images = verify_folder_synchronization_logic(str(data["segmentations"]), str(tracking_folder))
+            desynchronized_images = verify_folder_synchronization_logic(
+                str(data["segmentations"]), str(tracking_folder)
+            )
             if desynchronized_images:
                 desynchronized_subfolders.add(dataset_type)
                 click.echo("The following images are not synchronized:")
-                click.echo(', '.join(desynchronized_images))
+                click.echo(", ".join(desynchronized_images))
             else:
                 click.echo(f"All images for {data['segmentations']} are synchronized.")
     if desynchronized_subfolders:
         click.echo(f"Desynchronized subfolders: {', '.join(desynchronized_subfolders)}")
     else:
         click.echo("All images are synchronized.")
+
+
 @click.command()
-@click.argument('label_folder', type=click.Path(exists=True))
-@click.argument('tracking_folder', type=click.Path(exists=True))
+@click.argument("label_folder", type=click.Path(exists=True))
+@click.argument("tracking_folder", type=click.Path(exists=True))
 def verify_folder_synchronization(label_folder, tracking_folder):
-    desynchronized_images = verify_folder_synchronization_logic(label_folder, tracking_folder)
+    desynchronized_images = verify_folder_synchronization_logic(
+        label_folder, tracking_folder
+    )
 
     if desynchronized_images:
         click.echo("The following images are not synchronized:")
-        click.echo(', '.join(desynchronized_images))
+        click.echo(", ".join(desynchronized_images))
     else:
         click.echo("All images are synchronized.")
 
+
 @click.command()
-@click.argument('input_segmentation_folder', type=click.Path(exists=True))
-@click.argument('tra_markers_folder', type=click.Path(exists=True))
-@click.argument('output_directory', type=click.Path())
+@click.argument("input_segmentation_folder", type=click.Path(exists=True))
+@click.argument("tra_markers_folder", type=click.Path(exists=True))
+@click.argument("output_directory", type=click.Path())
 def synchronize_labels(input_segmentation_folder, tra_markers_folder, output_directory):
     """
     This script synchronizes labels with tracking markers.
@@ -121,13 +139,17 @@ def synchronize_labels(input_segmentation_folder, tra_markers_folder, output_dir
     if not Path(output_directory).is_dir():
         logging.info(f"Creating output directory: {output_directory}")
         Path(output_directory).mkdir(parents=True, exist_ok=True)
-    synchronize_labels_with_tracking_markers(input_segmentation_folder, tra_markers_folder, output_directory)
+    synchronize_labels_with_tracking_markers(
+        input_segmentation_folder, tra_markers_folder, output_directory
+    )
 
 
 @click.command()
-@click.argument('datasets_folder', type=click.Path(exists=True))
-@click.argument('output_directory', type=click.Path())
-@click.option('--debug', is_flag=True, help="Enable debug mode with verbose Fiji output")
+@click.argument("datasets_folder", type=click.Path(exists=True))
+@click.argument("output_directory", type=click.Path())
+@click.option(
+    "--debug", is_flag=True, help="Enable debug mode with verbose Fiji output"
+)
 def synchronize_datasets(datasets_folder, output_directory, debug):
     """Synchronizes all segmentations with tracking markers in all the datasets
 
@@ -153,12 +175,14 @@ def synchronize_datasets(datasets_folder, output_directory, debug):
         logging.info(f"Processing dataset: {dataset.name}")
         dataset_data = {
             "01": {"segmentations": [], "tracking_folder": None},
-            "02": {"segmentations": [], "tracking_folder": None}
+            "02": {"segmentations": [], "tracking_folder": None},
         }
         dataset_output_directory = output_directory / dataset.name
         for dataset_subfolder in dataset.iterdir():
             if not dataset_subfolder.is_dir():
-                logging.info(f"Skipping {dataset_subfolder.name} as it is not a dataset folder")
+                logging.info(
+                    f"Skipping {dataset_subfolder.name} as it is not a dataset folder"
+                )
                 continue
             # Copy raw data folders
             elif dataset_subfolder.name in RAW_DATA_FOLDERS:
@@ -168,24 +192,36 @@ def synchronize_datasets(datasets_folder, output_directory, debug):
                     shutil.copytree(dataset_subfolder, target_folder)
             # Process first GT folder
             elif dataset_subfolder.name == GT_FOLDER_FIRST:
-                dataset_data["01"]["segmentations"].append(dataset_subfolder / SEG_FOLDER)
+                dataset_data["01"]["segmentations"].append(
+                    dataset_subfolder / SEG_FOLDER
+                )
                 dataset_data["01"]["tracking_folder"] = dataset_subfolder / TRA_FOLDER
             elif dataset_subfolder.name == GT_FOLDER_SECOND:
-                dataset_data["02"]["segmentations"].append(dataset_subfolder / SEG_FOLDER)
+                dataset_data["02"]["segmentations"].append(
+                    dataset_subfolder / SEG_FOLDER
+                )
                 dataset_data["02"]["tracking_folder"] = dataset_subfolder / TRA_FOLDER
             elif is_valid_competitor_folder(dataset_subfolder):
-                dataset_data["01"]["segmentations"].append(dataset_subfolder / RES_FOLDER_FIRST)
-                dataset_data["02"]["segmentations"].append(dataset_subfolder / RES_FOLDER_SECOND)
+                dataset_data["01"]["segmentations"].append(
+                    dataset_subfolder / RES_FOLDER_FIRST
+                )
+                dataset_data["02"]["segmentations"].append(
+                    dataset_subfolder / RES_FOLDER_SECOND
+                )
 
         # Check if tracking folders were found
         missing_tracking = False
         for dataset_type, data in dataset_data.items():
             if data["tracking_folder"] is None:
                 missing_tracking = True
-                logging.error(f"⚠️ Tracking folder not found for dataset {dataset.name}, type {dataset_type}")
+                logging.error(
+                    f"⚠️ Tracking folder not found for dataset {dataset.name}, type {dataset_type}"
+                )
 
         if missing_tracking:
-            logging.error(f"⛔ Skipping dataset {dataset.name} due to missing tracking data")
+            logging.error(
+                f"⛔ Skipping dataset {dataset.name} due to missing tracking data"
+            )
             failed_datasets.append(dataset.name)
             skipped_datasets += 1
             continue
@@ -196,24 +232,29 @@ def synchronize_datasets(datasets_folder, output_directory, debug):
                 data["tracking_folder"],
                 dataset_output_directory,
                 dataset_type,
-                debug
+                debug,
             )
         processed_datasets += 1
 
     # Summary at the end of processing
-    logging.info(f"\n--- Processing Summary ---")
+    logging.info("\n--- Processing Summary ---")
     logging.info(f"✅ Successfully processed datasets: {processed_datasets}")
 
     if skipped_datasets > 0:
-        logging.info(f"⚠️ Skipped datasets due to missing tracking data: {skipped_datasets}")
+        logging.info(
+            f"⚠️ Skipped datasets due to missing tracking data: {skipped_datasets}"
+        )
         logging.info(f"Failed datasets: {', '.join(failed_datasets)}")
 
 
 @click.command()
-@click.argument('synchronized_dataset_dir', type=click.Path(exists=True))
-@click.option('--output_path', type=click.Path(), help="Path to save the dataset dataframe")
-def create_dataset_dataframe(synchronized_dataset_dir: Path | str,
-                             output_path: Path | str) -> None:
+@click.argument("synchronized_dataset_dir", type=click.Path(exists=True))
+@click.option(
+    "--output_path", type=click.Path(), help="Path to save the dataset dataframe"
+)
+def create_dataset_dataframe(
+    synchronized_dataset_dir: Path | str, output_path: Path | str
+) -> None:
     """
     Creates a pandas dataframe with dataset information from synchronized datasets.
 
@@ -225,21 +266,39 @@ def create_dataset_dataframe(synchronized_dataset_dir: Path | str,
     if output_path is None:
         output_path = f"{synchronized_dataset_dir.name}_dataset_dataframe.parquet"
 
-    dataset_info, competitor_columns = process_dataset_directory(synchronized_dataset_dir)
+    dataset_info, competitor_columns = process_dataset_directory(
+        synchronized_dataset_dir
+    )
     dataset_dataframe = convert_to_dataframe(dataset_info)
     # Store metadata
-    dataset_dataframe.attrs['base_directory'] = str(synchronized_dataset_dir)
-    dataset_dataframe.attrs['competitor_columns'] = list(competitor_columns)
-    dataset_dataframe.attrs['created_by'] = "David-Ciz"  # Current user from your message
-    dataset_dataframe.attrs['creation_time'] = pd.Timestamp.now()
+    dataset_dataframe.attrs["base_directory"] = str(synchronized_dataset_dir)
+    dataset_dataframe.attrs["competitor_columns"] = list(competitor_columns)
+    dataset_dataframe.attrs["created_by"] = (
+        "David-Ciz"  # Current user from your message
+    )
+    dataset_dataframe.attrs["creation_time"] = pd.Timestamp.now()
     save_dataframe_to_parquet_with_metadata(dataset_dataframe, output_path)
 
 
-@click.command(context_settings=dict(help_option_names=['-h', '--help']))
-@click.argument('directory', type=click.Path(exists=True, file_okay=False, dir_okay=True))
-@click.option('--non-recursive', '-n', is_flag=True, help='Process only the specified directory, not subdirectories')
-@click.option('--dry-run', '-d', is_flag=True, help='Show what would be done without modifying files')
-@click.option('--verbose', '-v', is_flag=True, help='Display detailed information for each file')
+@click.command(context_settings=dict(help_option_names=["-h", "--help"]))
+@click.argument(
+    "directory", type=click.Path(exists=True, file_okay=False, dir_okay=True)
+)
+@click.option(
+    "--non-recursive",
+    "-n",
+    is_flag=True,
+    help="Process only the specified directory, not subdirectories",
+)
+@click.option(
+    "--dry-run",
+    "-d",
+    is_flag=True,
+    help="Show what would be done without modifying files",
+)
+@click.option(
+    "--verbose", "-v", is_flag=True, help="Display detailed information for each file"
+)
 def compress_tifs(directory, non_recursive, dry_run, verbose):
     """Compress TIFF files using LZW compression in place.
 
@@ -264,7 +323,7 @@ def compress_tifs(directory, non_recursive, dry_run, verbose):
     # Show detailed information for each file
     python compress_tifs.py /path/to/images --verbose
     """
-    click.echo(f"TIFF Compression Tool")
+    click.echo("TIFF Compression Tool")
     click.echo(f"{'=' * 30}")
     click.echo(f"Target directory: {directory}")
     click.echo(f"Mode: {'Non-recursive' if non_recursive else 'Recursive'}")
@@ -272,16 +331,23 @@ def compress_tifs(directory, non_recursive, dry_run, verbose):
     click.echo(f"Verbose: {'Yes' if verbose else 'No'}")
     click.echo(f"{'=' * 30}")
 
-    process_directory(directory, recursive=not non_recursive, dryrun=dry_run, verbose=verbose)
+    process_directory(
+        directory, recursive=not non_recursive, dryrun=dry_run, verbose=verbose
+    )
 
     if dry_run:
-        click.echo(click.style("\nThis was a dry run. No files were modified. Run without --dry-run to apply changes.",
-                               fg="yellow"))
+        click.echo(
+            click.style(
+                "\nThis was a dry run. No files were modified. Run without --dry-run to apply changes.",
+                fg="yellow",
+            )
+        )
 
 
 @click.group()
 def cli():
     pass
+
 
 cli.add_command(synchronize_labels)
 cli.add_command(verify_folder_synchronization)
@@ -289,7 +355,7 @@ cli.add_command(synchronize_datasets)
 cli.add_command(verify_dataset_synchronization)
 cli.add_command(create_dataset_dataframe)
 cli.add_command(compress_tifs)
-if __name__ == '__main__':
+if __name__ == "__main__":
     cli()
 
 # @click.command()

@@ -1,10 +1,9 @@
 import logging
-import os
-import re # re is imported but not used, can be removed if not needed elsewhere
 from pathlib import Path
 
 import click
 import tifffile
+
 # import tqdm # tqdm wasn't used in the original snippet
 import pandas as pd
 # Assuming pyarrow.parquet is used by the load function, though not directly here
@@ -14,9 +13,11 @@ import pandas as pd
 
 # Assuming these imports exist and are correct for your project structure
 # Make sure the function definition matches the one you provided
-from src.data_processing.utils.dataset_dataframe_creation import load_dataframe_from_parquet_with_metadata
+from src.data_processing.utils.dataset_dataframe_creation import (
+    load_dataframe_from_parquet_with_metadata,
+)
 from src.metrics.metrics import calculate_jaccard_scores
-from src.metrics.utils import print_results # Make sure this utility exists
+from src.metrics.utils import print_results  # Make sure this utility exists
 
 # Constants - Kept from original code
 RAW_DATA_FOLDERS = {"01", "02"}
@@ -28,17 +29,38 @@ RES_FOLDER_FIRST = "01_RES"
 RES_FOLDER_SECOND = "02_RES"
 
 # Setup basic logging
-logging.basicConfig(level=logging.INFO, format='%(levelname)s: %(message)s')
+logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
 
 
 @click.command()
-@click.argument('dataset_dataframe_path', type=click.Path(exists=True, path_type=Path))
-@click.option('--competitor', help="Competitor name to evaluate. If None, evaluate all.")
-@click.option('--output', '-o', type=click.Path(path_type=Path), help="Path to save results as CSV")
-@click.option('--visualize', '-v', is_flag=True, help="Generate visualization of results (Placeholder)")
-@click.option('--campaign-col', default='campaign_number', help="Column name that identifies the campaign")
-def evaluate_competitor(dataset_dataframe_path: Path, competitor: str = None,
-                        output: Path = None, visualize: bool = False, campaign_col: str = 'campaign_number'):
+@click.argument("dataset_dataframe_path", type=click.Path(exists=True, path_type=Path))
+@click.option(
+    "--competitor", help="Competitor name to evaluate. If None, evaluate all."
+)
+@click.option(
+    "--output",
+    "-o",
+    type=click.Path(path_type=Path),
+    help="Path to save results as CSV",
+)
+@click.option(
+    "--visualize",
+    "-v",
+    is_flag=True,
+    help="Generate visualization of results (Placeholder)",
+)
+@click.option(
+    "--campaign-col",
+    default="campaign_number",
+    help="Column name that identifies the campaign",
+)
+def evaluate_competitor(
+    dataset_dataframe_path: Path,
+    competitor: str = None,
+    output: Path = None,
+    visualize: bool = False,
+    campaign_col: str = "campaign_number",
+):
     """
     Evaluates competitor segmentation results against ground truth using Jaccard index.
 
@@ -52,32 +74,56 @@ def evaluate_competitor(dataset_dataframe_path: Path, competitor: str = None,
         df = load_dataframe_from_parquet_with_metadata(dataset_dataframe_path)
 
         # Retrieve competitor columns from df.attrs
-        competitor_columns = df.attrs.get('competitor_columns', []) # Use .get for safety
+        competitor_columns = df.attrs.get(
+            "competitor_columns", []
+        )  # Use .get for safety
 
         if not competitor_columns:
-             logging.warning("No 'competitor_columns' found in dataframe attributes (df.attrs). Trying to infer.")
-             # Basic inference logic (same as before)
-             potential_cols = [col for col in df.columns if col not in ['composite_key', 'raw_image', 'gt_image', campaign_col, 'sequence_id', 'time_id'] and isinstance(df[col].iloc[0], str) and Path(df[col].iloc[0]).suffix in ['.tif', '.tiff']]
-             if potential_cols:
-                 competitor_columns = potential_cols
-                 logging.info(f"Inferred competitor columns: {competitor_columns}")
-                 # Optionally add inferred columns back to attrs if desired for consistency?
-                 # df.attrs['competitor_columns'] = competitor_columns
-             else:
-                 logging.error("Could not infer competitor columns from dataframe columns.")
-                 return
+            logging.warning(
+                "No 'competitor_columns' found in dataframe attributes (df.attrs). Trying to infer."
+            )
+            # Basic inference logic (same as before)
+            potential_cols = [
+                col
+                for col in df.columns
+                if col
+                not in [
+                    "composite_key",
+                    "raw_image",
+                    "gt_image",
+                    campaign_col,
+                    "sequence_id",
+                    "time_id",
+                ]
+                and isinstance(df[col].iloc[0], str)
+                and Path(df[col].iloc[0]).suffix in [".tif", ".tiff"]
+            ]
+            if potential_cols:
+                competitor_columns = potential_cols
+                logging.info(f"Inferred competitor columns: {competitor_columns}")
+                # Optionally add inferred columns back to attrs if desired for consistency?
+                # df.attrs['competitor_columns'] = competitor_columns
+            else:
+                logging.error(
+                    "Could not infer competitor columns from dataframe columns."
+                )
+                return
 
     except FileNotFoundError:
         logging.error(f"Dataset dataframe file not found at: {dataset_dataframe_path}")
         return
     except Exception as e:
-        logging.error(f"Error loading dataframe or reading attributes from {dataset_dataframe_path}: {e}")
+        logging.error(
+            f"Error loading dataframe or reading attributes from {dataset_dataframe_path}: {e}"
+        )
         return
 
     # --- Competitor Selection ---
     if competitor:
         if competitor not in competitor_columns:
-            logging.error(f"Competitor '{competitor}' not found in available competitor columns: {competitor_columns}")
+            logging.error(
+                f"Competitor '{competitor}' not found in available competitor columns: {competitor_columns}"
+            )
             return
         competitor_columns = [competitor]
         logging.info(f"Evaluating specific competitor: {competitor}")
@@ -87,34 +133,51 @@ def evaluate_competitor(dataset_dataframe_path: Path, competitor: str = None,
     # --- Data Filtering ---
     initial_rows = len(df)
     # Filter rows where the ground truth image path is not None/NaN
-    filtered_df = df[df['gt_image'].notna()].copy() # Use copy to avoid SettingWithCopyWarning
+    filtered_df = df[
+        df["gt_image"].notna()
+    ].copy()  # Use copy to avoid SettingWithCopyWarning
 
     # Further filter: Check if GT path actually exists
     # Convert to Path safely, handling potential non-string types gracefully
     def check_path(p):
-        if pd.isna(p): return False
-        try: return Path(p).exists()
-        except TypeError: return False # Handle cases where p is not string-like
+        if pd.isna(p):
+            return False
+        try:
+            return Path(p).exists()
+        except TypeError:
+            return False  # Handle cases where p is not string-like
 
-    filtered_df = filtered_df[filtered_df['gt_image'].apply(check_path)]
+    filtered_df = filtered_df[filtered_df["gt_image"].apply(check_path)]
     rows_after_gt_exist = len(filtered_df)
-    logging.info(f"Filtered out {initial_rows - rows_after_gt_exist} rows with missing or non-existent ground truth paths.")
+    logging.info(
+        f"Filtered out {initial_rows - rows_after_gt_exist} rows with missing or non-existent ground truth paths."
+    )
 
     if filtered_df.empty:
-        logging.error("No rows remaining after filtering for valid ground truth images.")
+        logging.error(
+            "No rows remaining after filtering for valid ground truth images."
+        )
         return
 
     # --- Campaign Column Handling ---
     if campaign_col not in filtered_df.columns:
-        logging.warning(f"Campaign column '{campaign_col}' not found. Attempting to extract from 'composite_key'.")
+        logging.warning(
+            f"Campaign column '{campaign_col}' not found. Attempting to extract from 'composite_key'."
+        )
         try:
             # Assuming composite_key format might be "campaign_name/..." or just "campaign_name"
-            filtered_df[campaign_col] = filtered_df['composite_key'].apply(
-                lambda x: str(x).split('/')[0] if isinstance(x, str) and '/' in x else (str(x) if pd.notna(x) else 'unknown_campaign')
+            filtered_df[campaign_col] = filtered_df["composite_key"].apply(
+                lambda x: str(x).split("/")[0]
+                if isinstance(x, str) and "/" in x
+                else (str(x) if pd.notna(x) else "unknown_campaign")
             )
-            logging.info(f"Successfully extracted campaign names into '{campaign_col}' column.")
+            logging.info(
+                f"Successfully extracted campaign names into '{campaign_col}' column."
+            )
         except Exception as e:
-            logging.error(f"Failed to extract campaign names from 'composite_key': {e}. Cannot proceed without campaign information.")
+            logging.error(
+                f"Failed to extract campaign names from 'composite_key': {e}. Cannot proceed without campaign information."
+            )
             return
 
     # --- Get Unique Campaigns ---
@@ -125,8 +188,12 @@ def evaluate_competitor(dataset_dataframe_path: Path, competitor: str = None,
     logging.info(f"Found {len(campaigns)} campaigns: {campaigns}")
 
     # --- Results Data Structures (Initialization) ---
-    all_results = {comp: {camp: {} for camp in campaigns} for comp in competitor_columns}
-    per_image_averages = {comp: {camp: {} for camp in campaigns} for comp in competitor_columns}
+    all_results = {
+        comp: {camp: {} for camp in campaigns} for comp in competitor_columns
+    }
+    per_image_averages = {
+        comp: {camp: {} for camp in campaigns} for comp in competitor_columns
+    }
     per_campaign_averages = {comp: {} for comp in competitor_columns}
     overall_averages = {}
     all_labels = set()
@@ -134,57 +201,69 @@ def evaluate_competitor(dataset_dataframe_path: Path, competitor: str = None,
     # --- Processing Loop ---
     for comp in competitor_columns:
         logging.info(f"--- Processing Competitor: {comp} ---")
-        competitor_all_label_scores = [] # Accumulates raw scores for overall average
+        competitor_all_label_scores = []  # Accumulates raw scores for overall average
 
         # Check if the competitor column exists *in the filtered dataframe*
         if comp not in filtered_df.columns:
-            logging.warning(f"Competitor column '{comp}' not found in the filtered dataframe. Skipping.")
+            logging.warning(
+                f"Competitor column '{comp}' not found in the filtered dataframe. Skipping."
+            )
             for campaign in campaigns:
-                 # Ensure keys exist even if skipped
-                 per_campaign_averages[comp][campaign] = float('nan')
-            overall_averages[comp] = float('nan')
-            continue # Skip to the next competitor
+                # Ensure keys exist even if skipped
+                per_campaign_averages[comp][campaign] = float("nan")
+            overall_averages[comp] = float("nan")
+            continue  # Skip to the next competitor
 
         for campaign in campaigns:
             logging.info(f"  Processing Campaign: {campaign}")
             # Filter *again* by campaign for safety, although campaigns list is derived from it
             campaign_df = filtered_df[filtered_df[campaign_col] == campaign]
 
-            campaign_all_label_scores = [] # Accumulates raw scores for campaign average
+            campaign_all_label_scores = []  # Accumulates raw scores for campaign average
 
             image_count = 0
             processed_count = 0
             skipped_count = 0
             for index, row in campaign_df.iterrows():
                 image_count += 1
-                gt_path_str = row.get('gt_image')
+                gt_path_str = row.get("gt_image")
                 seg_path_str = row.get(comp)
-                composite_key = row.get('composite_key', f"Row_{index}")
+                composite_key = row.get("composite_key", f"Row_{index}")
 
                 # Path validation
-                if not isinstance(gt_path_str, str) or not isinstance(seg_path_str, str):
-                     logging.warning(f"    {composite_key}: Skipping due to invalid GT ('{gt_path_str}') or SEG ('{seg_path_str}') path type.")
-                     # Initialize results for this skipped image
-                     all_results[comp][campaign][composite_key] = {}
-                     per_image_averages[comp][campaign][composite_key] = float('nan')
-                     skipped_count += 1
-                     continue
+                if not isinstance(gt_path_str, str) or not isinstance(
+                    seg_path_str, str
+                ):
+                    logging.warning(
+                        f"    {composite_key}: Skipping due to invalid GT ('{gt_path_str}') or SEG ('{seg_path_str}') path type."
+                    )
+                    # Initialize results for this skipped image
+                    all_results[comp][campaign][composite_key] = {}
+                    per_image_averages[comp][campaign][composite_key] = float("nan")
+                    skipped_count += 1
+                    continue
 
                 gt_path = Path(gt_path_str)
                 seg_path = Path(seg_path_str)
 
                 # Existence check (GT path already checked, but double-check doesn't hurt)
                 # Crucially check competitor segment path here
-                if not gt_path.exists(): # Should not happen if initial filter worked, but safe check
-                     logging.warning(f"    {composite_key}: Skipping because GT file disappeared: {gt_path}")
-                     all_results[comp][campaign][composite_key] = {}
-                     per_image_averages[comp][campaign][composite_key] = float('nan')
-                     skipped_count += 1
-                     continue
-                if not seg_path.exists():
-                    logging.warning(f"    {composite_key}: Skipping because competitor '{comp}' file not found: {seg_path}")
+                if (
+                    not gt_path.exists()
+                ):  # Should not happen if initial filter worked, but safe check
+                    logging.warning(
+                        f"    {composite_key}: Skipping because GT file disappeared: {gt_path}"
+                    )
                     all_results[comp][campaign][composite_key] = {}
-                    per_image_averages[comp][campaign][composite_key] = float('nan')
+                    per_image_averages[comp][campaign][composite_key] = float("nan")
+                    skipped_count += 1
+                    continue
+                if not seg_path.exists():
+                    logging.warning(
+                        f"    {composite_key}: Skipping because competitor '{comp}' file not found: {seg_path}"
+                    )
+                    all_results[comp][campaign][composite_key] = {}
+                    per_image_averages[comp][campaign][composite_key] = float("nan")
                     skipped_count += 1
                     continue
 
@@ -193,7 +272,9 @@ def evaluate_competitor(dataset_dataframe_path: Path, competitor: str = None,
                     gt_img = tifffile.imread(gt_path)
                     seg_img = tifffile.imread(seg_path)
 
-                    jaccard_scores = calculate_jaccard_scores(gt_img, seg_img) # {label: score}
+                    jaccard_scores = calculate_jaccard_scores(
+                        gt_img, seg_img
+                    )  # {label: score}
                     all_results[comp][campaign][composite_key] = jaccard_scores
                     all_labels.update(jaccard_scores.keys())
 
@@ -205,42 +286,68 @@ def evaluate_competitor(dataset_dataframe_path: Path, competitor: str = None,
                         # competitor_all_label_scores is extended after the campaign loop
                     else:
                         # No overlap or empty images? Define behavior.
-                        per_image_averages[comp][campaign][composite_key] = 0.0 # Or float('nan')
+                        per_image_averages[comp][campaign][composite_key] = (
+                            0.0  # Or float('nan')
+                        )
 
                     processed_count += 1
 
                 except Exception as e:
-                    logging.error(f"    {composite_key}: Error processing images ({gt_path}, {seg_path}): {e}. Skipping image.")
+                    logging.error(
+                        f"    {composite_key}: Error processing images ({gt_path}, {seg_path}): {e}. Skipping image."
+                    )
                     all_results[comp][campaign][composite_key] = {}
-                    per_image_averages[comp][campaign][composite_key] = float('nan')
+                    per_image_averages[comp][campaign][composite_key] = float("nan")
                     skipped_count += 1
 
-            logging.info(f"    Campaign '{campaign}': Processed {processed_count}, Skipped {skipped_count} (Total: {image_count}) images.")
+            logging.info(
+                f"    Campaign '{campaign}': Processed {processed_count}, Skipped {skipped_count} (Total: {image_count}) images."
+            )
 
             # --- Campaign Average Calculation (using raw scores) ---
             if campaign_all_label_scores:
-                campaign_avg = sum(campaign_all_label_scores) / len(campaign_all_label_scores)
+                campaign_avg = sum(campaign_all_label_scores) / len(
+                    campaign_all_label_scores
+                )
                 per_campaign_averages[comp][campaign] = campaign_avg
                 # Add this campaign's raw scores to the competitor's overall list
                 competitor_all_label_scores.extend(campaign_all_label_scores)
-                logging.info(f"    Campaign '{campaign}' avg Jaccard for '{comp}': {campaign_avg:.4f} (from {len(campaign_all_label_scores)} label scores)")
+                logging.info(
+                    f"    Campaign '{campaign}' avg Jaccard for '{comp}': {campaign_avg:.4f} (from {len(campaign_all_label_scores)} label scores)"
+                )
             else:
-                per_campaign_averages[comp][campaign] = float('nan') # Use NaN if no scores found
-                logging.warning(f"    No valid Jaccard scores found for '{comp}' in campaign '{campaign}'. Average set to NaN.")
+                per_campaign_averages[comp][campaign] = float(
+                    "nan"
+                )  # Use NaN if no scores found
+                logging.warning(
+                    f"    No valid Jaccard scores found for '{comp}' in campaign '{campaign}'. Average set to NaN."
+                )
 
         # --- Overall Competitor Average Calculation (using raw scores) ---
         if competitor_all_label_scores:
-            overall_avg = sum(competitor_all_label_scores) / len(competitor_all_label_scores)
+            overall_avg = sum(competitor_all_label_scores) / len(
+                competitor_all_label_scores
+            )
             overall_averages[comp] = overall_avg
-            logging.info(f"  Overall avg Jaccard for '{comp}': {overall_avg:.4f} (from {len(competitor_all_label_scores)} label scores across all campaigns)")
+            logging.info(
+                f"  Overall avg Jaccard for '{comp}': {overall_avg:.4f} (from {len(competitor_all_label_scores)} label scores across all campaigns)"
+            )
         else:
-            overall_averages[comp] = float('nan') # Use NaN if no scores found
-            logging.warning(f"  No valid Jaccard scores found for '{comp}' across all campaigns. Overall average set to NaN.")
+            overall_averages[comp] = float("nan")  # Use NaN if no scores found
+            logging.warning(
+                f"  No valid Jaccard scores found for '{comp}' across all campaigns. Overall average set to NaN."
+            )
 
     # --- Output Results ---
     logging.info("\n--- Evaluation Summary ---")
     # Assuming print_results handles the data structure correctly
-    print_results(all_results, per_image_averages, per_campaign_averages, overall_averages, campaigns)
+    print_results(
+        all_results,
+        per_image_averages,
+        per_campaign_averages,
+        overall_averages,
+        campaigns,
+    )
 
     # --- Optional CSV Output ---
     if output:
@@ -248,35 +355,56 @@ def evaluate_competitor(dataset_dataframe_path: Path, competitor: str = None,
         output_data = []
         # (CSV generation logic remains the same as the previous version)
         for comp, campaigns_data in all_results.items():
-             for campaign, images_data in campaigns_data.items():
-                 for image_key, labels_data in images_data.items():
-                     # Retrieve pre-calculated averages safely
-                     img_avg = per_image_averages.get(comp, {}).get(campaign, {}).get(image_key, float('nan'))
-                     camp_avg = per_campaign_averages.get(comp, {}).get(campaign, float('nan'))
-                     overall_avg = overall_averages.get(comp, float('nan'))
+            for campaign, images_data in campaigns_data.items():
+                for image_key, labels_data in images_data.items():
+                    # Retrieve pre-calculated averages safely
+                    img_avg = (
+                        per_image_averages.get(comp, {})
+                        .get(campaign, {})
+                        .get(image_key, float("nan"))
+                    )
+                    camp_avg = per_campaign_averages.get(comp, {}).get(
+                        campaign, float("nan")
+                    )
+                    overall_avg = overall_averages.get(comp, float("nan"))
 
-                     if labels_data: # If there are scores for this image
-                         for label, score in labels_data.items():
-                             output_data.append({
-                                 'competitor': comp, 'campaign': campaign, 'image_key': image_key,
-                                 'label': label, 'jaccard_score': score,
-                                 'image_average': img_avg, 'campaign_average': camp_avg,
-                                 'overall_competitor_average': overall_avg
-                             })
-                     else: # Handle images that were skipped or had no scores
-                          output_data.append({
-                                 'competitor': comp, 'campaign': campaign, 'image_key': image_key,
-                                 'label': None, 'jaccard_score': float('nan'), # Explicitly NaN for score
-                                 'image_average': img_avg, # Still record the image avg (which might also be NaN)
-                                 'campaign_average': camp_avg,
-                                 'overall_competitor_average': overall_avg
-                             })
+                    if labels_data:  # If there are scores for this image
+                        for label, score in labels_data.items():
+                            output_data.append(
+                                {
+                                    "competitor": comp,
+                                    "campaign": campaign,
+                                    "image_key": image_key,
+                                    "label": label,
+                                    "jaccard_score": score,
+                                    "image_average": img_avg,
+                                    "campaign_average": camp_avg,
+                                    "overall_competitor_average": overall_avg,
+                                }
+                            )
+                    else:  # Handle images that were skipped or had no scores
+                        output_data.append(
+                            {
+                                "competitor": comp,
+                                "campaign": campaign,
+                                "image_key": image_key,
+                                "label": None,
+                                "jaccard_score": float(
+                                    "nan"
+                                ),  # Explicitly NaN for score
+                                "image_average": img_avg,  # Still record the image avg (which might also be NaN)
+                                "campaign_average": camp_avg,
+                                "overall_competitor_average": overall_avg,
+                            }
+                        )
 
         if output_data:
             results_df = pd.DataFrame(output_data)
             try:
                 output.parent.mkdir(parents=True, exist_ok=True)
-                results_df.to_csv(output, index=False, float_format='%.6f') # Control precision
+                results_df.to_csv(
+                    output, index=False, float_format="%.6f"
+                )  # Control precision
                 logging.info(f"Successfully saved results to {output}")
             except Exception as e:
                 logging.error(f"Failed to save results to CSV '{output}': {e}")
@@ -285,7 +413,9 @@ def evaluate_competitor(dataset_dataframe_path: Path, competitor: str = None,
 
     # --- Visualization Placeholder ---
     if visualize:
-        logging.warning("Visualization flag is set, but visualization logic is not implemented.")
+        logging.warning(
+            "Visualization flag is set, but visualization logic is not implemented."
+        )
 
     logging.info("Evaluation script finished.")
 
@@ -295,9 +425,10 @@ def cli():
     """Main entry point for command-line tools."""
     pass
 
+
 cli.add_command(evaluate_competitor)
 # Add other commands if needed
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     cli()

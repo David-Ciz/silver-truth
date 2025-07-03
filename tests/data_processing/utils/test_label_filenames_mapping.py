@@ -1,6 +1,3 @@
-import pytest
-
-
 from src.data_processing.utils.label_filenames_mapping import (
     map_label_file_names,
     get_filename_numbers_mapping,
@@ -77,5 +74,5 @@ def test_map_label_file_names_partial_matches():
 def test_get_filename_numbers_mapping_no_numbers():
     """Test get_filename_numbers_mapping with filenames containing no numbers"""
     test_files = ["file_a.txt", "file_b.txt"]
-    expected = {"": "file_a", "": "file_b"}
+    expected = {"": "file_b"}
     assert get_filename_numbers_mapping(test_files) == expected
