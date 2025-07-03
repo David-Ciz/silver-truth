@@ -1,10 +1,9 @@
 import ast
 
-import click
 import pandas as pd
 from pathlib import Path
 from collections import defaultdict
-from typing import Dict, Any, Optional, List, Set
+from typing import Dict, Any, List, Set
 import pyarrow as pa
 import pyarrow.parquet as pq
 
@@ -17,11 +16,15 @@ TRA_FOLDER = "TRA"
 RES_FOLDER_FIRST = "01_RES"
 RES_FOLDER_SECOND = "02_RES"
 
+
 def is_valid_competitor_folder(folder):
     """Check if the folder has the expected structure for a competitor."""
     return (folder / RES_FOLDER_FIRST).is_dir()
 
-def process_dataset_directory(directory: Path) -> tuple[Dict[str, Dict[str, Any]], Set[str]]:
+
+def process_dataset_directory(
+    directory: Path,
+) -> tuple[Dict[str, Dict[str, Any]], Set[str]]:
     """
     Process the dataset directory structure and extract file information.
 
@@ -56,7 +59,9 @@ def process_dataset_directory(directory: Path) -> tuple[Dict[str, Dict[str, Any]
     return dataset_info, competitor_columns
 
 
-def process_source_images(folder: Path, dataset_info: Dict[str, Dict[str, Any]]) -> None:
+def process_source_images(
+    folder: Path, dataset_info: Dict[str, Dict[str, Any]]
+) -> None:
     """Process source image files from a campaign folder."""
     campaign_number = folder.name
 
@@ -64,11 +69,13 @@ def process_source_images(folder: Path, dataset_info: Dict[str, Dict[str, Any]])
         if image.suffix == ".tif":
             image_number = image.name[-8:]
             composite_key = f"{campaign_number}_{image_number}"
-            dataset_info[composite_key]['source_image'] = str(image)
-            dataset_info[composite_key]['campaign_number'] = campaign_number
+            dataset_info[composite_key]["source_image"] = str(image)
+            dataset_info[composite_key]["campaign_number"] = campaign_number
 
 
-def process_gt_data(folder: Path, campaign_number: str, dataset_info: Dict[str, Dict[str, Any]]) -> None:
+def process_gt_data(
+    folder: Path, campaign_number: str, dataset_info: Dict[str, Dict[str, Any]]
+) -> None:
     """Process ground truth and tracking marker files."""
     gt_subfolder = folder / SEG_FOLDER
     tra_subfolder = folder / TRA_FOLDER
@@ -78,19 +85,21 @@ def process_gt_data(folder: Path, campaign_number: str, dataset_info: Dict[str, 
         if image.suffix == ".tif":
             image_number = image.name[-8:]
             composite_key = f"{campaign_number}_{image_number}"
-            dataset_info[composite_key]['gt_image'] = str(image)
-            dataset_info[composite_key]['campaign_number'] = campaign_number
+            dataset_info[composite_key]["gt_image"] = str(image)
+            dataset_info[composite_key]["campaign_number"] = campaign_number
 
     # Process tracking marker images
     for image in tra_subfolder.iterdir():
         if image.suffix == ".tif":
             image_number = image.name[-8:]
             composite_key = f"{campaign_number}_{image_number}"
-            dataset_info[composite_key]['tracking_markers'] = str(image)
-            dataset_info[composite_key]['campaign_number'] = campaign_number
+            dataset_info[composite_key]["tracking_markers"] = str(image)
+            dataset_info[composite_key]["campaign_number"] = campaign_number
 
 
-def process_competitor_data(folder: Path, dataset_info: Dict[str, Dict[str, Any]]) -> None:
+def process_competitor_data(
+    folder: Path, dataset_info: Dict[str, Dict[str, Any]]
+) -> None:
     """Process competitor result files."""
     res1_subfolder = folder / RES_FOLDER_FIRST
     res2_subfolder = folder / RES_FOLDER_SECOND
@@ -103,10 +112,10 @@ def process_competitor_data(folder: Path, dataset_info: Dict[str, Dict[str, Any]
 
 
 def process_competitor_campaign(
-        res_folder: Path,
-        campaign_number: str,
-        competitor_folder: Path,
-        dataset_info: Dict[str, Dict[str, Any]]
+    res_folder: Path,
+    campaign_number: str,
+    competitor_folder: Path,
+    dataset_info: Dict[str, Dict[str, Any]],
 ) -> None:
     """Process competitor result files for a specific campaign."""
     for image in res_folder.iterdir():
@@ -114,7 +123,7 @@ def process_competitor_campaign(
             image_number = image.name[-8:]
             composite_key = f"{campaign_number}_{image_number}"
             dataset_info[composite_key][str(competitor_folder.name)] = str(image)
-            dataset_info[composite_key]['campaign_number'] = campaign_number
+            dataset_info[composite_key]["campaign_number"] = campaign_number
 
 
 def extract_image_number(filename: str) -> str:
@@ -137,7 +146,7 @@ def convert_to_dataframe(dataset_info: Dict[str, Dict[str, Any]]) -> pd.DataFram
         return pd.DataFrame()
 
     # Initialize DataFrame with composite_key as the first column
-    df = pd.DataFrame({'composite_key': list(dataset_info.keys())})
+    df = pd.DataFrame({"composite_key": list(dataset_info.keys())})
 
     # Collect all possible column names
     all_columns = set()
@@ -161,11 +170,12 @@ def get_competitor_columns(df: pd.DataFrame) -> List[str]:
     Returns:
         List of competitor column names
     """
-    if 'competitor_columns' in df.attrs:
-        return df.attrs['competitor_columns']
+    if "competitor_columns" in df.attrs:
+        return df.attrs["competitor_columns"]
     else:
         # If attrs not available, return empty list or implement fallback logic
         return []
+
 
 def save_dataframe_to_parquet_with_metadata(df: pd.DataFrame, output_path: str) -> None:
     """
@@ -183,13 +193,16 @@ def save_dataframe_to_parquet_with_metadata(df: pd.DataFrame, output_path: str) 
 
     # Convert DataFrame.attrs to a bytes-based dictionary.
     # This stores all metadata as string values.
-    metadata = {str(key).encode(): str(value).encode() for key, value in df.attrs.items()}
+    metadata = {
+        str(key).encode(): str(value).encode() for key, value in df.attrs.items()
+    }
 
     # Replace the table's schema metadata with our custom metadata.
     table = table.replace_schema_metadata(metadata)
 
     # Write the table to a Parquet file.
     pq.write_table(table, output_path)
+
 
 def load_dataframe_from_parquet_with_metadata(input_path: str) -> pd.DataFrame:
     """
@@ -212,7 +225,7 @@ def load_dataframe_from_parquet_with_metadata(input_path: str) -> pd.DataFrame:
         df.attrs = {key.decode(): meta[key].decode() for key in meta}
         # Convert string representations of lists back to actual lists
         for key, value in df.attrs.items():
-            if isinstance(value, str) and value.startswith('[') and value.endswith(']'):
+            if isinstance(value, str) and value.startswith("[") and value.endswith("]"):
                 try:
                     df.attrs[key] = ast.literal_eval(value)
                 except (SyntaxError, ValueError):

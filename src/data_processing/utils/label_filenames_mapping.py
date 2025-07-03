@@ -13,9 +13,7 @@ def map_label_file_names(first_list: list[str], second_list: list[str]):
         logging.warning(
             f"The two lists are not of the same length, first list contains {len(first_list)} and second list {len(second_list)} number of filenames."
         )
-        smaller_list = first_list if len(first_list) < len(second_list) else second_list
     else:
-        smaller_list = first_list
         logging.info(f"Both lists contain {len(first_list)} number of filenames.")
 
     # strip the file extensions and chars from the file names
