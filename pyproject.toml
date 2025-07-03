@@ -12,6 +12,7 @@ dependencies = [
     "pyarrow",
     "scikit-learn",
     "tabulate",
+    "types-tabulate"
 ]
 
 [project.optional-dependencies]
@@ -19,8 +20,17 @@ dev = [
     "mkdocs",
     "mkdocs-material",
     "pre-commit",
+    "mypy",
+    "pytest",
+    "pytest-cov",
 ]
 
 [build-system]
 requires = ["setuptools>=61.0"]
 build-backend = "setuptools.build_meta"
+
+[tool.mypy]
+namespace_packages = true
+explicit_package_bases = true
+disable_error_code = ["var-annotated", "attr-defined"]
+ignore_missing_imports = true
