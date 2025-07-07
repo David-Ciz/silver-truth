@@ -13,7 +13,8 @@ dependencies = [
     "scikit-learn",
     "tabulate",
     "types-tabulate",
-    "pandas"
+    "pandas",
+    "Pillow"
 ]
 
 [project.optional-dependencies]
