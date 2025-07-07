@@ -4,21 +4,21 @@ from typing import Optional
 import click
 
 from src.fusion.fusion import FusionModel, fuse_segmentations
-
-# --- 1. Core Logic (unchanged) ---
-# This part contains your function and Enum, which can be kept in the same file
-# or imported from another module (e.g., from src.fusion.fusion import ...)
+from src.job_file_generator import generate_job_file
 
 # Configure basic logging
 logging.basicConfig(
     level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
 )
 
-# --- 2. Click CLI Definition ---
-# This part replaces your `if __name__ == '__main__':` block.
+
+@click.group()
+def cli():
+    """A CLI tool for cell tracking fusion and job file generation."""
+    pass
 
 
-@click.command()
+@cli.command()
 @click.option(
     "--jar-path",
     required=True,
@@ -148,5 +148,65 @@ def run_fusion(
         exit(1)
 
 
+@cli.command()
+@click.option(
+    "--parquet-file",
+    required=True,
+    type=click.Path(exists=True, dir_okay=False, resolve_path=True),
+    help="Path to the Parquet dataset file (e.g., BF-C2DL-HSC_dataset_dataframe.parquet).",
+)
+@click.option(
+    "--campaign-number",
+    required=True,
+    help="The campaign number (e.g., '01').",
+)
+@click.option(
+    "--output-dir",
+    required=True,
+    type=click.Path(file_okay=False, resolve_path=True),
+    help="Directory where the job file will be saved.",
+)
+@click.option(
+    "--tracking-marker-column",
+    default="tracking_markers",
+    show_default=True,
+    help="The column name in the parquet file that contains the tracking marker paths.",
+)
+@click.option(
+    "--competitor-columns",
+    multiple=True,
+    help="Column names in the parquet file that contain competitor result paths. Can be specified multiple times. If not provided, all columns except known non-competitor columns will be considered.",
+)
+def generate_jobfiles(
+    parquet_file: str,
+    campaign_number: str,
+    output_dir: str,
+    tracking_marker_column: str,
+    competitor_columns: tuple[str],
+):
+    """
+    Generates a job file for a specific dataset.
+    """
+    try:
+        # Convert tuple to list for generate_job_file function
+        competitor_cols_list = list(competitor_columns) if competitor_columns else None
+
+        generate_job_file(
+            parquet_file_path=parquet_file,
+            campaign_number=campaign_number,
+            output_dir=output_dir,
+            tracking_marker_column=tracking_marker_column,
+            competitor_columns=competitor_cols_list,
+        )
+        click.echo(
+            click.style(
+                "Job file generation completed successfully!", fg="green", bold=True
+            )
+        )
+    except Exception as e:
+        click.echo(click.style(f"Error generating job file: {e}", fg="red", bold=True))
+        exit(1)
+
+
 if __name__ == "__main__":
-    run_fusion()
+    cli()

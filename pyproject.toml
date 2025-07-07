@@ -12,7 +12,8 @@ dependencies = [
     "pyarrow",
     "scikit-learn",
     "tabulate",
-    "types-tabulate"
+    "types-tabulate",
+    "pandas"
 ]
 
 [project.optional-dependencies]
