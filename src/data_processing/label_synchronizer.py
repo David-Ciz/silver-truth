@@ -164,9 +164,7 @@ def verify_synchronization(label_img, tracking_img):
     if label_img is None or tracking_img is None:
         logging.warning("One of the images is missing.")
         return False
-    try:
-        label_img.shape == tracking_img.shape
-    except AttributeError:
+    if label_img.shape != tracking_img.shape:
         logging.error("The images are not of the same shape.")
         return False
 
@@ -192,7 +190,7 @@ def verify_synchronization(label_img, tracking_img):
             label_layer = (label_img == label).astype(int)
             tracking_layer = (tracking_img == label).astype(int)
             j_value = jaccard(label_layer.flatten(), tracking_layer.flatten())
-            if j_value == 0:
+            if j_value > 0:
                 logging.error(f"Jaccard index for label {label} is {j_value}.")
                 return False
 
