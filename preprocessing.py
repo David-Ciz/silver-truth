@@ -277,7 +277,7 @@ def create_dataset_dataframe(
         "David-Ciz"  # Current user from your message
     )
     dataset_dataframe.attrs["creation_time"] = pd.Timestamp.now()
-    save_dataframe_to_parquet_with_metadata(dataset_dataframe, output_path)
+    save_dataframe_to_parquet_with_metadata(dataset_dataframe, str(output_path))
 
 
 @click.command(context_settings=dict(help_option_names=["-h", "--help"]))

@@ -24,7 +24,7 @@ def is_valid_competitor_folder(folder):
 
 def process_dataset_directory(
     directory: Path,
-) -> tuple[Dict[str, Dict[str, Any]], Set[str]]:
+) -> tuple[Dict[str, dict], Set[str]]:
     """
     Process the dataset directory structure and extract file information.
 
@@ -34,7 +34,7 @@ def process_dataset_directory(
     Returns:
         Dictionary containing organized dataset information
     """
-    dataset_info = defaultdict(dict)
+    dataset_info: defaultdict[str, dict] = defaultdict(dict)
     competitor_columns = set()
     for dataset_subfolder in directory.iterdir():
         if not dataset_subfolder.is_dir():
@@ -149,7 +149,7 @@ def convert_to_dataframe(dataset_info: Dict[str, Dict[str, Any]]) -> pd.DataFram
     df = pd.DataFrame({"composite_key": list(dataset_info.keys())})
 
     # Collect all possible column names
-    all_columns = set()
+    all_columns: Set[str] = set()
     for image_data in dataset_info.values():
         all_columns.update(image_data.keys())
 

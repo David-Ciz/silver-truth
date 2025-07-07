@@ -1,5 +1,6 @@
 import logging
 from pathlib import Path
+from typing import Optional
 
 import click
 import tifffile
@@ -56,8 +57,8 @@ logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
 )
 def evaluate_competitor(
     dataset_dataframe_path: Path,
-    competitor: str = None,
-    output: Path = None,
+    competitor: Optional[str] = None,
+    output: Optional[Path] = None,
     visualize: bool = False,
     campaign_col: str = "campaign_number",
 ):
@@ -71,7 +72,7 @@ def evaluate_competitor(
     """
     try:
         # Corrected: Load DataFrame, metadata is in df.attrs
-        df = load_dataframe_from_parquet_with_metadata(dataset_dataframe_path)
+        df = load_dataframe_from_parquet_with_metadata(str(dataset_dataframe_path))
 
         # Retrieve competitor columns from df.attrs
         competitor_columns = df.attrs.get(
