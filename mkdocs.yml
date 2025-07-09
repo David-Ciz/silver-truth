@@ -7,6 +7,7 @@ nav:
   - Silver-truth Generation: Silver-truth-generation.md
   - Quality Assurance: quality_assurance.md
   - Experiment Tracking: experiment_tracking.md
+  - QA Data Preparation: qa_data_preparation.md
   - Evaluations: Evaluations.md
   - Label Synchronizer: label_synchronizer.md
   - Notebooks: notebooks.md
