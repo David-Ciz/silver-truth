@@ -6,6 +6,7 @@ nav:
   - Home: index.md
   - Silver-truth Generation: Silver-truth-generation.md
   - Quality Assurance: quality_assurance.md
+  - Experiment Tracking: experiment_tracking.md
   - Evaluations: Evaluations.md
   - Label Synchronizer: label_synchronizer.md
   - Notebooks: notebooks.md
