@@ -2,3 +2,12 @@ site_name: Silver-truth 3.0 Documentation
 site_url: https://silver-truth-3-0.readthedocs.io/
 theme:
   name: readthedocs
+nav:
+  - Home: index.md
+  - Silver-truth Generation: Silver-truth-generation.md
+  - Quality Assurance: quality_assurance.md
+  - Evaluations: Evaluations.md
+  - Label Synchronizer: label_synchronizer.md
+  - Notebooks: notebooks.md
+  - Roadmap: Roadmap.md
+  - References: References.md
