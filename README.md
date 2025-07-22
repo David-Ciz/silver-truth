@@ -12,9 +12,12 @@ This repository contains tools for processing, synchronizing, and evaluating cel
 
 2.  Create a virtual environment and install the required dependencies:
     ```bash
-    python3 -m venv .venv
-    source .venv/bin/activate
-    pip install -e .[dev]
+   python -m venv .venv
+   .venv\Scripts\activate
+   pip install -e .[dev]
+    
+   Create requirements
+   pip freeze > requirements.txt
     ```
 
 ## Usage

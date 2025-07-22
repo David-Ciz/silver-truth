@@ -1,0 +1,23 @@
+Metadata-Version: 2.4
+Name: silver-truth
+Version: 0.1.0
+Requires-Python: >=3.9
+Requires-Dist: scipy
+Requires-Dist: numpy
+Requires-Dist: tifffile
+Requires-Dist: click
+Requires-Dist: imagecodecs
+Requires-Dist: tqdm
+Requires-Dist: pyarrow
+Requires-Dist: scikit-learn
+Requires-Dist: tabulate
+Requires-Dist: types-tabulate
+Requires-Dist: pandas
+Requires-Dist: Pillow
+Provides-Extra: dev
+Requires-Dist: mkdocs; extra == "dev"
+Requires-Dist: mkdocs-material; extra == "dev"
+Requires-Dist: pre-commit; extra == "dev"
+Requires-Dist: mypy; extra == "dev"
+Requires-Dist: pytest; extra == "dev"
+Requires-Dist: pytest-cov; extra == "dev"
