@@ -27,7 +27,7 @@ JAR_PATH = "src/data_processing/cell_tracking_java_helpers/label-fusion-ng-2.2.0
 # Default fusion settings
 DEFAULT_TIME_POINTS = "0-9"
 DEFAULT_NUM_THREADS = 2
-DEFAULT_MODEL = "majority_flat"
+DEFAULT_MODEL = "threshold_flat"
 
 def run_command(command):
     """Run a command and return True if successful, False otherwise."""
