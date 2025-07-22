@@ -19,7 +19,7 @@ logging.basicConfig(
 )
 
 # Configuration
-DATAFRAMES_PATTERN = "*_dataset_dataframe.parquet"
+DATAFRAMES_PATTERN = "dataframes/*_dataset_dataframe.parquet"
 RESULTS_DIR = "evaluation_results"
 
 def run_command(command):
@@ -83,37 +83,67 @@ def main():
     
     successful = 0
     failed = 0
+    no_gt = 0
     failed_files = []
+    no_gt_files = []
     
     for parquet_file in sorted(parquet_files):
         logging.info(f"\n{'='*50}")
         logging.info(f"Evaluating: {parquet_file}")
         logging.info(f"{'='*50}")
         
-        if run_evaluation_for_dataframe(parquet_file):
+        result = run_evaluation_for_dataframe(parquet_file)
+        
+        if result:
             successful += 1
             logging.info(f"✅ Successfully evaluated: {parquet_file}")
         else:
-            failed += 1
-            failed_files.append(parquet_file)
-            logging.error(f"❌ Failed to evaluate: {parquet_file}")
+            # Check if it's a "no GT" issue vs other failure
+            dataset_name = extract_dataset_name(parquet_file)
+            try:
+                import pandas as pd
+                df = pd.read_parquet(parquet_file)
+                if "gt_image" not in df.columns:
+                    no_gt += 1
+                    no_gt_files.append(parquet_file)
+                    logging.warning(f"⚠️  No GT available for: {parquet_file} (tracking-only dataset)")
+                else:
+                    failed += 1
+                    failed_files.append(parquet_file)
+                    logging.error(f"❌ Failed to evaluate: {parquet_file}")
+            except Exception:
+                failed += 1
+                failed_files.append(parquet_file)
+                logging.error(f"❌ Failed to evaluate: {parquet_file}")
     
     # Summary
     logging.info(f"\n{'='*50}")
     logging.info("EVALUATION SUMMARY")
     logging.info(f"{'='*50}")
     logging.info(f"Total dataframes: {len(parquet_files)}")
-    logging.info(f"Successful: {successful}")
-    logging.info(f"Failed: {failed}")
+    logging.info(f"✅ Successful evaluations: {successful}")
+    logging.info(f"⚠️  No GT available (tracking-only): {no_gt}")
+    logging.info(f"❌ Failed evaluations: {failed}")
     logging.info(f"Results saved to: {RESULTS_DIR}")
     
+    if no_gt_files:
+        logging.info(f"\nDatasets without segmentation GT (normal for tracking-only datasets):")
+        for file in no_gt_files:
+            logging.info(f"  - {extract_dataset_name(file)}")
+    
     if failed_files:
-        logging.error(f"Failed files: {', '.join(failed_files)}")
+        logging.error(f"\nFailed evaluations:")
+        for file in failed_files:
+            logging.error(f"  - {extract_dataset_name(file)}")
     
     if failed > 0:
         sys.exit(1)
     else:
-        logging.info("🎉 All evaluations completed successfully!")
+        if successful > 0:
+            logging.info("🎉 All available evaluations completed successfully!")
+        else:
+            logging.warning("⚠️  No evaluations could be performed (no datasets with segmentation GT)")
+            sys.exit(1)
 
 if __name__ == "__main__":
     main()

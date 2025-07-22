@@ -160,5 +160,5 @@ python preprocessing.py compress-tifs <path_to_directory>
 **Example:**
 
 ```bash
-python preprocessing.py compress-tifs data/synchronized_data
+python preprocessing.py compress-tifs "C:\Users\wei0068\Desktop\IT4I\synchronized_data"
 ```
