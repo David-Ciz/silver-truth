@@ -99,8 +99,20 @@ The typical workflow involves these steps, executed in order:
     **Example:**
 
     ```bash
-    python run_fusion.py run-fusion --jar-path src/data_processing/cell_tracking_java_helpers/label-fusion-ng-2.2.0-SNAPSHOT-jar-with-dependencies.jar --job-file job_files/BF-C2DL-HSC_01_job_file.txt --output-pattern data/fused/BF-C2DL-HSC_fused_TTT.tif --time-points "1-10" --num-threads 4 --model "weighted_average"
+    # Run fusion for a single dataset
+    python run_fusion.py run-fusion --jar-path "src/data_processing/cell_tracking_java_helpers/label-fusion-ng-2.2.0-SNAPSHOT-jar-with-dependencies.jar" --job-file "job_files/BF-C2DL-MuSC_01_job_file.txt" --output-pattern "fused_results/BF-C2DL-MuSC_01_fused_TTTT.tif" --time-points "0-9" --num-threads 2 --model "majority_flat"
+    
+    # Run fusion for all datasets automatically
+    python run_all_fusion.py
     ```
+
+    **Available Models:**
+    - `majority_flat`: Majority voting with flat weights
+    - `threshold_flat`: Threshold-based fusion with flat weights
+    - `bic_flat_voting`: BIC algorithm with flat voting
+    - `bic_weighted_voting`: BIC algorithm with weighted voting
+    - `simple`: Simple fusion (may have compatibility issues)
+    - `threshold_user`: Threshold-based with user-defined parameters
 
 5.  **Evaluate Competitor (`evaluation.py`)**
     Evaluates competitor segmentation results against ground truth using the Jaccard index.
@@ -111,13 +123,27 @@ The typical workflow involves these steps, executed in order:
     python evaluation.py evaluate-competitor <path_to_dataset_dataframe> [OPTIONS]
     ```
 
-    **Example:**
+    **Examples:**
 
     ```bash
-    python evaluation.py evaluate-competitor BF_C2DL-HSC_dataset_dataframe.parquet --competitor MyCompetitor --output results.csv
+    # Evaluate all competitors in a dataset
+    python evaluation.py evaluate-competitor "BF-C2DL-MuSC_dataset_dataframe.parquet" --output "evaluation_results_BF-C2DL-MuSC.csv"
+    
+    # Evaluate specific competitor
+    python evaluation.py evaluate-competitor "BF-C2DL-MuSC_dataset_dataframe.parquet" --competitor "MU-Lux-CZ" --output "evaluation_results_BF-C2DL-MuSC_MU-Lux-CZ.csv"
+    
+    # Run evaluation for all datasets automatically
+    python run_all_evaluations.py
+    
+    # Analyze and summarize all evaluation results
+    python analyze_evaluation_results.py
     ```
 
-    To evaluate all competitors, omit the `--competitor` flag.
+    **Available Options:**
+    - `--competitor`: Specify a single competitor to evaluate (optional)
+    - `--output, -o`: Path to save detailed results as CSV
+    - `--visualize, -v`: Generate visualization of results (placeholder)
+    - `--campaign-col`: Column name that identifies the campaign (default: 'campaign_number')
 
 ### Utility Commands
 

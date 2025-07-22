@@ -1,9 +1,0 @@
-C:\Users\wei0068\Desktop\IT4I\synchronized_data\Fluo-N3DH-CE\BGU-IL (5)\02_RES\maskTTTT.tif
-C:\Users\wei0068\Desktop\IT4I\synchronized_data\Fluo-N3DH-CE\HD-Har-GE\02_RES\maskTTTT.tif
-C:\Users\wei0068\Desktop\IT4I\synchronized_data\Fluo-N3DH-CE\KIT-Sch-GE\02_RES\maskTTTT.tif
-C:\Users\wei0068\Desktop\IT4I\synchronized_data\Fluo-N3DH-CE\KTH-SE (1)\02_RES\maskTTTT.tif
-C:\Users\wei0068\Desktop\IT4I\synchronized_data\Fluo-N3DH-CE\MPI-GE\02_RES\maskTTTT.tif
-C:\Users\wei0068\Desktop\IT4I\synchronized_data\Fluo-N3DH-CE\OX-UK\02_RES\maskTTTT.tif
-C:\Users\wei0068\Desktop\IT4I\synchronized_data\Fluo-N3DH-CE\RWTH-GE (2)\02_RES\maskTTTT.tif
-C:\Users\wei0068\Desktop\IT4I\synchronized_data\Fluo-N3DH-CE\UCSB-US\02_RES\maskTTTT.tif
-C:\Users\wei0068\Desktop\IT4I\synchronized_data\Fluo-N3DH-CE\02_GT\TRA\man_trackTTTT.tif

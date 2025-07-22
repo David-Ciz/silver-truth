@@ -1,8 +1,0 @@
-C:\Users\wei0068\Desktop\IT4I\synchronized_data\Fluo-C3DH-A549-SIM\BGU-IL (5)\02_RES\maskTTTT.tif
-C:\Users\wei0068\Desktop\IT4I\synchronized_data\Fluo-C3DH-A549-SIM\DKFZ-GE\02_RES\maskTTTT.tif
-C:\Users\wei0068\Desktop\IT4I\synchronized_data\Fluo-C3DH-A549-SIM\HD-Wol-GE\02_RES\maskTTTT.tif
-C:\Users\wei0068\Desktop\IT4I\synchronized_data\Fluo-C3DH-A549-SIM\KTH-SE (1)\02_RES\maskTTTT.tif
-C:\Users\wei0068\Desktop\IT4I\synchronized_data\Fluo-C3DH-A549-SIM\LEID-NL\02_RES\maskTTTT.tif
-C:\Users\wei0068\Desktop\IT4I\synchronized_data\Fluo-C3DH-A549-SIM\MU-US\02_RES\maskTTTT.tif
-C:\Users\wei0068\Desktop\IT4I\synchronized_data\Fluo-C3DH-A549-SIM\WARW-UK\02_RES\maskTTTT.tif
-C:\Users\wei0068\Desktop\IT4I\synchronized_data\Fluo-C3DH-A549-SIM\02_GT\TRA\man_trackTTTT.tif
