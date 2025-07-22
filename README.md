@@ -40,7 +40,7 @@ The typical workflow involves these steps, executed in order:
     **Example:**
 
     ```bash
-    python preprocessing.py synchronize-datasets data/inputs-2020-07 data/synchronized_data
+    python preprocessing.py synchronize-datasets "C:\Users\wei0068\Desktop\IT4I\inputs-2020-07" "C:\Users\wei0068\Desktop\IT4I\synchronized_data"
     ```
 
 2.  **Create Dataset DataFrame (`preprocessing.py`)**
@@ -52,10 +52,17 @@ The typical workflow involves these steps, executed in order:
     python preprocessing.py create-dataset-dataframe <path_to_synchronized_dataset_dir> --output_path <path_to_output_parquet_file>
     ```
 
-    **Example:**
+    **Examples:**
 
     ```bash
-    python preprocessing.py create-dataset-dataframe data/synchronized_data/BF-C2DL-HSC --output_path BF-C2DL-HSC_dataset_dataframe.parquet
+    # Jednotlivý dataset
+    python preprocessing.py create-dataset-dataframe "C:\Users\wei0068\Desktop\IT4I\synchronized_data\BF-C2DL-MuSC" --output_path "BF-C2DL-MuSC_dataset_dataframe.parquet"
+    
+    # Další příklady
+    python preprocessing.py create-dataset-dataframe "C:\Users\wei0068\Desktop\IT4I\synchronized_data\DIC-C2DH-HeLa" --output_path "DIC-C2DH-HeLa_dataset_dataframe.parquet"
+    
+    # Automatické vytvoření všech dataframes
+    python create_all_dataframes.py
     ```
 
 3.  **Generate Job Files (`run_fusion.py`)**
