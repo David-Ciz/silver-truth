@@ -55,11 +55,28 @@ def generate_job_file(
     competitor_paths = set()
     for col in competitor_columns:
         if col in filtered_df.columns:
-            # Take the first non-null path and replace the numeric part with TTTT
+            # Take the first non-null path and auto-detect the numeric format
             sample_path = filtered_df[col].dropna().iloc[0]
             base_path = os.path.dirname(sample_path)
-            # Assuming the filename is maskXXXX.tif, replace XXXX with TTTT
-            formatted_path = os.path.join(base_path, "maskTTTT.tif")
+            filename = os.path.basename(sample_path)
+            
+            # Auto-detect the numeric format in the filename
+            if "mask" in filename:
+                # Find the number of digits used for numbering
+                import re
+                match = re.search(r'mask(\d+)\.tif', filename)
+                if match:
+                    num_digits = len(match.group(1))
+                    if num_digits == 3:
+                        formatted_path = os.path.join(base_path, "maskTTT.tif")
+                    else:  # Default to 4 digits
+                        formatted_path = os.path.join(base_path, "maskTTTT.tif")
+                else:
+                    # Fallback to TTTT if pattern doesn't match
+                    formatted_path = os.path.join(base_path, "maskTTTT.tif")
+            else:
+                # Fallback to TTTT if no mask pattern found
+                formatted_path = os.path.join(base_path, "maskTTTT.tif")
             competitor_paths.add(formatted_path)
 
     for path in sorted(list(competitor_paths)):
@@ -69,8 +86,24 @@ def generate_job_file(
     if not filtered_df[tracking_marker_column].empty:
         sample_tracking_path = filtered_df[tracking_marker_column].dropna().iloc[0]
         base_tracking_path = os.path.dirname(sample_tracking_path)
-        # Assuming the filename is man_trackXXXX.tif, replace XXXX with TTTT
-        formatted_tracking_path = os.path.join(base_tracking_path, "man_trackTTTT.tif")
+        tracking_filename = os.path.basename(sample_tracking_path)
+        
+        # Auto-detect the numeric format in the tracking filename
+        if "man_track" in tracking_filename:
+            import re
+            match = re.search(r'man_track(\d+)\.tif', tracking_filename)
+            if match:
+                num_digits = len(match.group(1))
+                if num_digits == 3:
+                    formatted_tracking_path = os.path.join(base_tracking_path, "man_trackTTT.tif")
+                else:  # Default to 4 digits
+                    formatted_tracking_path = os.path.join(base_tracking_path, "man_trackTTTT.tif")
+            else:
+                # Fallback to TTTT if pattern doesn't match
+                formatted_tracking_path = os.path.join(base_tracking_path, "man_trackTTTT.tif")
+        else:
+            # Fallback to TTTT if no man_track pattern found
+            formatted_tracking_path = os.path.join(base_tracking_path, "man_trackTTTT.tif")
         job_file_content.append(formatted_tracking_path)
     else:
         print(f"Warning: No tracking markers found for campaign: {campaign_number}")
