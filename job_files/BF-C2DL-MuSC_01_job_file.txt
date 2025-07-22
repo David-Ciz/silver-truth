@@ -1,0 +1,5 @@
+C:\Users\wei0068\Desktop\IT4I\synchronized_data\BF-C2DL-MuSC\CALT-US\01_RES\maskTTTT.tif
+C:\Users\wei0068\Desktop\IT4I\synchronized_data\BF-C2DL-MuSC\KIT-Sch-GE\01_RES\maskTTTT.tif
+C:\Users\wei0068\Desktop\IT4I\synchronized_data\BF-C2DL-MuSC\KTH-SE (3)\01_RES\maskTTTT.tif
+C:\Users\wei0068\Desktop\IT4I\synchronized_data\BF-C2DL-MuSC\MU-Lux-CZ\01_RES\maskTTTT.tif
+C:\Users\wei0068\Desktop\IT4I\synchronized_data\BF-C2DL-MuSC\01_GT\TRA\man_trackTTTT.tif

@@ -1,0 +1,16 @@
+C:\Users\wei0068\Desktop\IT4I\synchronized_data\PhC-C2DH-U373\BGU-IL (3)\01_RES\maskTTTT.tif
+C:\Users\wei0068\Desktop\IT4I\synchronized_data\PhC-C2DH-U373\BGU-IL (4)\01_RES\maskTTTT.tif
+C:\Users\wei0068\Desktop\IT4I\synchronized_data\PhC-C2DH-U373\BGU-IL (5)\01_RES\maskTTTT.tif
+C:\Users\wei0068\Desktop\IT4I\synchronized_data\PhC-C2DH-U373\CALT-US\01_RES\maskTTTT.tif
+C:\Users\wei0068\Desktop\IT4I\synchronized_data\PhC-C2DH-U373\CVUT-CZ\01_RES\maskTTTT.tif
+C:\Users\wei0068\Desktop\IT4I\synchronized_data\PhC-C2DH-U373\DREX-US\01_RES\maskTTTT.tif
+C:\Users\wei0068\Desktop\IT4I\synchronized_data\PhC-C2DH-U373\FR-Be-GE\01_RES\maskTTTT.tif
+C:\Users\wei0068\Desktop\IT4I\synchronized_data\PhC-C2DH-U373\FR-Fa-GE\01_RES\maskTTTT.tif
+C:\Users\wei0068\Desktop\IT4I\synchronized_data\PhC-C2DH-U373\FR-Ro-GE\01_RES\maskTTTT.tif
+C:\Users\wei0068\Desktop\IT4I\synchronized_data\PhC-C2DH-U373\HD-Wol-GE\01_RES\maskTTTT.tif
+C:\Users\wei0068\Desktop\IT4I\synchronized_data\PhC-C2DH-U373\HIT-CN\01_RES\maskTTTT.tif
+C:\Users\wei0068\Desktop\IT4I\synchronized_data\PhC-C2DH-U373\KTH-SE (3)\01_RES\maskTTTT.tif
+C:\Users\wei0068\Desktop\IT4I\synchronized_data\PhC-C2DH-U373\ND-US\01_RES\maskTTTT.tif
+C:\Users\wei0068\Desktop\IT4I\synchronized_data\PhC-C2DH-U373\SZU-CN\01_RES\maskTTTT.tif
+C:\Users\wei0068\Desktop\IT4I\synchronized_data\PhC-C2DH-U373\TUG-AT\01_RES\maskTTTT.tif
+C:\Users\wei0068\Desktop\IT4I\synchronized_data\PhC-C2DH-U373\01_GT\TRA\man_trackTTTT.tif

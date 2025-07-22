@@ -1,0 +1,6 @@
+C:\Users\wei0068\Desktop\IT4I\synchronized_data\Fluo-N3DH-SIM+\BGU-IL (5)\02_RES\maskTTTT.tif
+C:\Users\wei0068\Desktop\IT4I\synchronized_data\Fluo-N3DH-SIM+\DKFZ-GE\02_RES\maskTTTT.tif
+C:\Users\wei0068\Desktop\IT4I\synchronized_data\Fluo-N3DH-SIM+\KIT-Sch-GE\02_RES\maskTTTT.tif
+C:\Users\wei0068\Desktop\IT4I\synchronized_data\Fluo-N3DH-SIM+\KTH-SE (1)\02_RES\maskTTTT.tif
+C:\Users\wei0068\Desktop\IT4I\synchronized_data\Fluo-N3DH-SIM+\LEID-NL\02_RES\maskTTTT.tif
+C:\Users\wei0068\Desktop\IT4I\synchronized_data\Fluo-N3DH-SIM+\02_GT\TRA\man_trackTTTT.tif

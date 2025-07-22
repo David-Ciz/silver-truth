@@ -1,0 +1,12 @@
+C:\Users\wei0068\Desktop\IT4I\synchronized_data\DIC-C2DH-HeLa\BGU-IL (2)\01_RES\maskTTTT.tif
+C:\Users\wei0068\Desktop\IT4I\synchronized_data\DIC-C2DH-HeLa\BGU-IL (4)\01_RES\maskTTTT.tif
+C:\Users\wei0068\Desktop\IT4I\synchronized_data\DIC-C2DH-HeLa\BGU-IL (5)\01_RES\maskTTTT.tif
+C:\Users\wei0068\Desktop\IT4I\synchronized_data\DIC-C2DH-HeLa\CALT-US\01_RES\maskTTTT.tif
+C:\Users\wei0068\Desktop\IT4I\synchronized_data\DIC-C2DH-HeLa\CVUT-CZ\01_RES\maskTTTT.tif
+C:\Users\wei0068\Desktop\IT4I\synchronized_data\DIC-C2DH-HeLa\FR-Fa-GE\01_RES\maskTTTT.tif
+C:\Users\wei0068\Desktop\IT4I\synchronized_data\DIC-C2DH-HeLa\FR-Ro-GE\01_RES\maskTTTT.tif
+C:\Users\wei0068\Desktop\IT4I\synchronized_data\DIC-C2DH-HeLa\KTH-SE (4)\01_RES\maskTTTT.tif
+C:\Users\wei0068\Desktop\IT4I\synchronized_data\DIC-C2DH-HeLa\MU-Lux-CZ\01_RES\maskTTTT.tif
+C:\Users\wei0068\Desktop\IT4I\synchronized_data\DIC-C2DH-HeLa\TUG-AT\01_RES\maskTTTT.tif
+C:\Users\wei0068\Desktop\IT4I\synchronized_data\DIC-C2DH-HeLa\UVA-NL\01_RES\maskTTTT.tif
+C:\Users\wei0068\Desktop\IT4I\synchronized_data\DIC-C2DH-HeLa\01_GT\TRA\man_trackTTTT.tif

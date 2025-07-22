@@ -24,6 +24,10 @@ def generate_job_file(
                                         and 'tracking_markers' will be considered competitor columns.
     """
     df = load_dataframe_from_parquet_with_metadata(parquet_file_path)
+    
+    # Extract dataset name from parquet file path
+    parquet_path = os.path.basename(parquet_file_path)
+    dataset_name = parquet_path.replace("_dataset_dataframe.parquet", "")
 
     # Filter for the specific campaign number
     filtered_df = df[df["campaign_number"] == campaign_number]
@@ -71,7 +75,7 @@ def generate_job_file(
     else:
         print(f"Warning: No tracking markers found for campaign: {campaign_number}")
 
-    output_file_name = f"campaign_{campaign_number}_job_file.txt"
+    output_file_name = f"{dataset_name}_{campaign_number}_job_file.txt"
     output_file_path = os.path.join(output_dir, output_file_name)
     os.makedirs(output_dir, exist_ok=True)
     with open(output_file_path, "w") as f:

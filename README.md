@@ -74,10 +74,17 @@ The typical workflow involves these steps, executed in order:
     python run_fusion.py generate-jobfiles --parquet-file <path_to_parquet_file> --campaign-number <campaign_number> --output-dir <output_directory>
     ```
 
-    **Example:**
+    **Examples:**
 
     ```bash
-    python run_fusion.py generate-jobfiles --parquet-file BF-C2DL-HSC_dataset_dataframe.parquet --campaign-number 01 --output-dir job_files
+    # Jednotlivý dataset a kampaň
+    python run_fusion.py generate-jobfiles --parquet-file "BF-C2DL-MuSC_dataset_dataframe.parquet" --campaign-number "01" --output-dir "job_files"
+    
+    # Další příklady
+    python run_fusion.py generate-jobfiles --parquet-file "DIC-C2DH-HeLa_dataset_dataframe.parquet" --campaign-number "02" --output-dir "job_files"
+    
+    # Automatické vytvoření všech job files
+    python generate_all_jobfiles.py
     ```
 
 4.  **Run Fusion (`run_fusion.py`)**
