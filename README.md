@@ -130,7 +130,7 @@ The typical workflow involves these steps, executed in order:
     python evaluation.py evaluate-competitor "BF-C2DL-MuSC_dataset_dataframe.parquet" --output "evaluation_results_BF-C2DL-MuSC.csv"
     
     # Evaluate specific competitor
-    python evaluation.py evaluate-competitor "BF-C2DL-MuSC_dataset_dataframe.parquet" --competitor "MU-Lux-CZ" --output "evaluation_results_BF-C2DL-MuSC_MU-Lux-CZ.csv"
+    python evaluation.py evaluate-competitor "dataframes/BF-C2DL-MuSC_dataset_dataframe.parquet" --competitor "MU-Lux-CZ" --output "evaluation_results_BF-C2DL-MuSC_MU-Lux-CZ.csv"
     
     # Run evaluation for all datasets automatically
     python run_all_evaluations.py
@@ -161,4 +161,8 @@ python preprocessing.py compress-tifs <path_to_directory>
 
 ```bash
 python preprocessing.py compress-tifs "C:\Users\wei0068\Desktop\IT4I\synchronized_data"
+
+python visualize_tif.py "fused_results/BF-C2DL-MuSC_01_fused_0001.tif"
+python show_objects.py "fused_results/BF-C2DL-MuSC_01_fused_0001.tif"
 ```
+
