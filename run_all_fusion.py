@@ -25,7 +25,7 @@ OUTPUT_DIR = "fused_results"
 JAR_PATH = "src/data_processing/cell_tracking_java_helpers/label-fusion-ng-2.2.0-SNAPSHOT-jar-with-dependencies.jar"
 
 # Default fusion settings
-DEFAULT_TIME_POINTS = "0-9"
+DEFAULT_TIME_POINTS = "0-61"
 DEFAULT_NUM_THREADS = 2
 DEFAULT_MODEL = "threshold_flat"
 

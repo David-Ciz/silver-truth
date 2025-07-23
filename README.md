@@ -127,7 +127,7 @@ The typical workflow involves these steps, executed in order:
 
     ```bash
     # Evaluate all competitors in a dataset
-    python evaluation.py evaluate-competitor "BF-C2DL-MuSC_dataset_dataframe.parquet" --output "evaluation_results_BF-C2DL-MuSC.csv"
+    python evaluation.py evaluate-competitor "BF-C2DL-MuSC_dataset_dataframe_with_fused.parquet" --output "evaluation_results_BF-C2DL-MuSC.csv"
     
     # Evaluate specific competitor
     python evaluation.py evaluate-competitor "dataframes/BF-C2DL-MuSC_dataset_dataframe.parquet" --competitor "MU-Lux-CZ" --output "evaluation_results_BF-C2DL-MuSC_MU-Lux-CZ.csv"

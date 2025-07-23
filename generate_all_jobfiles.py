@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+
 """
 Automatic script to generate job files for all dataset dataframes.
 
@@ -24,7 +24,7 @@ DATAFRAMES_PATTERNS = [
     "dataframes/*_dataset_dataframe.parquet" # New: dataframes folder
 ]
 OUTPUT_DIR = "job_files"
-DEFAULT_CAMPAIGN = "01"  # Default campaign number
+DEFAULT_CAMPAIGN = "01"  # Default campaign number (changed to 01)
 
 def run_command(command):
     """Run a command and return True if successful, False otherwise."""
