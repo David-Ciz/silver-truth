@@ -96,7 +96,7 @@ def main():
         
         if result:
             successful += 1
-            logging.info(f"✅ Successfully evaluated: {parquet_file}")
+            logging.info(f"Successfully evaluated: {parquet_file}")
         else:
             # Check if it's a "no GT" issue vs other failure
             dataset_name = extract_dataset_name(parquet_file)
@@ -106,24 +106,24 @@ def main():
                 if "gt_image" not in df.columns:
                     no_gt += 1
                     no_gt_files.append(parquet_file)
-                    logging.warning(f"⚠️  No GT available for: {parquet_file} (tracking-only dataset)")
+                    logging.warning(f"No GT available for: {parquet_file} (tracking-only dataset)")
                 else:
                     failed += 1
                     failed_files.append(parquet_file)
-                    logging.error(f"❌ Failed to evaluate: {parquet_file}")
+                    logging.error(f"Failed to evaluate: {parquet_file}")
             except Exception:
                 failed += 1
                 failed_files.append(parquet_file)
-                logging.error(f"❌ Failed to evaluate: {parquet_file}")
+                logging.error(f"Failed to evaluate: {parquet_file}")
     
     # Summary
     logging.info(f"\n{'='*50}")
     logging.info("EVALUATION SUMMARY")
     logging.info(f"{'='*50}")
     logging.info(f"Total dataframes: {len(parquet_files)}")
-    logging.info(f"✅ Successful evaluations: {successful}")
-    logging.info(f"⚠️  No GT available (tracking-only): {no_gt}")
-    logging.info(f"❌ Failed evaluations: {failed}")
+    logging.info(f"Successful evaluations: {successful}")
+    logging.info(f"No GT available (tracking-only): {no_gt}")
+    logging.info(f"Failed evaluations: {failed}")
     logging.info(f"Results saved to: {RESULTS_DIR}")
     
     if no_gt_files:
@@ -142,7 +142,7 @@ def main():
         if successful > 0:
             logging.info("🎉 All available evaluations completed successfully!")
         else:
-            logging.warning("⚠️  No evaluations could be performed (no datasets with segmentation GT)")
+            logging.warning("No evaluations could be performed (no datasets with segmentation GT)")
             sys.exit(1)
 
 if __name__ == "__main__":

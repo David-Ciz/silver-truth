@@ -125,11 +125,11 @@ def main():
         
         if run_fusion_for_job(job_file):
             successful += 1
-            logging.info(f"✅ Successfully processed: {job_file}")
+            logging.info(f"Successfully processed: {job_file}")
         else:
             failed += 1
             failed_jobs.append(job_file)
-            logging.error(f"❌ Failed to process: {job_file}")
+            logging.error(f"Failed to process: {job_file}")
     
     # Summary
     logging.info(f"\n{'='*50}")
@@ -149,7 +149,7 @@ def main():
     if failed > 0:
         sys.exit(1)
     else:
-        logging.info("🎉 All fusion processes completed successfully!")
+        logging.info("All fusion processes completed successfully!")
 
 if __name__ == "__main__":
     main()

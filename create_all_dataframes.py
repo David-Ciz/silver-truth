@@ -89,11 +89,11 @@ def main():
         
         if create_dataframe_for_dataset(dataset_dir):
             successful += 1
-            logging.info(f"✅ Successfully processed: {dataset_dir.name}")
+            logging.info(f"Successfully processed: {dataset_dir.name}")
         else:
             failed += 1
             failed_datasets.append(dataset_dir.name)
-            logging.error(f"❌ Failed to process: {dataset_dir.name}")
+            logging.error(f"Failed to process: {dataset_dir.name}")
     
     # Summary
     logging.info(f"\n{'='*50}")
@@ -109,7 +109,7 @@ def main():
     if failed > 0:
         sys.exit(1)
     else:
-        logging.info("🎉 All datasets processed successfully!")
+        logging.info("All datasets processed successfully!")
 
 if __name__ == "__main__":
     main()

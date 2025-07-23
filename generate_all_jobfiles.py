@@ -99,11 +99,11 @@ def main():
         
         if generate_jobfile_for_dataframe(parquet_file):
             successful += 1
-            logging.info(f"✅ Successfully processed: {parquet_file}")
+            logging.info(f"Successfully processed: {parquet_file}")
         else:
             failed += 1
             failed_files.append(parquet_file)
-            logging.error(f"❌ Failed to process: {parquet_file}")
+            logging.error(f"Failed to process: {parquet_file}")
     
     # Summary
     logging.info(f"\n{'='*50}")
@@ -120,7 +120,7 @@ def main():
     if failed > 0:
         sys.exit(1)
     else:
-        logging.info("🎉 All job files generated successfully!")
+        logging.info("All job files generated successfully!")
 
 if __name__ == "__main__":
     main()

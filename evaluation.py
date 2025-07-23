@@ -81,7 +81,7 @@ def evaluate_competitor(
         
         # Check for gt_image column
         if "gt_image" not in df.columns:
-            logging.error(f"❌ Dataset '{dataset_name}' has NO 'gt_image' column!")
+            logging.error(f"Dataset '{dataset_name}' has NO 'gt_image' column!")
             logging.error("   This dataset only has tracking annotations, not segmentation ground truth.")
             logging.error("   Jaccard evaluation is not possible. Skipping dataset.")
             return
@@ -91,14 +91,14 @@ def evaluate_competitor(
         gt_percentage = round(gt_available / len(df) * 100, 1) if len(df) > 0 else 0
         
         if gt_available == 0:
-            logging.error(f"❌ Dataset '{dataset_name}' has NO ground truth segmentation files!")
+            logging.error(f"Dataset '{dataset_name}' has NO ground truth segmentation files!")
             logging.error("   All gt_image values are null. Cannot perform evaluation.")
             return
         elif gt_available < len(df) * 0.05:  # Less than 5%
-            logging.warning(f"⚠️  Dataset '{dataset_name}' has very few GT files: {gt_available}/{len(df)} ({gt_percentage}%)")
+            logging.warning(f"Dataset '{dataset_name}' has very few GT files: {gt_available}/{len(df)} ({gt_percentage}%)")
             logging.warning("   This is normal for some datasets, but evaluation will be limited.")
         else:
-            logging.info(f"✅ Dataset '{dataset_name}' has {gt_available}/{len(df)} GT files ({gt_percentage}%)")
+            logging.info(f"Dataset '{dataset_name}' has {gt_available}/{len(df)} GT files ({gt_percentage}%)")
 
         # Retrieve competitor columns from df.attrs
         competitor_columns = df.attrs.get(
@@ -142,11 +142,11 @@ def evaluate_competitor(
             comp_available = df[comp].notna().sum()
             comp_percentage = round(comp_available / len(df) * 100, 1) if len(df) > 0 else 0
             if comp_available == 0:
-                logging.warning(f"⚠️  Competitor '{comp}': NO files available (0/{len(df)})")
+                logging.warning(f"Competitor '{comp}': NO files available (0/{len(df)})")
             elif comp_available < len(df) * 0.5:  # Less than 50%
-                logging.warning(f"⚠️  Competitor '{comp}': {comp_available}/{len(df)} files ({comp_percentage}%)")
+                logging.warning(f"Competitor '{comp}': {comp_available}/{len(df)} files ({comp_percentage}%)")
             else:
-                logging.info(f"✅ Competitor '{comp}': {comp_available}/{len(df)} files ({comp_percentage}%)")
+                logging.info(f"Competitor '{comp}': {comp_available}/{len(df)} files ({comp_percentage}%)")
 
     except FileNotFoundError:
         logging.error(f"Dataset dataframe file not found at: {dataset_dataframe_path}")
@@ -196,7 +196,7 @@ def evaluate_competitor(
     logging.info(f"Final dataset for evaluation: {rows_after_gt_exist} rows with valid GT files")
 
     if filtered_df.empty:
-        logging.error("❌ No rows remaining after filtering for valid ground truth images.")
+        logging.error("No rows remaining after filtering for valid ground truth images.")
         logging.error("   Cannot perform evaluation without ground truth data.")
         return
 
@@ -399,15 +399,15 @@ def evaluate_competitor(
     logging.info(f"  • Competitors with no scores (NaN): {nan_scores_count}/{total_evaluations}")
     
     if valid_scores_count == 0:
-        logging.warning(f"⚠️  No valid Jaccard scores calculated for any competitor!")
+        logging.warning(f"No valid Jaccard scores calculated for any competitor!")
         logging.warning("   This might indicate:")
         logging.warning("   - Missing competitor segmentation files")
         logging.warning("   - Mismatched label numbers between GT and competitor segmentations")
         logging.warning("   - File format issues")
     elif nan_scores_count > 0:
-        logging.warning(f"⚠️  {nan_scores_count} competitors have no valid scores")
+        logging.warning(f"{nan_scores_count} competitors have no valid scores")
     else:
-        logging.info("✅ All competitors have valid evaluation scores")
+        logging.info("All competitors have valid evaluation scores")
     
     # Assuming print_results handles the data structure correctly
     print_results(

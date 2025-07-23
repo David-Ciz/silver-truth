@@ -84,7 +84,7 @@ def print_summary(files_to_delete):
             total_size += category_size
             total_files += len(files)
             
-            print(f"\n📁 {category.upper()}:")
+            print(f"\n {category.upper()}:")
             print(f"   Files: {len(files)}")
             print(f"   Size:  {format_file_size(category_size)}")
             
@@ -96,7 +96,7 @@ def print_summary(files_to_delete):
             if len(files) > 3:
                 print(f"   ... and {len(files) - 3} more files")
     
-    print(f"\n📊 TOTAL:")
+    print(f"\nTOTAL:")
     print(f"   Files: {total_files}")
     print(f"   Size:  {format_file_size(total_size)}")
     print("=" * 60)
@@ -104,13 +104,13 @@ def print_summary(files_to_delete):
 def delete_files(file_list, category_name, dry_run=False, confirm=False):
     """Delete files in the list."""
     if not file_list:
-        print(f"ℹ️  No {category_name} files found.")
+        print(f"ℹNo {category_name} files found.")
         return 0
     
     if confirm:
         response = input(f"🗑️  Delete {len(file_list)} {category_name} files? (y/N): ")
         if response.lower() not in ['y', 'yes']:
-            print(f"⏭️  Skipping {category_name} files.")
+            print(f"Skipping {category_name} files.")
             return 0
     
     deleted_count = 0
@@ -126,16 +126,16 @@ def delete_files(file_list, category_name, dry_run=False, confirm=False):
             else:
                 try:
                     os.remove(file_path)
-                    print(f"✅ Deleted: {os.path.basename(file_path)} ({format_file_size(file_size)})")
+                    print(f"Deleted: {os.path.basename(file_path)} ({format_file_size(file_size)})")
                     deleted_count += 1
                 except OSError as e:
-                    print(f"❌ Failed to delete {file_path}: {e}")
+                    print(f"Failed to delete {file_path}: {e}")
         else:
             if dry_run:
-                print(f"⚠️  File not found: {file_path}")
+                print(f"File not found: {file_path}")
     
     if not dry_run and deleted_count > 0:
-        print(f"✅ Successfully deleted {deleted_count} {category_name} files ({format_file_size(total_size)})")
+        print(f"Successfully deleted {deleted_count} {category_name} files ({format_file_size(total_size)})")
     
     return deleted_count
 
@@ -184,14 +184,14 @@ Examples:
     # Check if any files found
     total_files = sum(len(files) for files in files_to_delete.values())
     if total_files == 0:
-        print("ℹ️  No files found to delete.")
+        print("No files found to delete.")
         return
     
     # Print summary
     print_summary(files_to_delete)
     
     if args.dry_run:
-        print("\n🔍 DRY RUN MODE - No files will be actually deleted")
+        print("\n DRY RUN MODE - No files will be actually deleted")
         print("=" * 60)
     
     # Delete files
@@ -206,9 +206,9 @@ Examples:
         if total_deleted > 0:
             print(f"\n🎉 Cleanup completed! Deleted {total_deleted} files.")
         else:
-            print(f"\n⚠️  No files were deleted.")
+            print(f"\n No files were deleted.")
     else:
-        print(f"\n📋 Dry run completed. Found {total_files} files that would be deleted.")
+        print(f"\n Dry run completed. Found {total_files} files that would be deleted.")
 
 if __name__ == "__main__":
     main()

@@ -270,7 +270,7 @@ def main():
     logging.info(f"Best performing dataset: {best_dataset} (mean: {best_dataset_score:.4f})")
     
     logging.info(f"\nAll analysis results saved to: {output_dir}")
-    logging.info("🎉 Analysis completed successfully!")
+    logging.info("Analysis completed successfully!")
 
 if __name__ == "__main__":
     main()
