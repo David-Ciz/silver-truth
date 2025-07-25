@@ -40,6 +40,7 @@ def cli():
 @click.option(
     "--time-points",
     required=True,
+    default="0-90000",
     help='Timepoints to process as a string (e.g., "1-9,23,25").',
 )
 @click.option(
