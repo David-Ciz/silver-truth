@@ -42,8 +42,10 @@ def fuse_segmentations(
     output_dir = os.path.dirname(os.path.abspath(output_path_pattern))
     if not os.path.isdir(output_dir):
         logging.warning(
-            f"Output directory '{output_dir}' does not exist. The Java process may fail."
+            f"Output directory '{output_dir}' does not exist. Creating the directory"
         )
+        os.makedirs(output_dir, exist_ok=True)
+
     if seg_eval_folder:
         seg_eval_folder = os.path.abspath(seg_eval_folder)
 
