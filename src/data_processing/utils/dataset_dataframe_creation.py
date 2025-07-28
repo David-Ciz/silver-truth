@@ -67,7 +67,7 @@ def process_source_images(
 
     for image in folder.iterdir():
         if image.suffix == ".tif":
-            image_number = image.name[-8:]
+            image_number = extract_image_number(image.name)
             composite_key = f"{campaign_number}_{image_number}"
             dataset_info[composite_key]["source_image"] = str(image)
             dataset_info[composite_key]["campaign_number"] = campaign_number
@@ -83,7 +83,7 @@ def process_gt_data(
     # Process ground truth images
     for image in gt_subfolder.iterdir():
         if image.suffix == ".tif":
-            image_number = image.name[-8:]
+            image_number = extract_image_number(image.name)
             composite_key = f"{campaign_number}_{image_number}"
             dataset_info[composite_key]["gt_image"] = str(image)
             dataset_info[composite_key]["campaign_number"] = campaign_number
@@ -91,7 +91,7 @@ def process_gt_data(
     # Process tracking marker images
     for image in tra_subfolder.iterdir():
         if image.suffix == ".tif":
-            image_number = image.name[-8:]
+            image_number = extract_image_number(image.name)
             composite_key = f"{campaign_number}_{image_number}"
             dataset_info[composite_key]["tracking_markers"] = str(image)
             dataset_info[composite_key]["campaign_number"] = campaign_number
@@ -120,7 +120,7 @@ def process_competitor_campaign(
     """Process competitor result files for a specific campaign."""
     for image in res_folder.iterdir():
         if image.suffix == ".tif":
-            image_number = image.name[-8:]
+            image_number = extract_image_number(image.name)
             composite_key = f"{campaign_number}_{image_number}"
             dataset_info[composite_key][str(competitor_folder.name)] = str(image)
             dataset_info[composite_key]["campaign_number"] = campaign_number
@@ -128,6 +128,34 @@ def process_competitor_campaign(
 
 def extract_image_number(filename: str) -> str:
     """Extract the image number from a filename."""
+    import re
+    
+    # Try to extract number from different patterns
+    # Pattern 1: man_seg followed by digits (GT files)
+    match = re.search(r'man_seg(\d+)\.tif$', filename)
+    if match:
+        number = match.group(1)
+        return f"{number.zfill(4)}.tif"  # Normalize to 4 digits with .tif extension
+    
+    # Pattern 2: mask followed by digits (competitor files)  
+    match = re.search(r'mask(\d+)\.tif$', filename)
+    if match:
+        number = match.group(1)
+        return f"{number.zfill(4)}.tif"  # Normalize to 4 digits with .tif extension
+    
+    # Pattern 3: man_track followed by digits (tracking files)
+    match = re.search(r'man_track(\d+)\.tif$', filename)
+    if match:
+        number = match.group(1)
+        return f"{number.zfill(4)}.tif"  # Normalize to 4 digits with .tif extension
+    
+    # Pattern 4: t followed by digits (source images)
+    match = re.search(r't(\d+)\.tif$', filename)
+    if match:
+        number = match.group(1)
+        return f"{number.zfill(4)}.tif"  # Normalize to 4 digits with .tif extension
+    
+    # Fallback to original logic if no pattern matches
     return filename[-8:]
 
 

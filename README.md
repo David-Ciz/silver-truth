@@ -12,9 +12,12 @@ This repository contains tools for processing, synchronizing, and evaluating cel
 
 2.  Create a virtual environment and install the required dependencies:
     ```bash
-    python3 -m venv .venv
-    source .venv/bin/activate
-    pip install -e .[dev]
+   python -m venv .venv
+   .venv\Scripts\activate
+   pip install -e .[dev]
+    
+   Create requirements
+   pip freeze > requirements.txt
     ```
 
 ## Usage
@@ -37,7 +40,7 @@ The typical workflow involves these steps, executed in order:
     **Example:**
 
     ```bash
-    python preprocessing.py synchronize-datasets data/inputs-2020-07 data/synchronized_data
+    python preprocessing.py synchronize-datasets "C:\Users\wei0068\Desktop\IT4I\inputs-2020-07" "C:\Users\wei0068\Desktop\IT4I\synchronized_data"
     ```
 
 2.  **Create Dataset DataFrame (`preprocessing.py`)**
@@ -49,10 +52,17 @@ The typical workflow involves these steps, executed in order:
     python preprocessing.py create-dataset-dataframe <path_to_synchronized_dataset_dir> --output_path <path_to_output_parquet_file>
     ```
 
-    **Example:**
+    **Examples:**
 
     ```bash
-    python preprocessing.py create-dataset-dataframe data/synchronized_data/BF-C2DL-HSC --output_path BF-C2DL-HSC_dataset_dataframe.parquet
+    # Jednotlivý dataset
+    python preprocessing.py create-dataset-dataframe "C:\Users\wei0068\Desktop\IT4I\synchronized_data\BF-C2DL-MuSC" --output_path "BF-C2DL-MuSC_dataset_dataframe.parquet"
+    
+    # Další příklady
+    python preprocessing.py create-dataset-dataframe "C:\Users\wei0068\Desktop\IT4I\synchronized_data\DIC-C2DH-HeLa" --output_path "DIC-C2DH-HeLa_dataset_dataframe.parquet"
+    
+    # Automatické vytvoření všech dataframes
+    python create_all_dataframes.py
     ```
 
 3.  **Generate Job Files (`run_fusion.py`)**
@@ -64,10 +74,17 @@ The typical workflow involves these steps, executed in order:
     python run_fusion.py generate-jobfiles --parquet-file <path_to_parquet_file> --campaign-number <campaign_number> --output-dir <output_directory>
     ```
 
-    **Example:**
+    **Examples:**
 
     ```bash
-    python run_fusion.py generate-jobfiles --parquet-file BF-C2DL-HSC_dataset_dataframe.parquet --campaign-number 01 --output-dir job_files
+    # Jednotlivý dataset a kampaň
+    python run_fusion.py generate-jobfiles --parquet-file "BF-C2DL-MuSC_dataset_dataframe.parquet" --campaign-number "01" --output-dir "job_files"
+    
+    # Další příklady
+    python run_fusion.py generate-jobfiles --parquet-file "DIC-C2DH-HeLa_dataset_dataframe.parquet" --campaign-number "02" --output-dir "job_files"
+    
+    # Automatické vytvoření všech job files
+    python generate_all_jobfiles.py
     ```
 
 4.  **Run Fusion (`run_fusion.py`)**
@@ -82,8 +99,34 @@ The typical workflow involves these steps, executed in order:
     **Example:**
 
     ```bash
-    python run_fusion.py run-fusion --jar-path src/data_processing/cell_tracking_java_helpers/label-fusion-ng-2.2.0-SNAPSHOT-jar-with-dependencies.jar --job-file job_files/BF-C2DL-HSC_01_job_file.txt --output-pattern data/fused/BF-C2DL-HSC_fused_TTT.tif --time-points "1-10" --num-threads 4 --model "weighted_average"
+    # Run fusion for a single dataset
+    python run_fusion.py run-fusion --jar-path "src/data_processing/cell_tracking_java_helpers/label-fusion-ng-2.2.0-SNAPSHOT-jar-with-dependencies.jar" --job-file "job_files/BF-C2DL-MuSC_01_job_file.txt" --output-pattern "fused_results/BF-C2DL-MuSC_01_fused_TTTT.tif" --time-points "0-61" --num-threads 2 --model "majority_flat"
+
+   python run_fusion.py run-fusion --jar-path "src/data_processing/cell_tracking_java_helpers/label-fusion-ng-2.2.0-SNAPSHOT-jar-with-dependencies.jar" --job-file "job_files/DIC-C2DH-HeLa_01_job_file.txt" --output-pattern "fused_results/DIC-C2DH-HeLa_01_fused_TTT.tif" --time-points "0-10" --num-threads 2 --model "majority_flat"
+
+   python run_fusion.py run-fusion --jar-path "src/data_processing/cell_tracking_java_helpers/label-fusion-ng-2.2.0-SNAPSHOT-jar-with-dependencies.jar" --job-file "job_files/Fluo-C2DL-MSC_01_job_file.txt" --output-pattern "fused_results/Fluo-C2DL-MSC_01_fused_TTT.tif" --time-points "0-10" --num-threads 2 --model "threshold_use"
+
+    
+    # Run fusion for all datasets automatically
+    python run_all_fusion.py
     ```
+
+    **Available Models:**
+    - `majority_flat`: Majority voting with flat weights
+    - `threshold_flat`: Threshold-based fusion with flat weights
+    - `bic_flat_voting`: BIC algorithm with flat voting
+    - `bic_weighted_voting`: BIC algorithm with weighted voting
+    - `simple`: Simple fusion (may have compatibility issues)
+    - `threshold_user`: Threshold-based with user-defined parameters
+
+
+44. parquet soubor fusion
+python fussion_parquet --dataset "BF-C2DL-MuSC"
+
+python fussion_parquet --dataset "DIC-C2DH-HeLa"
+
+python fussion_parquet --dataset "Fluo-C2DL-MSC"
+
 
 5.  **Evaluate Competitor (`evaluation.py`)**
     Evaluates competitor segmentation results against ground truth using the Jaccard index.
@@ -94,13 +137,29 @@ The typical workflow involves these steps, executed in order:
     python evaluation.py evaluate-competitor <path_to_dataset_dataframe> [OPTIONS]
     ```
 
-    **Example:**
+    **Examples:**
 
     ```bash
-    python evaluation.py evaluate-competitor BF_C2DL-HSC_dataset_dataframe.parquet --competitor MyCompetitor --output results.csv
+    # Evaluate all competitors in a dataset
+    python evaluation.py evaluate-competitor "fused_results_parquet/BF-C2DL-MuSC_dataset_dataframe_with_fused.parquet" --output "evaluation_results_BF-C2DL-MuSC.csv"
+
+    python evaluation.py evaluate-competitor "fused_results_parquet/DIC-C2DH-HeLa_dataset_dataframe_with_fused.parquet" --output "evaluation_results_DIC-C2DH-HeLa.csv"
+    
+    # Evaluate specific competitor
+    python evaluation.py evaluate-competitor "dataframes/BF-C2DL-MuSC_dataset_dataframe.parquet" --competitor "MU-Lux-CZ" --output "evaluation_results_BF-C2DL-MuSC_MU-Lux-CZ.csv"
+    
+    # Run evaluation for all datasets automatically
+    python run_all_evaluations.py
+    
+    # Analyze and summarize all evaluation results
+    python analyze_evaluation_results.py
     ```
 
-    To evaluate all competitors, omit the `--competitor` flag.
+    **Available Options:**
+    - `--competitor`: Specify a single competitor to evaluate (optional)
+    - `--output, -o`: Path to save detailed results as CSV
+    - `--visualize, -v`: Generate visualization of results (placeholder)
+    - `--campaign-col`: Column name that identifies the campaign (default: 'campaign_number')
 
 ### Utility Commands
 
@@ -117,5 +176,9 @@ python preprocessing.py compress-tifs <path_to_directory>
 **Example:**
 
 ```bash
-python preprocessing.py compress-tifs data/synchronized_data
+python preprocessing.py compress-tifs "C:\Users\wei0068\Desktop\IT4I\synchronized_data"
+
+python visualize_tif.py "fused_results/BF-C2DL-MuSC_01_fused_0001.tif"
+python show_objects.py "fused_results/BF-C2DL-MuSC_01_fused_0001.tif"
 ```
+

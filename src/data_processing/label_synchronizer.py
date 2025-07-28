@@ -253,7 +253,7 @@ def compress_tif_file(file_path, dryrun=False):
 
         return (
             True,
-            f"Compressed: {file_path} ({original_size:.2f}MB → {new_size:.2f}MB, saved {original_size - new_size:.2f}MB)",
+            f"Compressed: {file_path} ({original_size:.2f}MB -> {new_size:.2f}MB, saved {original_size - new_size:.2f}MB)",
         )
 
     except Exception as e:
