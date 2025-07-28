@@ -29,7 +29,7 @@ def generate_job_file(
     output_dir: str,
     tracking_marker_column: str = "tracking_markers",
     competitor_columns: list[str] | None = None,
-    config_path: str = "competitor_config.json",
+    config_path: str = None,
 ):
     """
     Generates a job file for a specific campaign, listing competitor results and tracking markers.
@@ -41,13 +41,18 @@ def generate_job_file(
         tracking_marker_column (str): The column name in the parquet file that contains the tracking marker paths.
         competitor_columns (list[str]): A list of column names in the parquet file that contain competitor result paths.
                                         If None, will use configuration file or all available competitors.
-        config_path (str): Path to the competitor configuration JSON file.
+        config_path (str): Path to the competitor configuration JSON file. If None, will auto-determine based on campaign.
     """
     df = load_dataframe_from_parquet_with_metadata(parquet_file_path)
     
     # Extract dataset name from parquet file path
     parquet_path = os.path.basename(parquet_file_path)
     dataset_name = parquet_path.replace("_dataset_dataframe.parquet", "")
+
+    # Auto-determine config path if not provided
+    if config_path is None:
+        config_path = f"competitor_config_campaign{campaign_number}.json"
+        print(f"Auto-selected configuration file: {config_path}")
 
     # Load competitor configuration
     competitor_config = load_competitor_config(config_path)

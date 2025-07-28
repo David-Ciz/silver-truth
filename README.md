@@ -100,11 +100,11 @@ The typical workflow involves these steps, executed in order:
 
     ```bash
     # Run fusion for a single dataset
-    python run_fusion.py run-fusion --jar-path "src/data_processing/cell_tracking_java_helpers/label-fusion-ng-2.2.0-SNAPSHOT-jar-with-dependencies.jar" --job-file "job_files/BF-C2DL-MuSC_01_job_file.txt" --output-pattern "fused_results/BF-C2DL-MuSC_01_fused_TTTT.tif" --time-points "0-61" --num-threads 2 --model "majority_flat"
+    python run_fusion.py run-fusion --jar-path "src/data_processing/cell_tracking_java_helpers/label-fusion-ng-2.2.0-SNAPSHOT-jar-with-dependencies.jar" --job-file "job_files/BF-C2DL-MuSC_01_job_file.txt" --output-pattern "fused_results/BF-C2DL-MuSC_01_fused_TTTT.tif" --time-points "0-61" --num-threads 2 --model "threshold_use"
 
    python run_fusion.py run-fusion --jar-path "src/data_processing/cell_tracking_java_helpers/label-fusion-ng-2.2.0-SNAPSHOT-jar-with-dependencies.jar" --job-file "job_files/DIC-C2DH-HeLa_01_job_file.txt" --output-pattern "fused_results/DIC-C2DH-HeLa_01_fused_TTT.tif" --time-points "0-10" --num-threads 2 --model "majority_flat"
 
-   python run_fusion.py run-fusion --jar-path "src/data_processing/cell_tracking_java_helpers/label-fusion-ng-2.2.0-SNAPSHOT-jar-with-dependencies.jar" --job-file "job_files/Fluo-C2DL-MSC_01_job_file.txt" --output-pattern "fused_results/Fluo-C2DL-MSC_01_fused_TTT.tif" --time-points "0-10" --num-threads 2 --model "majority_flat"
+   python run_fusion.py run-fusion --jar-path "src/data_processing/cell_tracking_java_helpers/label-fusion-ng-2.2.0-SNAPSHOT-jar-with-dependencies.jar" --job-file "job_files/Fluo-C2DL-MSC_01_job_file.txt" --output-pattern "fused_results/Fluo-C2DL-MSC_01_fused_TTT.tif" --time-points "0-10" --num-threads 2 --model "threshold_use"
 
     
     # Run fusion for all datasets automatically
@@ -141,7 +141,9 @@ python fussion_parquet --dataset "Fluo-C2DL-MSC"
 
     ```bash
     # Evaluate all competitors in a dataset
-    python evaluation.py evaluate-competitor "dataframes/BF-C2DL-MuSC_dataset_dataframe_with_fused.parquet" --output "evaluation_results_BF-C2DL-MuSC.csv"
+    python evaluation.py evaluate-competitor "fused_results_parquet/BF-C2DL-MuSC_dataset_dataframe_with_fused.parquet" --output "evaluation_results_BF-C2DL-MuSC.csv"
+
+    python evaluation.py evaluate-competitor "fused_results_parquet/DIC-C2DH-HeLa_dataset_dataframe_with_fused.parquet" --output "evaluation_results_DIC-C2DH-HeLa.csv"
     
     # Evaluate specific competitor
     python evaluation.py evaluate-competitor "dataframes/BF-C2DL-MuSC_dataset_dataframe.parquet" --competitor "MU-Lux-CZ" --output "evaluation_results_BF-C2DL-MuSC_MU-Lux-CZ.csv"

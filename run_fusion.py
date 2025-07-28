@@ -179,9 +179,8 @@ def run_fusion(
 )
 @click.option(
     "--config-path",
-    default="competitor_config.json",
-    show_default=True,
-    help="Path to the competitor configuration JSON file.",
+    default=None,
+    help="Path to the competitor configuration JSON file. If not provided, will auto-determine based on campaign number (e.g., competitor_config_campaign01.json).",
 )
 def generate_jobfiles(
     parquet_file: str,
