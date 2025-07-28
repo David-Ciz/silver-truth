@@ -100,7 +100,7 @@ The typical workflow involves these steps, executed in order:
 
     ```bash
     # Run fusion for a single dataset
-    python run_fusion.py run-fusion --jar-path "src/data_processing/cell_tracking_java_helpers/label-fusion-ng-2.2.0-SNAPSHOT-jar-with-dependencies.jar" --job-file "job_files/BF-C2DL-MuSC_01_job_file.txt" --output-pattern "fused_results/BF-C2DL-MuSC_01_fused_TTTT.tif" --time-points "0-61" --num-threads 2 --model "threshold_use"
+    python run_fusion.py run-fusion --jar-path "src/data_processing/cell_tracking_java_helpers/label-fusion-ng-2.2.0-SNAPSHOT-jar-with-dependencies.jar" --job-file "job_files/BF-C2DL-MuSC_01_job_file.txt" --output-pattern "fused_results/BF-C2DL-MuSC_01_fused_TTTT.tif" --time-points "0-61" --num-threads 2 --model "majority_flat"
 
    python run_fusion.py run-fusion --jar-path "src/data_processing/cell_tracking_java_helpers/label-fusion-ng-2.2.0-SNAPSHOT-jar-with-dependencies.jar" --job-file "job_files/DIC-C2DH-HeLa_01_job_file.txt" --output-pattern "fused_results/DIC-C2DH-HeLa_01_fused_TTT.tif" --time-points "0-10" --num-threads 2 --model "majority_flat"
 
