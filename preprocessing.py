@@ -5,12 +5,14 @@ from pathlib import Path
 import click
 import pandas as pd
 import tqdm
+
 from src.data_processing.label_synchronizer import (
     synchronize_labels_with_tracking_markers,
     process_segmentation_folders,
     verify_folder_synchronization_logic,
     process_directory,
 )
+from src.data_processing.qa_data_preprocessor import create_qa_dataset
 
 from src.data_processing.utils.dataset_dataframe_creation import (
     convert_to_dataframe,
@@ -344,6 +346,26 @@ def compress_tifs(directory, non_recursive, dry_run, verbose):
         )
 
 
+@click.command()
+@click.argument("dataset_dataframe_path", type=click.Path(exists=True))
+@click.argument("output_dir", type=click.Path(file_okay=False, dir_okay=True))
+@click.argument("output_parquet_path", type=click.Path(file_okay=True, dir_okay=False))
+@click.option(
+    "--crop", default=False, is_flag=True, help="Create crops for the QA dataset"
+)
+@click.option("--crop-size", default=64, help="Size of the crops for the QA dataset")
+def create_qa_dataset_cli(
+    dataset_dataframe_path: str,
+    output_dir: str,
+    output_parquet_path: str,
+    crop: bool = False,
+    crop_size: int = 64,
+) -> None:
+    create_qa_dataset(
+        dataset_dataframe_path, output_dir, output_parquet_path, crop, crop_size
+    )
+
+
 @click.group()
 def cli():
     pass
@@ -355,6 +377,7 @@ cli.add_command(synchronize_datasets)
 cli.add_command(verify_dataset_synchronization)
 cli.add_command(create_dataset_dataframe)
 cli.add_command(compress_tifs)
+cli.add_command(create_qa_dataset_cli)
 if __name__ == "__main__":
     cli()
 

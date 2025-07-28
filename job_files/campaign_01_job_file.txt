@@ -1,0 +1,5 @@
+data/synchronized_data/BF-C2DL-HSC/CALT-US/01_RES/maskTTTT.tif
+data/synchronized_data/BF-C2DL-HSC/DREX-US/01_RES/maskTTTT.tif
+data/synchronized_data/BF-C2DL-HSC/KIT-Sch-GE/01_RES/maskTTTT.tif
+data/synchronized_data/BF-C2DL-HSC/MU-Lux-CZ/01_RES/maskTTTT.tif
+data/synchronized_data/BF-C2DL-HSC/01_GT/TRA/man_trackTTTT.tif

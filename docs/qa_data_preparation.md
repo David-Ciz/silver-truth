@@ -21,6 +21,46 @@ The resulting dataframe has the following structure:
 | 00002 | `data/cell_crops/00002.tif` | `BF-C2DL-HSC/01` | `competitor_B` | 0.65 |
 | ... | ... | ... | ... | ... |
 
+### Dataflow Diagram
+
+```mermaid
+graph TD
+    A[Raw Images] --> C{Preprocessing Script};
+    B[Competitor Segmentations] --> C;
+    C --> D[Cell-Level Crops];
+    D --> E[2-Channel Stacked Images];
+    E --> F[cell_level_dataframe.parquet];
+
+    subgraph "Data Preparation"
+        A
+        B
+        C
+        D
+        E
+        F
+    end
+
+    G[cell_level_dataframe.parquet] --> H{Splitting Script};
+    H --> I[train/validation/test splits];
+    I --> J[cell_level_dataframe_with_splits.parquet];
+
+    subgraph "Data Splitting"
+        G
+        H
+        I
+        J
+    end
+
+    K[cell_level_dataframe_with_splits.parquet] --> L(QA Model Training);
+    M[Stacked Crop Images] --> L;
+
+    subgraph "Model Training"
+        K
+        M
+        L
+    end
+```
+
 ### 2. Data Splitting: Ensuring No Data Leakage
 
 To create valid training, validation, and test sets, we must prevent data leakage. The golden rule is: **all cells that come from the same original source image must belong to the same split.**
