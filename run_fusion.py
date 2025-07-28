@@ -175,7 +175,13 @@ def run_fusion(
 @click.option(
     "--competitor-columns",
     multiple=True,
-    help="Column names in the parquet file that contain competitor result paths. Can be specified multiple times. If not provided, all columns except known non-competitor columns will be considered.",
+    help="Column names in the parquet file that contain competitor result paths. Can be specified multiple times. If not provided, will use competitor_config.json or all columns except known non-competitor columns.",
+)
+@click.option(
+    "--config-path",
+    default="competitor_config.json",
+    show_default=True,
+    help="Path to the competitor configuration JSON file.",
 )
 def generate_jobfiles(
     parquet_file: str,
@@ -183,6 +189,7 @@ def generate_jobfiles(
     output_dir: str,
     tracking_marker_column: str,
     competitor_columns: tuple[str],
+    config_path: str,
 ):
     """
     Generates a job file for a specific dataset.
@@ -197,6 +204,7 @@ def generate_jobfiles(
             output_dir=output_dir,
             tracking_marker_column=tracking_marker_column,
             competitor_columns=competitor_cols_list,
+            config_path=config_path,
         )
         click.echo(
             click.style(

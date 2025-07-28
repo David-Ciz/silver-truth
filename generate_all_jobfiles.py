@@ -24,7 +24,7 @@ DATAFRAMES_PATTERNS = [
     "dataframes/*_dataset_dataframe.parquet" # New: dataframes folder
 ]
 OUTPUT_DIR = "job_files"
-DEFAULT_CAMPAIGN = "01"  # Default campaign number (changed to 01)
+CAMPAIGNS = ["01", "02"]  # Generate job files for both campaigns
 
 def run_command(command):
     """Run a command and return True if successful, False otherwise."""
@@ -51,11 +51,8 @@ def extract_dataset_name(parquet_file):
     # Remove the "_dataset_dataframe" suffix
     return filename.replace("_dataset_dataframe", "")
 
-def generate_jobfile_for_dataframe(parquet_file, campaign_number=None):
+def generate_jobfile_for_dataframe(parquet_file, campaign_number):
     """Generate a job file for a single dataframe."""
-    if campaign_number is None:
-        campaign_number = DEFAULT_CAMPAIGN
-    
     dataset_name = extract_dataset_name(parquet_file)
     logging.info(f"Processing dataframe: {parquet_file}")
     logging.info(f"Dataset: {dataset_name}, Campaign: {campaign_number}")
@@ -87,29 +84,38 @@ def main():
         return
     
     logging.info(f"Found {len(parquet_files)} dataframe files to process")
+    logging.info(f"Generating job files for campaigns: {', '.join(CAMPAIGNS)}")
     
     successful = 0
     failed = 0
     failed_files = []
     
-    for parquet_file in sorted(parquet_files):
-        logging.info(f"\n{'='*50}")
-        logging.info(f"Processing: {parquet_file}")
-        logging.info(f"{'='*50}")
+    # Process each dataframe for each campaign
+    for campaign in CAMPAIGNS:
+        logging.info(f"\n{'='*60}")
+        logging.info(f"PROCESSING CAMPAIGN {campaign}")
+        logging.info(f"{'='*60}")
         
-        if generate_jobfile_for_dataframe(parquet_file):
-            successful += 1
-            logging.info(f"Successfully processed: {parquet_file}")
-        else:
-            failed += 1
-            failed_files.append(parquet_file)
-            logging.error(f"Failed to process: {parquet_file}")
+        for parquet_file in sorted(parquet_files):
+            logging.info(f"\n{'='*50}")
+            logging.info(f"Processing: {parquet_file} (Campaign {campaign})")
+            logging.info(f"{'='*50}")
+            
+            if generate_jobfile_for_dataframe(parquet_file, campaign):
+                successful += 1
+                logging.info(f"Successfully processed: {parquet_file} (Campaign {campaign})")
+            else:
+                failed += 1
+                failed_files.append(f"{parquet_file} (Campaign {campaign})")
+                logging.error(f"Failed to process: {parquet_file} (Campaign {campaign})")
     
     # Summary
     logging.info(f"\n{'='*50}")
     logging.info("PROCESSING SUMMARY")
     logging.info(f"{'='*50}")
     logging.info(f"Total dataframes: {len(parquet_files)}")
+    logging.info(f"Campaigns processed: {', '.join(CAMPAIGNS)}")
+    logging.info(f"Total combinations processed: {len(parquet_files) * len(CAMPAIGNS)}")
     logging.info(f"Successful: {successful}")
     logging.info(f"Failed: {failed}")
     logging.info(f"Job files saved to: {OUTPUT_DIR}")

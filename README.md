@@ -100,7 +100,12 @@ The typical workflow involves these steps, executed in order:
 
     ```bash
     # Run fusion for a single dataset
-    python run_fusion.py run-fusion --jar-path "src/data_processing/cell_tracking_java_helpers/label-fusion-ng-2.2.0-SNAPSHOT-jar-with-dependencies.jar" --job-file "job_files/BF-C2DL-MuSC_01_job_file.txt" --output-pattern "fused_results/BF-C2DL-MuSC_01_fused_TTTT.tif" --time-points "0-9" --num-threads 2 --model "majority_flat"
+    python run_fusion.py run-fusion --jar-path "src/data_processing/cell_tracking_java_helpers/label-fusion-ng-2.2.0-SNAPSHOT-jar-with-dependencies.jar" --job-file "job_files/BF-C2DL-MuSC_01_job_file.txt" --output-pattern "fused_results/BF-C2DL-MuSC_01_fused_TTTT.tif" --time-points "0-61" --num-threads 2 --model "majority_flat"
+
+   python run_fusion.py run-fusion --jar-path "src/data_processing/cell_tracking_java_helpers/label-fusion-ng-2.2.0-SNAPSHOT-jar-with-dependencies.jar" --job-file "job_files/DIC-C2DH-HeLa_01_job_file.txt" --output-pattern "fused_results/DIC-C2DH-HeLa_01_fused_TTT.tif" --time-points "0-10" --num-threads 2 --model "majority_flat"
+
+   python run_fusion.py run-fusion --jar-path "src/data_processing/cell_tracking_java_helpers/label-fusion-ng-2.2.0-SNAPSHOT-jar-with-dependencies.jar" --job-file "job_files/Fluo-C2DL-MSC_01_job_file.txt" --output-pattern "fused_results/Fluo-C2DL-MSC_01_fused_TTT.tif" --time-points "0-10" --num-threads 2 --model "majority_flat"
+
     
     # Run fusion for all datasets automatically
     python run_all_fusion.py
@@ -113,6 +118,15 @@ The typical workflow involves these steps, executed in order:
     - `bic_weighted_voting`: BIC algorithm with weighted voting
     - `simple`: Simple fusion (may have compatibility issues)
     - `threshold_user`: Threshold-based with user-defined parameters
+
+
+44. parquet soubor fusion
+python fussion_parquet --dataset "BF-C2DL-MuSC"
+
+python fussion_parquet --dataset "DIC-C2DH-HeLa"
+
+python fussion_parquet --dataset "Fluo-C2DL-MSC"
+
 
 5.  **Evaluate Competitor (`evaluation.py`)**
     Evaluates competitor segmentation results against ground truth using the Jaccard index.
@@ -127,7 +141,7 @@ The typical workflow involves these steps, executed in order:
 
     ```bash
     # Evaluate all competitors in a dataset
-    python evaluation.py evaluate-competitor "BF-C2DL-MuSC_dataset_dataframe_with_fused.parquet" --output "evaluation_results_BF-C2DL-MuSC.csv"
+    python evaluation.py evaluate-competitor "dataframes/BF-C2DL-MuSC_dataset_dataframe_with_fused.parquet" --output "evaluation_results_BF-C2DL-MuSC.csv"
     
     # Evaluate specific competitor
     python evaluation.py evaluate-competitor "dataframes/BF-C2DL-MuSC_dataset_dataframe.parquet" --competitor "MU-Lux-CZ" --output "evaluation_results_BF-C2DL-MuSC_MU-Lux-CZ.csv"
