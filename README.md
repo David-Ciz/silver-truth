@@ -180,5 +180,14 @@ python preprocessing.py compress-tifs "C:\Users\wei0068\Desktop\IT4I\synchronize
 
 python visualize_tif.py "fused_results/BF-C2DL-MuSC_01_fused_0001.tif"
 python show_objects.py "fused_results/BF-C2DL-MuSC_01_fused_0001.tif"
-```
 
+-------
+python preprocessing.py create-qa-dataset-cli "dataframes/BF-C2DL-MuSC_dataset_dataframe.parquet" "qa_crops_BF-C2DL-MuSC" "qa_BF-C2DL-MuSC_dataset.parquet" --crop --crop-size 64
+
+python preprocessing.py create-qa-dataset-cli "dataframes/DIC-C2DH-HeLa_dataset_dataframe.parquet" "qa_crops_DIC-C2DH-HeLa" "qa_DIC-C2DH-HeLa_dataset.parquet" --crop --crop-size 64
+---------
+python qa_evaluation.py "qa_BF-C2DL-MuSC_dataset.parquet" "dataframes/BF-C2DL-MuSC_dataset_dataframe.parquet" --output "qa_jaccard_results_BF-C2DL-MuSC.csv"
+
+python qa_evaluation.py "qa_DIC-C2DH-HeLa_dataset.parquet" "dataframes/DIC-C2DH-HeLa_dataset_dataframe.parquet" --output "qa_jaccard_results_DIC-C2DH-HeLa.csv"
+
+```

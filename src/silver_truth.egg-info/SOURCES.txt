@@ -4,12 +4,14 @@ src/__init__.py
 src/job_file_generator.py
 src/data_processing/__init__.py
 src/data_processing/label_synchronizer.py
+src/data_processing/qa_data_preprocessor.py
 src/data_processing/utils/__init__.py
 src/data_processing/utils/dataset_dataframe_creation.py
 src/data_processing/utils/label_filenames_mapping.py
 src/fusion/__init__.py
 src/fusion/fusion.py
 src/metrics/__init__.py
+src/metrics/evaluation_logic.py
 src/metrics/metrics.py
 src/metrics/utils.py
 src/silver_truth.egg-info/PKG-INFO

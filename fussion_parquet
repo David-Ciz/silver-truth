@@ -140,7 +140,7 @@ def main():
     parser = argparse.ArgumentParser(description="Add fused image paths to dataset dataframes")
     parser.add_argument("--dataset", type=str, help="Process specific dataset (e.g., 'Fluo-C3DH-A549')")
     parser.add_argument("--base-dir", type=str, 
-                       default=r"C:\Users\wei0068\Desktop\IT4I\Cell_Tracking\silver-truth",
+                       default=r"C:\Users\wei0068\Desktop\Cell_Tracking\silver-truth",
                        help="Base directory path")
     parser.add_argument("--all", action="store_true", help="Process all datasets")
     
