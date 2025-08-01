@@ -148,6 +148,9 @@ python fussion_parquet --dataset "Fluo-C2DL-MSC"
     # Evaluate specific competitor
     python evaluation.py evaluate-competitor "dataframes/BF-C2DL-MuSC_dataset_dataframe.parquet" --competitor "MU-Lux-CZ" --output "evaluation_results_BF-C2DL-MuSC_MU-Lux-CZ.csv"
     
+    # Run evaluation with detailed per-cell analysis
+    python evaluation.py evaluate-competitor "dataframes/BF-C2DL-MuSC_dataset_dataframe.parquet" --detailed --output "evaluation_results_BF-C2DL-MuSC.csv"
+    
     # Run evaluation for all datasets automatically
     python run_all_evaluations.py
     
@@ -158,8 +161,67 @@ python fussion_parquet --dataset "Fluo-C2DL-MSC"
     **Available Options:**
     - `--competitor`: Specify a single competitor to evaluate (optional)
     - `--output, -o`: Path to save detailed results as CSV
+    - `--detailed`: Create detailed per-cell evaluation results in parquet format
     - `--visualize, -v`: Generate visualization of results (placeholder)
     - `--campaign-col`: Column name that identifies the campaign (default: 'campaign_number')
+
+6.  **Detailed Cell-Level Evaluation (`detailed_evaluation.py`)**
+    Provides detailed Jaccard score evaluation for individual cells, storing results in parquet format for efficient analysis.
+
+    **Usage:**
+
+    ```bash
+    python detailed_evaluation.py <path_to_dataset_dataframe> [OPTIONS]
+    ```
+
+    **Examples:**
+
+    ```bash
+    # Detailed evaluation for all competitors in a dataset
+    python detailed_evaluation.py "dataframes/BF-C2DL-MuSC_dataset_dataframe.parquet" --output "detailed_BF-C2DL-MuSC.parquet"
+    
+    # Detailed evaluation for specific competitor
+    python detailed_evaluation.py "dataframes/BF-C2DL-MuSC_dataset_dataframe.parquet" --competitor "MU-Lux-CZ" --output "detailed_BF-C2DL-MuSC_MU-Lux-CZ.parquet"
+    
+    # Run detailed evaluation for all datasets automatically
+    python run_all_detailed_evaluations.py
+    ```
+
+    **Available Options:**
+    - `--competitor`: Specify a single competitor to evaluate (if not specified, evaluates all)
+    - `--output, -o`: Output parquet file path
+    - `--campaign-col`: Column name for campaign identification (default: 'campaign_number')
+
+7.  **Analyze Detailed Results (`analyze_detailed_results.py`)**
+    Analyzes detailed cell evaluation results and generates comprehensive reports and visualizations.
+
+    **Usage:**
+
+    ```bash
+    python analyze_detailed_results.py <path_to_detailed_results_parquet> [OPTIONS]
+    ```
+
+    **Examples:**
+
+    ```bash
+    # Analyze detailed results with default settings
+    python analyze_detailed_results.py "detailed_BF-C2DL-MuSC.parquet"
+    
+    # Analyze with custom output directory and save summary
+    python analyze_detailed_results.py "detailed_BF-C2DL-MuSC.parquet" --output-dir "analysis_BF-C2DL-MuSC" --save-summary
+    ```
+
+    **Available Options:**
+    - `--output-dir`: Directory for analysis outputs (default: 'detailed_analysis')
+    - `--save-summary`: Save summary statistics to CSV file
+
+    **Generated Outputs:**
+    - Comprehensive statistical summary report
+    - Jaccard score distribution histograms
+    - Competitor comparison visualizations (boxplots, violin plots)
+    - Cell size vs. performance analysis
+    - Performance heatmaps by dataset and competitor
+    - Summary statistics CSV files
 
 ### Utility Commands
 
@@ -189,5 +251,39 @@ python preprocessing.py create-qa-dataset-cli "dataframes/DIC-C2DH-HeLa_dataset_
 python qa_evaluation.py "qa_BF-C2DL-MuSC_dataset.parquet" "dataframes/BF-C2DL-MuSC_dataset_dataframe.parquet" --output "qa_jaccard_results_BF-C2DL-MuSC.csv"
 
 python qa_evaluation.py "qa_DIC-C2DH-HeLa_dataset.parquet" "dataframes/DIC-C2DH-HeLa_dataset_dataframe.parquet" --output "qa_jaccard_results_DIC-C2DH-HeLa.csv"
+
+# QA evaluation with automatic parquet conversion for detailed analysis
+python qa_evaluation.py "qa_BF-C2DL-MuSC_dataset.parquet" "dataframes/BF-C2DL-MuSC_dataset_dataframe.parquet" --output "qa_jaccard_results_BF-C2DL-MuSC.csv" --parquet-output "qa_BF-C2DL-MuSC_detailed_cells.parquet"
+
+8.  **Convert QA Results to Detailed Parquet (`convert_qa_to_parquet.py`)**
+    Converts existing QA evaluation CSV results to detailed parquet format for enhanced analysis.
+
+    **Usage:**
+
+    ```bash
+    # Convert single QA result file
+    python convert_qa_to_parquet.py convert-csv <qa_csv_results> <qa_dataframe_parquet> [--output OUTPUT]
+    
+    # Batch convert all QA results
+    python convert_qa_to_parquet.py batch-convert [--qa-results-dir DIR] [--qa-dataframes-dir DIR] [--output-dir DIR]
+    ```
+
+    **Examples:**
+
+    ```bash
+    # Convert single file
+    python convert_qa_to_parquet.py convert-csv "qa_jaccard_results_BF-C2DL-MuSC.csv" "qa_BF-C2DL-MuSC_dataset.parquet" --output "qa_BF-C2DL-MuSC_detailed_cells.parquet"
+    
+    # Batch convert all QA results in current directory
+    python convert_qa_to_parquet.py batch-convert
+    
+    # Use analyze_detailed_results.py on converted QA parquet files
+    python analyze_detailed_results.py "qa_BF-C2DL-MuSC_detailed_cells.parquet"
+    ```
+
+    **Generated Parquet Structure:**
+    - All standard detailed evaluation columns
+    - QA-specific metadata (crop coordinates, stacked paths)
+    - `evaluation_type: 'qa_cropped'` to distinguish from full image evaluation
 
 ```

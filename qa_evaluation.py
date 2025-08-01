@@ -19,6 +19,11 @@ from src.metrics.qa_evaluation_logic import run_qa_evaluation
     help="Path to save results as CSV",
 )
 @click.option(
+    "--parquet-output",
+    type=click.Path(path_type=Path),
+    help="Path to save detailed results as parquet",
+)
+@click.option(
     "--visualize",
     "-v",
     is_flag=True,
@@ -29,6 +34,7 @@ def evaluate_qa_dataset(
     ground_truth_dataframe_path: Path,
     competitor: Optional[str] = None,
     output: Optional[Path] = None,
+    parquet_output: Optional[Path] = None,
     visualize: bool = False,
 ):
     """
@@ -41,13 +47,34 @@ def evaluate_qa_dataset(
         qa_dataframe_path: Path to the QA dataframe (parquet file with cropped images metadata)
         ground_truth_dataframe_path: Path to the original dataset dataframe with GT information
     """
-    run_qa_evaluation(
+    # Run standard QA evaluation
+    result = run_qa_evaluation(
         qa_dataframe_path=qa_dataframe_path,
         ground_truth_dataframe_path=ground_truth_dataframe_path,
         competitor=competitor,
         output=output,
         visualize=visualize,
     )
+    
+    # If CSV output was created and parquet output is requested, convert to parquet
+    if output and output.exists() and parquet_output:
+        try:
+            from convert_qa_to_parquet import convert_qa_csv_to_detailed_parquet
+            
+            print(f"Converting results to detailed parquet format...")
+            convert_qa_csv_to_detailed_parquet(
+                str(output), 
+                str(qa_dataframe_path), 
+                str(parquet_output)
+            )
+            print(f"✅ Detailed parquet results saved to: {parquet_output}")
+            
+        except ImportError:
+            print("❌ convert_qa_to_parquet module not found. Parquet conversion skipped.")
+        except Exception as e:
+            print(f"❌ Error during parquet conversion: {e}")
+    
+    return result
 
 
 if __name__ == "__main__":
