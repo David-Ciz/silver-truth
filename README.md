@@ -55,13 +55,10 @@ The typical workflow involves these steps, executed in order:
     **Examples:**
 
     ```bash
-    # Jednotlivý dataset
+    # Single dataset
     python preprocessing.py create-dataset-dataframe "C:\Users\wei0068\Desktop\IT4I\synchronized_data\BF-C2DL-MuSC" --output_path "BF-C2DL-MuSC_dataset_dataframe.parquet"
     
-    # Další příklady
-    python preprocessing.py create-dataset-dataframe "C:\Users\wei0068\Desktop\IT4I\synchronized_data\DIC-C2DH-HeLa" --output_path "DIC-C2DH-HeLa_dataset_dataframe.parquet"
-    
-    # Automatické vytvoření všech dataframes
+    # All datasets
     python create_all_dataframes.py
     ```
 
@@ -77,13 +74,10 @@ The typical workflow involves these steps, executed in order:
     **Examples:**
 
     ```bash
-    # Jednotlivý dataset a kampaň
+    # Single dataset
     python run_fusion.py generate-jobfiles --parquet-file "BF-C2DL-MuSC_dataset_dataframe.parquet" --campaign-number "01" --output-dir "job_files"
     
-    # Další příklady
-    python run_fusion.py generate-jobfiles --parquet-file "DIC-C2DH-HeLa_dataset_dataframe.parquet" --campaign-number "02" --output-dir "job_files"
-    
-    # Automatické vytvoření všech job files
+    # All jobfiles
     python generate_all_jobfiles.py
     ```
 
@@ -99,15 +93,12 @@ The typical workflow involves these steps, executed in order:
     **Example:**
 
     ```bash
-    # Run fusion for a single dataset
+    # Single dataset
     python run_fusion.py run-fusion --jar-path "src/data_processing/cell_tracking_java_helpers/label-fusion-ng-2.2.0-SNAPSHOT-jar-with-dependencies.jar" --job-file "job_files/BF-C2DL-MuSC_01_job_file.txt" --output-pattern "fused_results/BF-C2DL-MuSC_01_fused_TTTT.tif" --time-points "0-61" --num-threads 2 --model "majority_flat"
+ 
+    # All datasets
+    Change default fusion settings - DEFAULT_TIME_POINTS and DEFAULT_MODEL
 
-   python run_fusion.py run-fusion --jar-path "src/data_processing/cell_tracking_java_helpers/label-fusion-ng-2.2.0-SNAPSHOT-jar-with-dependencies.jar" --job-file "job_files/DIC-C2DH-HeLa_01_job_file.txt" --output-pattern "fused_results/DIC-C2DH-HeLa_01_fused_TTT.tif" --time-points "0-10" --num-threads 2 --model "majority_flat"
-
-   python run_fusion.py run-fusion --jar-path "src/data_processing/cell_tracking_java_helpers/label-fusion-ng-2.2.0-SNAPSHOT-jar-with-dependencies.jar" --job-file "job_files/Fluo-C2DL-MSC_01_job_file.txt" --output-pattern "fused_results/Fluo-C2DL-MSC_01_fused_TTT.tif" --time-points "0-10" --num-threads 2 --model "threshold_use"
-
-    
-    # Run fusion for all datasets automatically
     python run_all_fusion.py
     ```
 
@@ -119,16 +110,13 @@ The typical workflow involves these steps, executed in order:
     - `simple`: Simple fusion (may have compatibility issues)
     - `threshold_user`: Threshold-based with user-defined parameters
 
+5.  **Run Fusion (`fusion_parquet.py`)**
+Create a parquet files with information about fused images
 
-44. parquet soubor fusion
+**Example:**
 python fussion_parquet --dataset "BF-C2DL-MuSC"
 
-python fussion_parquet --dataset "DIC-C2DH-HeLa"
-
-python fussion_parquet --dataset "Fluo-C2DL-MSC"
-
-
-5.  **Evaluate Competitor (`evaluation.py`)**
+6.  **Evaluate Competitor (`evaluation.py`)**
     Evaluates competitor segmentation results against ground truth using the Jaccard index.
 
     **Usage:**
@@ -142,15 +130,7 @@ python fussion_parquet --dataset "Fluo-C2DL-MSC"
     ```bash
     # Evaluate all competitors in a dataset
     python evaluation.py evaluate-competitor "fused_results_parquet/BF-C2DL-MuSC_dataset_dataframe_with_fused.parquet" --output "evaluation_results_BF-C2DL-MuSC.csv"
-
-    python evaluation.py evaluate-competitor "fused_results_parquet/DIC-C2DH-HeLa_dataset_dataframe_with_fused.parquet" --output "evaluation_results_DIC-C2DH-HeLa.csv"
-    
-    # Evaluate specific competitor
-    python evaluation.py evaluate-competitor "dataframes/BF-C2DL-MuSC_dataset_dataframe.parquet" --competitor "MU-Lux-CZ" --output "evaluation_results_BF-C2DL-MuSC_MU-Lux-CZ.csv"
-    
-    # Run evaluation with detailed per-cell analysis
-    python evaluation.py evaluate-competitor "dataframes/BF-C2DL-MuSC_dataset_dataframe.parquet" --detailed --output "evaluation_results_BF-C2DL-MuSC.csv"
-    
+        
     # Run evaluation for all datasets automatically
     python run_all_evaluations.py
     
@@ -165,7 +145,7 @@ python fussion_parquet --dataset "Fluo-C2DL-MSC"
     - `--visualize, -v`: Generate visualization of results (placeholder)
     - `--campaign-col`: Column name that identifies the campaign (default: 'campaign_number')
 
-6.  **Detailed Cell-Level Evaluation (`detailed_evaluation.py`)**
+7.  **Detailed Cell-Level Evaluation (`detailed_evaluation.py`)**
     Provides detailed Jaccard score evaluation for individual cells, storing results in parquet format for efficient analysis.
 
     **Usage:**
@@ -192,7 +172,7 @@ python fussion_parquet --dataset "Fluo-C2DL-MSC"
     - `--output, -o`: Output parquet file path
     - `--campaign-col`: Column name for campaign identification (default: 'campaign_number')
 
-7.  **Analyze Detailed Results (`analyze_detailed_results.py`)**
+8.  **Analyze Detailed Results (`analyze_detailed_results.py`)**
     Analyzes detailed cell evaluation results and generates comprehensive reports and visualizations.
 
     **Usage:**
@@ -243,7 +223,7 @@ python preprocessing.py compress-tifs "C:\Users\wei0068\Desktop\IT4I\synchronize
 python visualize_tif.py "fused_results/BF-C2DL-MuSC_01_fused_0001.tif"
 python show_objects.py "fused_results/BF-C2DL-MuSC_01_fused_0001.tif"
 
--------
+------------------------------------------------------------------------
 python preprocessing.py create-qa-dataset-cli "dataframes/BF-C2DL-MuSC_dataset_dataframe.parquet" "qa_crops_BF-C2DL-MuSC" "qa_BF-C2DL-MuSC_dataset.parquet" --crop --crop-size 64
 
 python preprocessing.py create-qa-dataset-cli "dataframes/DIC-C2DH-HeLa_dataset_dataframe.parquet" "qa_crops_DIC-C2DH-HeLa" "qa_DIC-C2DH-HeLa_dataset.parquet" --crop --crop-size 64
@@ -254,6 +234,8 @@ python qa_evaluation.py "qa_DIC-C2DH-HeLa_dataset.parquet" "dataframes/DIC-C2DH-
 
 # QA evaluation with automatic parquet conversion for detailed analysis
 python qa_evaluation.py "qa_BF-C2DL-MuSC_dataset.parquet" "dataframes/BF-C2DL-MuSC_dataset_dataframe.parquet" --output "qa_jaccard_results_BF-C2DL-MuSC.csv" --parquet-output "qa_BF-C2DL-MuSC_detailed_cells.parquet"
+
+
 
 8.  **Convert QA Results to Detailed Parquet (`convert_qa_to_parquet.py`)**
     Converts existing QA evaluation CSV results to detailed parquet format for enhanced analysis.
