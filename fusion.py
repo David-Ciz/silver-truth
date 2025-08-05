@@ -3,7 +3,12 @@ from typing import Optional
 
 import click
 
-from src.fusion.fusion import FusionModel, fuse_segmentations
+from src.fusion.fusion import (
+    FusionModel,
+    fuse_segmentations,
+    add_fused_images_to_dataframe_logic,
+    process_all_datasets_logic,
+)
 from src.job_file_generator import generate_job_file
 
 # Configure basic logging
@@ -90,25 +95,6 @@ def run_fusion(
 ):
     """
     Runs the Fusers Java segmentation fusion tool via a command-line interface.
-
-    Args:
-        jar_path (str): Path to the executable Java JAR file (e.g., `fusers-all-dependencies.jar`).
-        job_file (str): Path to the job specification file listing input image patterns.
-        output_pattern (str): Output filename pattern, including 'TTT' or 'TTTT' (e.g., `/path/to/fused_TTT.tif`).
-        time_points (str): Timepoints to process as a string (e.g., `"1-9,23,25"`).
-        num_threads (int): Number of processing threads.
-        model (str): The fusion model to use, corresponding to `FusionModel` enum values.
-        threshold (float): Voting threshold for merging.
-        cmv_mode (Optional[str]): Combinatorial Model Validation mode (e.g., `"CMV"`, `"CMV2_8"`).
-        seg_folder (Optional[str]): Optional path to ground truth folder for scoring.
-        debug (bool): Enable debug logging and show Java process output.
-
-    Raises:
-        RuntimeError: If the Fusers Java process fails.
-        Exception: For any unexpected errors.
-
-    Returns:
-        None
     """
     try:
         # Convert the string model name from the CLI back to the Enum member
@@ -214,6 +200,33 @@ def generate_jobfiles(
     except Exception as e:
         click.echo(click.style(f"Error generating job file: {e}", fg="red", bold=True))
         exit(1)
+
+
+@cli.command()
+@click.option(
+    "--dataset", type=str, help="Process specific dataset (e.g., 'Fluo-C3DH-A549')"
+)
+@click.option(
+    "--base-dir",
+    type=str,
+    default=r"C:\Users\wei0068\Desktop\Cell_Tracking\silver-truth",
+    help="Base directory path",
+)
+@click.option("--all", is_flag=True, help="Process all datasets")
+def add_fused_images(dataset, base_dir, all):
+    """Add fused image paths to dataset dataframes"""
+    if dataset:
+        # Process specific dataset
+        success = add_fused_images_to_dataframe_logic(dataset, base_dir)
+        if not success:
+            exit(1)
+    elif all:
+        # Process all datasets
+        process_all_datasets_logic(base_dir)
+    else:
+        # If no arguments provided, process all datasets
+        click.echo("No specific dataset provided, processing all datasets...")
+        process_all_datasets_logic(base_dir)
 
 
 if __name__ == "__main__":

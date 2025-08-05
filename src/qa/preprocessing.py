@@ -28,8 +28,8 @@ def create_qa_dataset(
     Generates a QA dataset from images that have corresponding Ground Truth annotations.
     If crop=True, it creates stacked cell crops.
     If crop=False, it creates stacked full images with individual cell masks.
-    
-    Only processes images that have valid Ground Truth files (gt_image column is not null 
+
+    Only processes images that have valid Ground Truth files (gt_image column is not null
     and the GT file exists on disk).
 
     Args:
@@ -55,62 +55,81 @@ def create_qa_dataset(
 
     data_list = []
     competitor_columns = df.attrs.get("competitor_columns", [])
-    
+
     # If no competitor_columns in attrs, infer them from columns
     if not competitor_columns:
         # Exclude standard columns to get competitor columns
-        excluded_columns = ["composite_key", "campaign_number", "gt_image", "tracking_markers"]
+        excluded_columns = [
+            "composite_key",
+            "campaign_number",
+            "gt_image",
+            "tracking_markers",
+        ]
         competitor_columns = [col for col in df.columns if col not in excluded_columns]
         logging.info(f"Inferred competitor columns: {competitor_columns}")
-    
+
     logging.info(f"Using competitor columns: {competitor_columns}")
 
     # Filter for rows that have ground truth images
     initial_count = len(df)
-    
+
     # First filter: check if gt_image column has non-null values
     df_with_gt = df[df["gt_image"].notna()].copy()
-    
+
     # Second filter: check if GT files actually exist on disk
-    gt_exists_mask = df_with_gt["gt_image"].apply(lambda gt_path: Path(gt_path).exists() if gt_path else False)
+    gt_exists_mask = df_with_gt["gt_image"].apply(
+        lambda gt_path: Path(gt_path).exists() if gt_path else False
+    )
     df_filtered = df_with_gt[gt_exists_mask].copy()
-    
+
     filtered_count = len(df_filtered)
-    logging.info(f"Filtered dataset: {initial_count} -> {filtered_count} images (only those with existing Ground Truth)")
-    
+    logging.info(
+        f"Filtered dataset: {initial_count} -> {filtered_count} images (only those with existing Ground Truth)"
+    )
+
     if filtered_count == 0:
         logging.warning("No images with valid Ground Truth found. Exiting.")
         return
 
     # Use tqdm to create a progress bar for the main loop
-    for index, row in tqdm(df_filtered.iterrows(), total=df_filtered.shape[0], desc="Processing images"):
+    for index, row in tqdm(
+        df_filtered.iterrows(), total=df_filtered.shape[0], desc="Processing images"
+    ):
         # Construct raw image path from composite_key
         composite_key = row["composite_key"]  # e.g., "01_0061.tif"
         campaign_number = row["campaign_number"]  # e.g., "01"
-        
+
         # Extract time frame number from composite_key (e.g., "0061" from "01_0061.tif")
-        time_frame = composite_key.split('_')[1].split('.')[0]  # "0061"
-        
+        time_frame = composite_key.split("_")[1].split(".")[0]  # "0061"
+
         # Construct the path to the raw image by deriving it from GT image path
         gt_image_path = Path(row["gt_image"])
         # GT path: .../synchronized_data/DIC-C2DH-HeLa/01_GT/SEG/man_seg002.tif
         # Raw path should be: .../synchronized_data/DIC-C2DH-HeLa/01/t002.tif or t0002.tif
         gt_parts = gt_image_path.parts
-        synchronized_data_idx = gt_parts.index('synchronized_data')
-        dataset_name = gt_parts[synchronized_data_idx + 1]  # e.g., "DIC-C2DH-HeLa"
-        base_path = Path(*gt_parts[:synchronized_data_idx + 2])  # e.g., "C:\Users\wei0068\Desktop\Cell_Tracking\synchronized_data\DIC-C2DH-HeLa"
-        
+        synchronized_data_idx = gt_parts.index("synchronized_data")
+        _ = gt_parts[synchronized_data_idx + 1]  # e.g., "DIC-C2DH-HeLa"
+        base_path = Path(
+            *gt_parts[: synchronized_data_idx + 2]
+        )  # e.g., "C:\Users\wei0068\Desktop\Cell_Tracking\synchronized_data\DIC-C2DH-HeLa"
+
         # Try different formats for raw image files
         time_frame_int = int(time_frame)
         raw_image_path = None
-        for format_str in [f"t{time_frame_int:03d}.tif", f"t{time_frame_int:04d}.tif", f"t{time_frame}.tif"]:
+        for format_str in [
+            f"t{time_frame_int:03d}.tif",
+            f"t{time_frame_int:04d}.tif",
+            f"t{time_frame}.tif",
+        ]:
             candidate_path = base_path / campaign_number / format_str
             if candidate_path.exists():
                 raw_image_path = candidate_path
                 break
-        
+
         if raw_image_path is None:
-            logger.error(f"Raw image file not found for time frame {time_frame} in {base_path / campaign_number}")
+            logger.error(
+                f"Raw image file not found for time frame {time_frame} in {base_path / campaign_number}"
+            )
             continue
 
         for competitor in competitor_columns:
