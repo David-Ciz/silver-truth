@@ -8,18 +8,20 @@ from src.data_processing.utils.dataset_dataframe_creation import (
 def load_competitor_config(config_path: str = "competitor_config.json") -> dict:
     """
     Load competitor configuration from JSON file.
-    
+
     Args:
         config_path (str): Path to the configuration file
-        
+
     Returns:
         dict: Dictionary mapping dataset names to lists of competitor names
     """
     if os.path.exists(config_path):
-        with open(config_path, 'r', encoding='utf-8') as f:
+        with open(config_path, "r", encoding="utf-8") as f:
             return json.load(f)
     else:
-        print(f"Warning: Configuration file {config_path} not found. Using all available competitors.")
+        print(
+            f"Warning: Configuration file {config_path} not found. Using all available competitors."
+        )
         return {}
 
 
@@ -29,7 +31,7 @@ def generate_job_file(
     output_dir: str,
     tracking_marker_column: str = "tracking_markers",
     competitor_columns: list[str] | None = None,
-    config_path: str = None,
+    config_path: str | None = None,
 ):
     """
     Generates a job file for a specific campaign, listing competitor results and tracking markers.
@@ -44,14 +46,14 @@ def generate_job_file(
         config_path (str): Path to the competitor configuration JSON file. If None, will auto-determine based on campaign.
     """
     df = load_dataframe_from_parquet_with_metadata(parquet_file_path)
-    
+
     # Extract dataset name from parquet file path
     parquet_path = os.path.basename(parquet_file_path)
     dataset_name = parquet_path.replace("_dataset_dataframe.parquet", "")
 
     # Auto-determine config path if not provided
     if config_path is None:
-        config_path = f"competitor_config_campaign{campaign_number}.json"
+        config_path = f"configs/competitor_config_campaign{campaign_number}.json"
         print(f"Auto-selected configuration file: {config_path}")
 
     # Load competitor configuration
@@ -69,7 +71,9 @@ def generate_job_file(
         # First try to get from configuration
         if dataset_name in competitor_config:
             competitor_columns = competitor_config[dataset_name]
-            print(f"Using configured competitors for {dataset_name}: {competitor_columns}")
+            print(
+                f"Using configured competitors for {dataset_name}: {competitor_columns}"
+            )
         else:
             # Fallback to all available competitors
             all_columns = df.columns.tolist()
@@ -80,20 +84,26 @@ def generate_job_file(
                 tracking_marker_column,
                 "campaign_number",
             ]
-            competitor_columns = [col for col in all_columns if col not in exclude_columns]
-            print(f"No configuration found for {dataset_name}, using all available competitors: {competitor_columns}")
+            competitor_columns = [
+                col for col in all_columns if col not in exclude_columns
+            ]
+            print(
+                f"No configuration found for {dataset_name}, using all available competitors: {competitor_columns}"
+            )
 
     # Validate that configured competitors exist in the dataframe
     available_competitors = [col for col in competitor_columns if col in df.columns]
     missing_competitors = [col for col in competitor_columns if col not in df.columns]
-    
+
     if missing_competitors:
-        print(f"Warning: The following configured competitors are not available in {dataset_name}: {missing_competitors}")
-    
+        print(
+            f"Warning: The following configured competitors are not available in {dataset_name}: {missing_competitors}"
+        )
+
     if not available_competitors:
         print(f"Error: No valid competitors found for dataset {dataset_name}")
         return
-        
+
     print(f"Will use competitors: {available_competitors}")
 
     job_file_content = []
@@ -106,12 +116,13 @@ def generate_job_file(
             sample_path = filtered_df[col].dropna().iloc[0]
             base_path = os.path.dirname(sample_path)
             filename = os.path.basename(sample_path)
-            
+
             # Auto-detect the numeric format in the filename
             if "mask" in filename:
                 # Find the number of digits used for numbering
                 import re
-                match = re.search(r'mask(\d+)\.tif', filename)
+
+                match = re.search(r"mask(\d+)\.tif", filename)
                 if match:
                     num_digits = len(match.group(1))
                     if num_digits == 3:
@@ -134,23 +145,32 @@ def generate_job_file(
         sample_tracking_path = filtered_df[tracking_marker_column].dropna().iloc[0]
         base_tracking_path = os.path.dirname(sample_tracking_path)
         tracking_filename = os.path.basename(sample_tracking_path)
-        
+
         # Auto-detect the numeric format in the tracking filename
         if "man_track" in tracking_filename:
             import re
-            match = re.search(r'man_track(\d+)\.tif', tracking_filename)
+
+            match = re.search(r"man_track(\d+)\.tif", tracking_filename)
             if match:
                 num_digits = len(match.group(1))
                 if num_digits == 3:
-                    formatted_tracking_path = os.path.join(base_tracking_path, "man_trackTTT.tif")
+                    formatted_tracking_path = os.path.join(
+                        base_tracking_path, "man_trackTTT.tif"
+                    )
                 else:  # Default to 4 digits
-                    formatted_tracking_path = os.path.join(base_tracking_path, "man_trackTTTT.tif")
+                    formatted_tracking_path = os.path.join(
+                        base_tracking_path, "man_trackTTTT.tif"
+                    )
             else:
                 # Fallback to TTTT if pattern doesn't match
-                formatted_tracking_path = os.path.join(base_tracking_path, "man_trackTTTT.tif")
+                formatted_tracking_path = os.path.join(
+                    base_tracking_path, "man_trackTTTT.tif"
+                )
         else:
             # Fallback to TTTT if no man_track pattern found
-            formatted_tracking_path = os.path.join(base_tracking_path, "man_trackTTTT.tif")
+            formatted_tracking_path = os.path.join(
+                base_tracking_path, "man_trackTTTT.tif"
+            )
         job_file_content.append(formatted_tracking_path)
     else:
         print(f"Warning: No tracking markers found for campaign: {campaign_number}")

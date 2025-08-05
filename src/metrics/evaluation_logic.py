@@ -42,15 +42,24 @@ def run_evaluation(
         gt_percentage = round(gt_available / len(df) * 100, 1) if len(df) > 0 else 0
 
         if gt_available == 0:
-            logging.error(f"Dataset '{dataset_name}' has NO ground truth segmentation files!")
+            logging.error(
+                f"Dataset '{dataset_name}' has NO ground truth segmentation files!"
+            )
             logging.error("   All gt_image values are null. Cannot perform evaluation.")
-            return
+            raise ValueError(
+                f"Dataset '{dataset_name}' has no ground truth segmentation files."
+            )
         elif gt_available < len(df) * 0.05:  # Less than 5%
             logging.warning(
-                f"Dataset '{dataset_name}' has very few GT files: {gt_available}/{len(df)} ({gt_percentage}%)")
-            logging.warning("   This is normal for some datasets, but evaluation will be limited.")
+                f"Dataset '{dataset_name}' has very few GT files: {gt_available}/{len(df)} ({gt_percentage}%)"
+            )
+            logging.warning(
+                "   This is normal for some datasets, but evaluation will be limited."
+            )
         else:
-            logging.info(f"Dataset '{dataset_name}' has {gt_available}/{len(df)} GT files ({gt_percentage}%)")
+            logging.info(
+                f"Dataset '{dataset_name}' has {gt_available}/{len(df)} GT files ({gt_percentage}%)"
+            )
 
         competitor_columns = df.attrs.get("competitor_columns", [])
 
@@ -75,21 +84,29 @@ def run_evaluation(
             competitor_columns = potential_cols
             logging.info(f"Inferred competitor columns: {competitor_columns}")
         else:
-            logging.error(
-                "Could not infer competitor columns from dataframe columns."
-            )
+            logging.error("Could not infer competitor columns from dataframe columns.")
             return {}
             # Check competitor data availability
-        logging.info(f"Found {len(competitor_columns)} competitors: {competitor_columns}")
+        logging.info(
+            f"Found {len(competitor_columns)} competitors: {competitor_columns}"
+        )
         for comp in competitor_columns:
             comp_available = df[comp].notna().sum()
-            comp_percentage = round(comp_available / len(df) * 100, 1) if len(df) > 0 else 0
+            comp_percentage = (
+                round(comp_available / len(df) * 100, 1) if len(df) > 0 else 0
+            )
             if comp_available == 0:
-                logging.warning(f"Competitor '{comp}': NO files available (0/{len(df)})")
+                logging.warning(
+                    f"Competitor '{comp}': NO files available (0/{len(df)})"
+                )
             elif comp_available < len(df) * 0.5:  # Less than 50%
-                logging.warning(f"Competitor '{comp}': {comp_available}/{len(df)} files ({comp_percentage}%)")
+                logging.warning(
+                    f"Competitor '{comp}': {comp_available}/{len(df)} files ({comp_percentage}%)"
+                )
             else:
-                logging.info(f"Competitor '{comp}': {comp_available}/{len(df)} files ({comp_percentage}%)")
+                logging.info(
+                    f"Competitor '{comp}': {comp_available}/{len(df)} files ({comp_percentage}%)"
+                )
 
     except FileNotFoundError:
         logging.error(f"Dataset dataframe file not found at: {dataset_dataframe_path}")
@@ -129,17 +146,23 @@ def run_evaluation(
     rows_after_gt_exist = len(filtered_df)
     gt_missing_files = initial_rows - rows_after_gt_exist
 
-    logging.info(f"Final dataset for evaluation: {rows_after_gt_exist} rows with valid GT files")
+    logging.info(
+        f"Final dataset for evaluation: {rows_after_gt_exist} rows with valid GT files"
+    )
 
     if gt_missing_files > 0:
-        logging.warning(f"Filtered out {gt_missing_files} rows with missing or non-existent ground truth files.")
+        logging.warning(
+            f"Filtered out {gt_missing_files} rows with missing or non-existent ground truth files."
+        )
 
     logging.info(
         f"Filtered out {initial_rows - rows_after_gt_exist} rows with missing or non-existent ground truth paths."
     )
 
     if filtered_df.empty:
-        logging.error("No rows remaining after filtering for valid ground truth images.")
+        logging.error(
+            "No rows remaining after filtering for valid ground truth images."
+        )
         logging.error("   Cannot perform evaluation without ground truth data.")
         return {}
 
@@ -311,20 +334,25 @@ def run_evaluation(
         total_evaluations += 1
 
     logging.info(f"Dataset '{dataset_name}' evaluation completed:")
-    logging.info(f"  • Competitors with valid scores: {valid_scores_count}/{total_evaluations}")
-    logging.info(f"  • Competitors with no scores (NaN): {nan_scores_count}/{total_evaluations}")
+    logging.info(
+        f"  • Competitors with valid scores: {valid_scores_count}/{total_evaluations}"
+    )
+    logging.info(
+        f"  • Competitors with no scores (NaN): {nan_scores_count}/{total_evaluations}"
+    )
 
     if valid_scores_count == 0:
-        logging.warning(f"No valid Jaccard scores calculated for any competitor!")
+        logging.warning("No valid Jaccard scores calculated for any competitor!")
         logging.warning("   This might indicate:")
         logging.warning("   - Missing competitor segmentation files")
-        logging.warning("   - Mismatched label numbers between GT and competitor segmentations")
+        logging.warning(
+            "   - Mismatched label numbers between GT and competitor segmentations"
+        )
         logging.warning("   - File format issues")
     elif nan_scores_count > 0:
         logging.warning(f"{nan_scores_count} competitors have no valid scores")
     else:
         logging.info("All competitors have valid evaluation scores")
-
 
     print_results(
         all_results,

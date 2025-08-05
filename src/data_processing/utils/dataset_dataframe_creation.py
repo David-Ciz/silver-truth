@@ -129,32 +129,32 @@ def process_competitor_campaign(
 def extract_image_number(filename: str) -> str:
     """Extract the image number from a filename."""
     import re
-    
+
     # Try to extract number from different patterns
     # Pattern 1: man_seg followed by digits (GT files)
-    match = re.search(r'man_seg(\d+)\.tif$', filename)
+    match = re.search(r"man_seg(\d+)\.tif$", filename)
     if match:
         number = match.group(1)
         return f"{number.zfill(4)}.tif"  # Normalize to 4 digits with .tif extension
-    
-    # Pattern 2: mask followed by digits (competitor files)  
-    match = re.search(r'mask(\d+)\.tif$', filename)
+
+    # Pattern 2: mask followed by digits (competitor files)
+    match = re.search(r"mask(\d+)\.tif$", filename)
     if match:
         number = match.group(1)
         return f"{number.zfill(4)}.tif"  # Normalize to 4 digits with .tif extension
-    
+
     # Pattern 3: man_track followed by digits (tracking files)
-    match = re.search(r'man_track(\d+)\.tif$', filename)
+    match = re.search(r"man_track(\d+)\.tif$", filename)
     if match:
         number = match.group(1)
         return f"{number.zfill(4)}.tif"  # Normalize to 4 digits with .tif extension
-    
+
     # Pattern 4: t followed by digits (source images)
-    match = re.search(r't(\d+)\.tif$', filename)
+    match = re.search(r"t(\d+)\.tif$", filename)
     if match:
         number = match.group(1)
         return f"{number.zfill(4)}.tif"  # Normalize to 4 digits with .tif extension
-    
+
     # Fallback to original logic if no pattern matches
     return filename[-8:]
 
@@ -260,3 +260,22 @@ def load_dataframe_from_parquet_with_metadata(input_path: str) -> pd.DataFrame:
                     # Keep as string if conversion fails
                     pass
     return df
+
+
+def create_dataset_dataframe_logic(
+    synchronized_dataset_dir: Path | str, output_path: Path | str
+) -> None:
+    synchronized_dataset_dir = Path(synchronized_dataset_dir)
+    if output_path is None:
+        output_path = f"{synchronized_dataset_dir.name}_dataset_dataframe.parquet"
+
+    dataset_info, competitor_columns = process_dataset_directory(
+        synchronized_dataset_dir
+    )
+    dataset_dataframe = convert_to_dataframe(dataset_info)
+    # Store metadata
+    dataset_dataframe.attrs["base_directory"] = str(synchronized_dataset_dir)
+    dataset_dataframe.attrs["competitor_columns"] = list(competitor_columns)
+    dataset_dataframe.attrs["created_by"] = "David-Ciz"  #
+    dataset_dataframe.attrs["creation_time"] = pd.Timestamp.now()
+    save_dataframe_to_parquet_with_metadata(dataset_dataframe, str(output_path))
