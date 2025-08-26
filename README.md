@@ -39,7 +39,7 @@ python preprocessing.py synchronize-datasets <path_to_datasets_folder> <path_to_
 
 **Example:**
 ```bash
-python preprocessing.py synchronize-datasets "C:\Users\wei0068\Desktop\IT4I\inputs-2020-07" "C:\Users\wei0068\Desktop\IT4I\synchronized_data"
+python preprocessing.py synchronize-datasets "C:\Users\wei0068\Desktop\Cell_Tracking\inputs-2020-07" "C:\Users\wei0068\Desktop\Cell_Tracking\synchronized_data"
 ```
 
 **1.2. Create Dataset DataFrame (`preprocessing.py`)**
@@ -53,7 +53,7 @@ python preprocessing.py create-dataset-dataframe <path_to_synchronized_dataset_d
 **Examples:**
 ```bash
 # Single dataset
-python preprocessing.py create-dataset-dataframe "C:\Users\wei0068\Desktop\IT4I\synchronized_data\BF-C2DL-MuSC" --output_path "BF-C2DL-MuSC_dataset_dataframe.parquet"
+python preprocessing.py create-dataset-dataframe "C:\Users\wei0068\Desktop\Cell_Tracking\synchronized_data\BF-C2DL-MuSC" --output_path "BF-C2DL-MuSC_dataset_dataframe.parquet"
 
 # All datasets
 python scripts/create_all_dataframes.py
@@ -221,10 +221,18 @@ This workflow is for creating, evaluating, and managing a QA dataset for cell-le
 ```bash
 python qa.py create-dataset <dataset_dataframe_path> <output_dir> <output_parquet_path> --crop --crop-size 64
 ```
+**Examples:**
+```bash
+python qa.py create-dataset "dataframes/BF-C2DL-MuSC_dataset_dataframe.parquet" "qa_output" "qa_BF-C2DL-MuSC_dataset.parquet" --crop --crop-size 64
+```
 
 **4.2. Evaluate QA Dataset (`qa.py`)**
 ```bash
 python qa.py evaluate <qa_dataset_parquet_path> <dataset_dataframe_path> --output <output_csv_path>
+```
+**Examples:**
+```bash
+python qa.py evaluate "qa_BF-C2DL-MuSC_dataset.parquet" "dataframes/BF-C2DL-MuSC_dataset_dataframe.parquet" --output "qa_jaccard_results_BF-C2DL-MuSC.csv"
 ```
 
 **4.3. Convert QA Results to Detailed Parquet (`qa.py`)**
