@@ -7,13 +7,14 @@ from torchvision import transforms
 import pytorch_lightning as pl
 from PIL import Image
 import os
+import matplotlib.pyplot as plt
 
- # Config
-QA_PARQUET = "qa_BF-C2DL-MuSC_dataset.parquet"  # Change as needed
+ # Configuration
+QA_PARQUET = "qa_BF-C2DL-MuSC_dataset.parquet"  # Change if needed
 BATCH_SIZE = 32
 EPOCHS = 3
 LEARNING_RATE = 0.001
-IMG_SIZE = 64  # Assuming crop-size 64
+IMG_SIZE = 64  # Assuming crop size 64
 
 class QADataset(Dataset):
     def __init__(self, parquet_path, transform=None):
@@ -45,9 +46,9 @@ class QADataset(Dataset):
         return image, label
 
 class SimpleCNNLightning(pl.LightningModule):
-    def __init__(self, learning_rate=0.001):
+    def __init__(self, LEARNING_RATE):
         super().__init__()
-        self.save_hyperparameters()
+        self.save_hyperparameters({'learning_rate': LEARNING_RATE})
         self.conv1 = nn.Conv2d(2, 16, kernel_size=3, padding=1)
         self.pool = nn.MaxPool2d(2, 2)
         self.conv2 = nn.Conv2d(16, 32, kernel_size=3, padding=1)
@@ -95,7 +96,7 @@ def main():
         transforms.Resize((IMG_SIZE, IMG_SIZE)),
         transforms.ToTensor(),
     ])
-    # If you have split files, use them here
+    # Use split files here if available
     train_path = "qa_output_split/train.parquet"
     val_path = "qa_output_split/val.parquet"
     test_path = "qa_output_split/test.parquet"
@@ -108,9 +109,8 @@ def main():
     val_loader = DataLoader(val_dataset, batch_size=BATCH_SIZE)
     test_loader = DataLoader(test_dataset, batch_size=BATCH_SIZE)
 
-    model = SimpleCNNLightning(learning_rate=LEARNING_RATE)
+    model = SimpleCNNLightning(LEARNING_RATE)
 
-    import matplotlib.pyplot as plt
     train_losses = []
     val_losses = []
     test_losses = []
@@ -149,7 +149,7 @@ def main():
             if val_loss is not None:
                 val_losses.append(val_loss.cpu().item() if hasattr(val_loss, 'cpu') else float(val_loss))
 
-    # Doporučení: před spuštěním smažte složku lightning_logs, aby se nenačítaly staré checkpointy
+    # Recommendation: delete the lightning_logs folder before running to avoid loading old checkpoints
     trainer = pl.Trainer(
         max_epochs=EPOCHS,
         accelerator='auto',
@@ -158,7 +158,7 @@ def main():
         callbacks=[PrintLossCallback()],
         check_val_every_n_epoch=1,
         enable_checkpointing=False,
-        default_root_dir=os.path.join(os.getcwd(), "lightning_logs_new")  # nový log adresář
+    default_root_dir=os.path.join(os.getcwd(), "lightning_logs_new")  # new log directory
     )
     trainer.fit(model, train_loader, val_loader)
 
@@ -171,6 +171,13 @@ def main():
     # Print model architecture
     print("\nModel architecture:")
     print(model)
+
+    # Print activation function and optimizer
+    print("\nActivation function:")
+    print("ReLU")
+    print("\nOptimizer:")
+    optimizer = model.configure_optimizers()
+    print(type(optimizer).__name__, optimizer.defaults if hasattr(optimizer, 'defaults') else str(optimizer))
 
     # Print main evaluation metric (MSE)
     if test_results and 'test_loss' in test_results[0]:
