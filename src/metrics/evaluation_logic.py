@@ -62,34 +62,38 @@ def run_evaluation(
             )
 
         competitor_columns = df.attrs.get("competitor_columns", [])
-
-        potential_cols = [
-            col
-            for col in df.columns
-            if col
-            not in [
-                "composite_key",
-                "raw_image",
-                "gt_image",
-                campaign_col,
-                "sequence_id",
-                "time_id",
-                "tracking_markers",
+        if len(competitor_columns) == 0:
+            logging.warning(
+                "No competitor columns specified in dataframe attributes. Attempting to infer."
+            )
+            # Infer competitor columns by excluding known non-competitor columns
+            potential_cols = [
+                col
+                for col in df.columns
+                if col
+                not in [
+                    "composite_key",
+                    "raw_image",
+                    "gt_image",
+                    campaign_col,
+                    "sequence_id",
+                    "time_id",
+                    "tracking_markers",
+                ]
+                and isinstance(df[col].iloc[0], str)
+                and Path(df[col].iloc[0]).suffix in [".tif", ".tiff"]
+                and not col.startswith("Unnamed")
             ]
-            and isinstance(df[col].iloc[0], str)
-            and Path(df[col].iloc[0]).suffix in [".tif", ".tiff"]
-            and not col.startswith("Unnamed")
-        ]
-        if potential_cols:
-            competitor_columns = potential_cols
-            logging.info(f"Inferred competitor columns: {competitor_columns}")
-        else:
-            logging.error("Could not infer competitor columns from dataframe columns.")
-            return {}
-            # Check competitor data availability
-        logging.info(
-            f"Found {len(competitor_columns)} competitors: {competitor_columns}"
-        )
+            if potential_cols:
+                competitor_columns = potential_cols
+                logging.info(f"Inferred competitor columns: {competitor_columns}")
+            else:
+                logging.error("Could not infer competitor columns from dataframe columns.")
+                return {}
+                # Check competitor data availability
+            logging.info(
+                f"Found {len(competitor_columns)} competitors: {competitor_columns}"
+            )
         for comp in competitor_columns:
             comp_available = df[comp].notna().sum()
             comp_percentage = (
