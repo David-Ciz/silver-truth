@@ -1,5 +1,6 @@
 import logging
 from typing import Optional
+from pathlib import Path
 
 import click
 
@@ -209,16 +210,31 @@ def generate_jobfiles(
 @click.option(
     "--base-dir",
     type=str,
-    default=r"C:\Users\wei0068\Desktop\Cell_Tracking\silver-truth",
+    default=".",
     help="Base directory path",
 )
 @click.option("--all", is_flag=True, help="Process all datasets")
 def add_fused_images(dataset, base_dir, all):
     """Add fused image paths to dataset dataframes"""
+
     if dataset:
+        base_path = Path(base_dir)
         # Process specific dataset
-        success = add_fused_images_to_dataframe_logic(dataset, base_dir)
-        if not success:
+        input_parquet_path = (
+            base_path / "dataframes" / f"{dataset}_dataset_dataframe.parquet"
+        )
+        output_dir = base_path / "fused_results_parquet"
+        output_parquet_path = (
+            output_dir / f"{dataset}_dataset_dataframe_with_fused.parquet"
+        )
+        fused_images_dir = base_path / "fused_results"
+
+        if not add_fused_images_to_dataframe_logic(
+            input_parquet_path=input_parquet_path,
+            output_parquet_path=output_parquet_path,
+            fused_images_dir=fused_images_dir,
+            dataset_name=dataset,
+        ):
             exit(1)
     elif all:
         # Process all datasets
