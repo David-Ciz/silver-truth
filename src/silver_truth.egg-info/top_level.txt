@@ -1,6 +1,8 @@
 __init__
 data_processing
+evaluation
 fusion
 job_file_generator
 metrics
+qa
 vizualizations

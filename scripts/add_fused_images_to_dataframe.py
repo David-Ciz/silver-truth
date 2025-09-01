@@ -11,6 +11,9 @@ df = pd.read_parquet(parquet_path)
 
 # Create a new column for fused images, initialized to None
 df["fused_images"] = None
+# Add fusion_model column and set to the selected model (update as needed)
+selected_fusion_model = "majority_flat"  # Change this to the actual model used
+df["fusion_model"] = None
 
 # Get a set of existing fused image filenames for efficient lookup
 existing_fused_images = {p.name for p in Path(fused_images_dir).glob("fused_*.tif")}
@@ -35,6 +38,8 @@ for _, row in df_campaign_01.iterrows():
             fused_image_mapping[row["composite_key"]] = str(
                 Path(fused_images_dir) / fused_filename
             )
+            # Set fusion_model for this row
+            df.loc[df["composite_key"] == row["composite_key"], "fusion_model"] = selected_fusion_model
 
 # Apply the mapping to the DataFrame
 df.loc[df["campaign_number"] == "01", "fused_images"] = df_campaign_01[
