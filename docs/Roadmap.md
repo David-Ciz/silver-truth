@@ -14,19 +14,19 @@ This roadmap outlines the strategic progression of the "Silver Truth" project, m
 
 **Goal:** To accurately reproduce the existing silver truth generation process using the provided tools and data.
 
-*   **[x] DONE** Data synchronization (`preprocessing.py synchronize-datasets`)
+*   **[x] DONE** Data synchronization (`cli_preprocessing.py synchronize-datasets`)
     *   _Status_: Completed.
     *   _Details_: Initial setup and verification of synchronization process.
-*   **[x] DONE** Dataset DataFrame creation (`preprocessing.py create-dataset-dataframe`)
+*   **[x] DONE** Dataset DataFrame creation (`cli_preprocessing.py create-dataset-dataframe`)
     *   _Status_: Completed.
     *   _Details_: Generation of `.parquet` files for downstream use.
-*   **[ ] IN PROGRESS** Job file generation (`run_fusion.py generate-jobfiles`)
+*   **[ ] IN PROGRESS** Job file generation (`cli_fusion.py generate-jobfiles`)
     *   _Status_: Currently implementing and testing.
     *   _Details_: [Link to Job File Generation Design Doc (TODO)]
-*   **[ ] TODO** Fusion execution (`run_fusion.py run-fusion`) using the established CTC fusion algorithm
+*   **[ ] TODO** Fusion execution (`cli_fusion.py run-fusion`) using the established CTC fusion algorithm
     *   _Status_: Pending.
     *   _Details_: [Link to Fusion Implementation Notes (TODO)]
-*   **[ ] TODO** Evaluation of recreated silver truth against known benchmarks (`evaluation.py evaluate-competitor`)
+*   **[ ] TODO** Evaluation of recreated silver truth against known benchmarks (`cli_evaluation.py evaluate-competitor`)
     *   _Status_: Pending.
     *   _Details_: [Link to Evaluation Plan (TODO)]
 

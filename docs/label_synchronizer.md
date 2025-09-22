@@ -39,7 +39,7 @@ The JAR file will be generated in the `target` directory.
 You can use the provided Python wrapper script to run the synchronization process in the preprocessing.py file. The script reads the configuration file and runs the synchronization process using the standalone JAR. 
 
 ````bash
-python preprocessing.py synchronize_dataset data/inputs-2020-07 data/synchronize_data
+python cli_preprocessing.py synchronize_dataset data/inputs-2020-07 data/synchronize_data
 ````
 **Notes:**
 - Replace `data/inputs-2020-07` with the path to the input data directory (it should contain folders with datasets).

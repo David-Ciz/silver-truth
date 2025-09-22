@@ -4,17 +4,17 @@ The "silver truth" in this project refers to a computer-generated reference anno
 
 ### Overview of the Fusion Process
 
-The generation of silver truth is primarily handled by the `run_fusion.py` script, which acts as a Python wrapper around a powerful Java-based fusion tool, specifically the `Annotations Fusing tools` plugin (packaged as a standalone JAR file). This approach allows us to leverage the robust fusion capabilities of the Java tool while providing a convenient command-line interface through Python.
+The generation of silver truth is primarily handled by the `cli_fusion.py` script, which acts as a Python wrapper around a powerful Java-based fusion tool, specifically the `Annotations Fusing tools` plugin (packaged as a standalone JAR file). This approach allows us to leverage the robust fusion capabilities of the Java tool while providing a convenient command-line interface through Python.
 
 The general workflow for generating silver truth involves:
 
 1.  **Preparing Input Data**: Ensuring that synchronized segmentation results from various competitor algorithms are available.
-2.  **Generating Job Files**: Creating a job specification file that lists the input image patterns for the fusion tool. This is done using the `generate-jobfiles` command within `run_fusion.py`.
-3.  **Running the Fusion Tool**: Executing the Java fusion tool via the `run-fusion` command in `run_fusion.py`, providing the job file and other necessary parameters.
+2.  **Generating Job Files**: Creating a job specification file that lists the input image patterns for the fusion tool. This is done using the `generate-jobfiles` command within `cli_fusion.py`.
+3.  **Running the Fusion Tool**: Executing the Java fusion tool via the `run-fusion` command in `cli_fusion.py`, providing the job file and other necessary parameters.
 
-### The `run_fusion.py` Script
+### The `cli_fusion.py` Script
 
-The `run_fusion.py` script provides two main commands:
+The `cli_fusion.py` script provides two main commands:
 
 #### 1. `generate-jobfiles`
 
@@ -23,7 +23,7 @@ This command prepares the input for the fusion process by creating a job specifi
 **Usage:**
 
 ```bash
-python run_fusion.py generate-jobfiles --parquet-file <path_to_parquet_file> --campaign-number <campaign_number> --output-dir <output_directory> [OPTIONS]
+python cli_fusion.py generate-jobfiles --parquet-file <path_to_parquet_file> --campaign-number <campaign_number> --output-dir <output_directory> [OPTIONS]
 ```
 
 **Key Parameters:**
@@ -37,7 +37,7 @@ python run_fusion.py generate-jobfiles --parquet-file <path_to_parquet_file> --c
 **Example:**
 
 ```bash
-python run_fusion.py generate-jobfiles --parquet-file BF-C2DL-HSC_dataset_dataframe.parquet --campaign-number 01 --output-dir job_files
+python cli_fusion.py generate-jobfiles --parquet-file BF-C2DL-HSC_dataset_dataframe.parquet --campaign-number 01 --output-dir job_files
 ```
 
 #### 2. `run-fusion`
@@ -47,7 +47,7 @@ This command executes the actual segmentation fusion process using the Java JAR.
 **Usage:**
 
 ```bash
-python run_fusion.py run-fusion --jar-path <path_to_jar> --job-file <path_to_job_file> --output-pattern <output_pattern> --time-points <time_points> --num-threads <num_threads> --model <model> [OPTIONS]
+python cli_fusion.py run-fusion --jar-path <path_to_jar> --job-file <path_to_job_file> --output-pattern <output_pattern> --time-points <time_points> --num-threads <num_threads> --model <model> [OPTIONS]
 ```
 
 **Key Parameters:**
@@ -66,7 +66,7 @@ python run_fusion.py run-fusion --jar-path <path_to_jar> --job-file <path_to_job
 **Example:**
 
 ```bash
-python run_fusion.py run-fusion --jar-path src/data_processing/cell_tracking_java_helpers/label-fusion-ng-2.2.0-SNAPSHOT-jar-with-dependencies.jar --job-file job_files/BF-C2DL-HSC_01_job_file.txt --output-pattern data/fused/BF-C2DL-HSC_fused_TTT.tif --time-points "1-10" --num-threads 4 --model "weighted_average"
+python cli_fusion.py run-fusion --jar-path src/data_processing/cell_tracking_java_helpers/label-fusion-ng-2.2.0-SNAPSHOT-jar-with-dependencies.jar --job-file job_files/BF-C2DL-HSC_01_job_file.txt --output-pattern data/fused/BF-C2DL-HSC_fused_TTT.tif --time-points "1-10" --num-threads 4 --model "weighted_average"
 ```
 
 ### Fusion Models

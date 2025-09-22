@@ -29,31 +29,31 @@ This project is organized into four main workflows. You must run the **Preproces
 
 This workflow synchronizes the datasets and creates the necessary dataframes for all other workflows.
 
-**1.1. Synchronize Datasets (`preprocessing.py`)**
+**1.1. Synchronize Datasets (`cli_preprocessing.py`)**
 Synchronizes all segmentations with tracking markers in all the datasets.
 
 **Usage:**
 ```bash
-python preprocessing.py synchronize-datasets <path_to_datasets_folder> <path_to_output_directory>
+python cli_preprocessing.py synchronize-datasets <path_to_datasets_folder> <path_to_output_directory>
 ```
 
 **Example:**
 ```bash
-python preprocessing.py synchronize-datasets "C:\Users\wei0068\Desktop\IT4I\inputs-2020-07" "C:\Users\wei0068\Desktop\IT4I\synchronized_data"
+python cli_preprocessing.py synchronize-datasets "C:\Users\wei0068\Desktop\IT4I\inputs-2020-07" "C:\Users\wei0068\Desktop\IT4I\synchronized_data"
 ```
 
-**1.2. Create Dataset DataFrame (`preprocessing.py`)**
+**1.2. Create Dataset DataFrame (`cli_preprocessing.py`)**
 Creates a pandas dataframe with dataset information from synchronized datasets. This `.parquet` file is a crucial input for subsequent steps.
 
 **Usage:**
 ```bash
-python preprocessing.py create-dataset-dataframe <path_to_synchronized_dataset_dir> --output_path <path_to_output_parquet_file>
+python cli_preprocessing.py create-dataset-dataframe <path_to_synchronized_dataset_dir> --output_path <path_to_output_parquet_file>
 ```
 
 **Examples:**
 ```bash
 # Single dataset
-python preprocessing.py create-dataset-dataframe "C:\Users\wei0068\Desktop\IT4I\synchronized_data\BF-C2DL-MuSC" --output_path "BF-C2DL-MuSC_dataset_dataframe.parquet"
+python cli_preprocessing.py create-dataset-dataframe "C:\Users\[USER]\Desktop\IT4I\synchronized_data\BF-C2DL-MuSC" --output_path "BF-C2DL-MuSC_dataset_dataframe.parquet"
 
 # All datasets
 python scripts/create_all_dataframes.py
@@ -66,35 +66,35 @@ python scripts/create_all_dataframes.py
 
 This workflow fuses the segmentations from multiple competitors into a single, more accurate segmentation.
 
-**2.1. Generate Job Files (`fusion.py`)**
+**2.1. Generate Job Files (`cli_fusion.py`)**
 Generates job files required by the `run-fusion` command. It uses the `.parquet` file created in the previous step.
 
 **Usage:**
 ```bash
-python fusion.py generate-jobfiles --parquet-file <path_to_parquet_file> --campaign-number <campaign_number> --output-dir <output_directory>
+python cli_fusion.py generate-jobfiles --parquet-file <path_to_parquet_file> --campaign-number <campaign_number> --output-dir <output_directory>
 ```
 
 **Examples:**
 ```bash
 # Single dataset
-python fusion.py generate-jobfiles --parquet-file "BF-C2DL-MuSC_dataset_dataframe.parquet" --campaign-number "01" --output-dir "job_files"
+python cli_fusion.py generate-jobfiles --parquet-file "BF-C2DL-MuSC_dataset_dataframe.parquet" --campaign-number "01" --output-dir "job_files"
 
 # All jobfiles
 python scripts/generate_all_jobfiles.py
 ```
 
-**2.2. Run Fusion (`fusion.py`)**
+**2.2. Run Fusion (`cli_fusion.py`)**
 Executes the fusion process using the generated job files.
 
 **Usage:**
 ```bash
-python fusion.py run-fusion --jar-path <path_to_jar> --job-file <path_to_job_file> --output-pattern <output_pattern> --time-points <time_points> --num-threads <num_threads> --model <model> [OPTIONS]
+python cli_fusion.py run-fusion --jar-path <path_to_jar> --job-file <path_to_job_file> --output-pattern <output_pattern> --time-points <time_points> --num-threads <num_threads> --model <model> [OPTIONS]
 ```
 
 **Example:**
 ```bash
 # Single dataset
-python fusion.py run-fusion --jar-path "src/data_processing/cell_tracking_java_helpers/label-fusion-ng-2.2.0-SNAPSHOT-jar-with-dependencies.jar" --job-file "job_files/BF-C2DL-MuSC_01_job_file.txt" --output-pattern "fused_results/BF-C2DL-MuSC_01_fused_TTTT.tif" --time-points "0-61" --num-threads 2 --model "majority_flat"
+python cli_fusion.py run-fusion --jar-path "src/data_processing/cell_tracking_java_helpers/label-fusion-ng-2.2.0-SNAPSHOT-jar-with-dependencies.jar" --job-file "job_files/BF-C2DL-MuSC_01_job_file.txt" --output-pattern "fused_results/BF-C2DL-MuSC_01_fused_TTTT.tif" --time-points "0-61" --num-threads 2 --model "majority_flat"
 
 # All datasets
 Change default fusion settings - DEFAULT_TIME_POINTS and DEFAULT_MODEL
@@ -109,17 +109,17 @@ python scripts/run_all_fusion.py
 - `simple`: Simple fusion (may have compatibility issues)
 - `threshold_user`: Threshold-based with user-defined parameters
 
-**2.3. Add Fused Images to DataFrame (`fusion.py`)**
+**2.3. Add Fused Images to DataFrame (`cli_fusion.py`)**
 Adds the paths of the fused images to the dataset dataframe.
 
 **Usage:**
 ```bash
-python fusion.py add-fused-images --dataset <dataset_name> --base-dir <path_to_base_directory>
+python cli_fusion.py add-fused-images --dataset <dataset_name> --base-dir <path_to_base_directory>
 ```
 
 **Example:**
 ```bash
-python fusion.py add-fused-images --dataset "BF-C2DL-MuSC" --base-dir "."
+python cli_fusion.py add-fused-images --dataset "BF-C2DL-MuSC" --base-dir "."
 ```
 
 ---
@@ -129,18 +129,18 @@ python fusion.py add-fused-images --dataset "BF-C2DL-MuSC" --base-dir "."
 
 This workflow evaluates the performance of the competitors and the fusion models.
 
-**3.1. Evaluate Competitor (`evaluation.py`)**
+**3.1. Evaluate Competitor (`cli_evaluation.py`)**
 Evaluates competitor segmentation results against ground truth using the Jaccard index.
 
 **Usage:**
 ```bash
-python evaluation.py evaluate-competitor <path_to_dataset_dataframe> [OPTIONS]
+python cli_evaluation.py evaluate-competitor <path_to_dataset_dataframe> [OPTIONS]
 ```
 
 **Examples:**
 ```bash
 # Evaluate all competitors in a dataset
-python evaluation.py evaluate-competitor "fused_results_parquet/BF-C2DL-MuSC_dataset_dataframe_with_fused.parquet" --output "evaluation_results_BF-C2DL-MuSC.csv"
+python cli_evaluation.py evaluate-competitor "fused_results_parquet/BF-C2DL-MuSC_dataset_dataframe_with_fused.parquet" --output "evaluation_results_BF-C2DL-MuSC.csv"
     
 # Run evaluation for all datasets automatically
 python scripts/run_all_evaluations.py
@@ -217,26 +217,26 @@ python scripts/analyze_detailed_results.py "detailed_BF-C2DL-MuSC.parquet" --out
 
 This workflow is for creating, evaluating, and managing a QA dataset for cell-level analysis.
 
-**4.1. Create QA Dataset (`qa.py`)**
+**4.1. Create QA Dataset (`cli_qa.py`)**
 ```bash
-python qa.py create-dataset <dataset_dataframe_path> <output_dir> <output_parquet_path> --crop --crop-size 64
+python cli_qa.py create-dataset <dataset_dataframe_path> <output_dir> <output_parquet_path> --crop --crop-size 64
 ```
 
-**4.2. Evaluate QA Dataset (`qa.py`)**
+**4.2. Evaluate QA Dataset (`cli_qa.py`)**
 ```bash
-python qa.py evaluate <qa_dataset_parquet_path> <dataset_dataframe_path> --output <output_csv_path>
+python cli_qa.py evaluate <qa_dataset_parquet_path> <dataset_dataframe_path> --output <output_csv_path>
 ```
 
-**4.3. Convert QA Results to Detailed Parquet (`qa.py`)**
+**4.3. Convert QA Results to Detailed Parquet (`cli_qa.py`)**
 Converts existing QA evaluation CSV results to detailed parquet format for enhanced analysis.
 
 **Usage:**
 ```bash
 # Convert single QA result file
-python qa.py convert-results <qa_csv_results> <qa_dataframe_parquet> [--output OUTPUT]
+python cli_qa.py convert-results <qa_csv_results> <qa_dataframe_parquet> [--output OUTPUT]
 
 # Batch convert all QA results
-python qa.py batch-convert-results [--qa-results-dir DIR] [--qa-dataframes-dir DIR] [--output-dir DIR]
+python cli_qa.py batch-convert-results [--qa-results-dir DIR] [--qa-dataframes-dir DIR] [--output-dir DIR]
 ```
 
 **Examples:**
@@ -261,17 +261,17 @@ python scripts/analyze_detailed_results.py "qa_BF-C2DL-MuSC_detailed_cells.parqu
 
 ### Utility Commands
 
-#### Compress TIF Files (`preprocessing.py`)
+#### Compress TIF Files (`cli_preprocessing.py`)
 Compresses all TIF files in a directory and its subdirectories using LZW compression. This can be run at any point to save disk space.
 
 **Usage:**
 ```bash
-python preprocessing.py compress-tifs <path_to_directory>
+python cli_preprocessing.py compress-tifs <path_to_directory>
 ```
 
 **Example:**
 ```bash
-python preprocessing.py compress-tifs "C:\Users\wei0068\Desktop\IT4I\synchronized_data"
+python cli_preprocessing.py compress-tifs "C:\Users\wei0068\Desktop\IT4I\synchronized_data"
 ```
 
 #### Visualization

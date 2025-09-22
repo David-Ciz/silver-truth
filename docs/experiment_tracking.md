@@ -23,7 +23,7 @@ This script will:
 
 1.  **Start an MLflow Run**: A new run is created under a specified experiment name (default: `silver-truth-qa`).
 2.  **Log Parameters**: All command-line options and configuration parameters are logged to MLflow.
-3.  **Execute the Pipeline**: The script orchestrates the necessary steps, such as running the fusion process (`run_fusion.py`) and evaluating the results (`evaluation.py`).
+3.  **Execute the Pipeline**: The script orchestrates the necessary steps, such as running the fusion process (`cli_fusion.py`) and evaluating the results (`cli_evaluation.py`).
 4.  **Log Results**: Key metrics (e.g., Jaccard scores) and output artifacts (e.g., evaluation CSVs, sample images) are logged to MLflow for analysis.
 
 ### Viewing Results

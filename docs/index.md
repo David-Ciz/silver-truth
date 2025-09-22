@@ -20,9 +20,9 @@ Raw Data -> Synchronization -> DataFrame -> Job Files -> Fusion -> Evaluation
 
 ### Core Modules
 
-*   **`preprocessing.py`**: Handles initial data preparation, including synchronizing datasets and creating structured dataframes.
-*   **`run_fusion.py`**: Manages the generation of job files and the execution of the cell segmentation fusion process to create the silver truth.
-*   **`evaluation.py`**: Provides tools for evaluating competitor algorithms against ground truth or the generated silver truth.
+*   **`cli_preprocessing.py`**: Handles initial data preparation, including synchronizing datasets and creating structured dataframes.
+*   **`cli_fusion.py`**: Manages the generation of job files and the execution of the cell segmentation fusion process to create the silver truth.
+*   **`cli_evaluation.py`**: Provides tools for evaluating competitor algorithms against ground truth or the generated silver truth.
 
 ## Getting Started
 
