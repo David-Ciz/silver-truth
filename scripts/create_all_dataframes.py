@@ -17,10 +17,8 @@ logging.basicConfig(
 )
 
 # Configuration
-SYNCHRONIZED_DATA_DIR = Path(
-    r"C:\Users\wei0068\Desktop\Cell_Tracking\synchronized_data"
-)
-OUTPUT_DIR = Path("dataframes")  # Dataframes directory
+SYNCHRONIZED_DATA_DIR = Path("data/synchronized_data")
+OUTPUT_DIR = Path("data/dataframes")  # Dataframes directory
 
 
 def run_command(command):
