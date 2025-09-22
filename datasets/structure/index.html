@@ -1,0 +1,350 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+    <meta charset="utf-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><link rel="canonical" href="https://silver-truth-3-0.readthedocs.io/datasets/structure/" />
+      <link rel="shortcut icon" href="../../img/favicon.ico" />
+    <title>Cell Tracking Challenge Dataset Structure - Silver-truth 3.0 Documentation</title>
+    <link rel="stylesheet" href="../../css/theme.css" />
+    <link rel="stylesheet" href="../../css/theme_extra.css" />
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/styles/github.min.css" />
+    
+      <script>
+        // Current page data
+        var mkdocs_page_name = "Cell Tracking Challenge Dataset Structure";
+        var mkdocs_page_input_path = "datasets/structure.md";
+        var mkdocs_page_url = "/datasets/structure/";
+      </script>
+    
+    <!--[if lt IE 9]>
+      <script src="../../js/html5shiv.min.js"></script>
+    <![endif]-->
+      <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/highlight.min.js"></script>
+      <script>hljs.highlightAll();</script> 
+</head>
+
+<body class="wy-body-for-nav" role="document">
+
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side stickynav">
+    <div class="wy-side-scroll">
+      <div class="wy-side-nav-search">
+          <a href="../.." class="icon icon-home"> Silver-truth 3.0 Documentation
+        </a><div role="search">
+  <form id ="rtd-search-form" class="wy-form" action="../../search.html" method="get">
+      <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" title="Type search term here" />
+  </form>
+</div>
+      </div>
+
+      <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../..">Home</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../../Silver-truth-generation/">Silver-truth Generation</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../../quality_assurance/">Quality Assurance</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../../experiment_tracking/">Experiment Tracking</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../../qa_data_preparation/">QA Data Preparation</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../../Evaluations/">Evaluations</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../../label_synchronizer/">Label Synchronizer</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="" href="../../notebooks.md">Notebooks</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../../Roadmap/">Roadmap</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../../References/">References</a>
+                </li>
+              </ul>
+      </div>
+    </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+      <nav class="wy-nav-top" role="navigation" aria-label="Mobile navigation menu">
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../..">Silver-truth 3.0 Documentation</a>
+        
+      </nav>
+      <div class="wy-nav-content">
+        <div class="rst-content"><div role="navigation" aria-label="breadcrumbs navigation">
+  <ul class="wy-breadcrumbs">
+    <li><a href="../.." class="icon icon-home" aria-label="Docs"></a></li>
+      <li class="breadcrumb-item active">Cell Tracking Challenge Dataset Structure</li>
+    <li class="wy-breadcrumbs-aside">
+    </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+            <div class="section" itemprop="articleBody">
+              
+                <h1 id="cell-tracking-challenge-dataset-structure">Cell Tracking Challenge Dataset Structure</h1>
+<h2 id="overview">Overview</h2>
+<p>The project contains 16 distinct biological datasets from the Cell Tracking Challenge, each featuring different cell types and imaging modalities. Each dataset follows a standardized structure with multiple annotations and results.</p>
+<h2 id="dataset-categories">Dataset Categories</h2>
+<table>
+<thead>
+<tr>
+<th>Dataset ID</th>
+<th>Description</th>
+<th>Modality</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>BF-C2DL-HSC</td>
+<td>Hematopoietic Stem Cells</td>
+<td>Brightfield 2D</td>
+</tr>
+<tr>
+<td>BF-C2DL-MuSC</td>
+<td>Muscle Stem Cells</td>
+<td>Brightfield 2D</td>
+</tr>
+<tr>
+<td>DIC-C2DH-HeLa</td>
+<td>HeLa Cells</td>
+<td>DIC 2D</td>
+</tr>
+<tr>
+<td>Fluo-C2DL-MSC</td>
+<td>Mesenchymal Stem Cells</td>
+<td>Fluorescence 2D</td>
+</tr>
+<tr>
+<td>Fluo-C3DH-A549</td>
+<td>Lung Cancer Cells</td>
+<td>Fluorescence 3D</td>
+</tr>
+<tr>
+<td>Fluo-C3DH-A549-SIM</td>
+<td>Simulated Lung Cancer Cells</td>
+<td>Fluorescence 3D</td>
+</tr>
+<tr>
+<td>Fluo-C3DH-H157</td>
+<td>Lung Cancer Cells</td>
+<td>Fluorescence 3D</td>
+</tr>
+<tr>
+<td>Fluo-C3DL-MDA231</td>
+<td>Breast Cancer Cells</td>
+<td>Fluorescence 3D</td>
+</tr>
+<tr>
+<td>Fluo-N2DH-GOWT1</td>
+<td>Embryonic Stem Cells</td>
+<td>Fluorescence 2D</td>
+</tr>
+<tr>
+<td>Fluo-N2DH-SIM+</td>
+<td>Simulated Nuclei</td>
+<td>Fluorescence 2D</td>
+</tr>
+<tr>
+<td>Fluo-N2DL-HeLa</td>
+<td>HeLa Cell Nuclei</td>
+<td>Fluorescence 2D</td>
+</tr>
+<tr>
+<td>Fluo-N3DH-CE</td>
+<td>C. elegans Embryo Nuclei</td>
+<td>Fluorescence 3D</td>
+</tr>
+<tr>
+<td>Fluo-N3DH-CHO</td>
+<td>Chinese Hamster Ovary Nuclei</td>
+<td>Fluorescence 3D</td>
+</tr>
+<tr>
+<td>Fluo-N3DH-SIM+</td>
+<td>Simulated Nuclei</td>
+<td>Fluorescence 3D</td>
+</tr>
+<tr>
+<td>PhC-C2DH-U373</td>
+<td>Glioblastoma-astrocytoma Cells</td>
+<td>Phase Contrast 2D</td>
+</tr>
+<tr>
+<td>PhC-C2DL-PSC</td>
+<td>Pancreatic Stem Cells</td>
+<td>Phase Contrast 2D</td>
+</tr>
+</tbody>
+</table>
+<h2 id="directory-structure">Directory Structure</h2>
+<p>Each dataset follows this structure:</p>
+<pre>
+Dataset/
+
+├── 01/                 # First sequence raw images
+
+├── 01_GT/             # Ground truth for first sequence
+
+│   ├── SEG/           # Segmentation ground truth (sparse)
+
+│   └── TRA/           # Tracking ground truth (point annotations)
+
+├── 01_GT_sync/        # Synchronized ground truth
+
+├── 01_ST/             # Silver truth for first sequence
+
+├── 01_ST_sync/        # Synchronized silver truth
+
+├── 02/                # Second sequence raw images
+
+├── 02_GT/             # Ground truth for second sequence
+
+│   ├── SEG/           # Segmentation ground truth (sparse)
+
+│   └── TRA/           # Tracking ground truth (point annotations)
+
+├── 02_GT_sync/        # Synchronized ground truth
+
+├── 02_ST/             # Silver truth for second sequence
+
+├── 02_ST_sync/        # Synchronized silver truth
+
+└── Competitors/       # Competitor results
+
+├── CALT-US/
+
+│   ├── 01_RES/    # Results for first sequence
+
+│   └── 02_RES/    # Results for second sequence
+
+├── DREX-US/
+
+├── KIT-Sch-GE/
+
+├── KTH-SE/
+
+└── MU-Lux-CZ/
+</pre>
+<h2 id="data-types">Data Types</h2>
+<h3 id="raw-images-01-and-02">Raw Images (01/ and 02/)</h3>
+<ul>
+<li>Format: TIFF files</li>
+<li>Content: Original microscopy images</li>
+<li>Two independent sequences per dataset</li>
+</ul>
+<h3 id="ground-truth-01_gt-and-02_gt">Ground Truth (01_GT/ and 02_GT/)</h3>
+<p>Contains two types of annotations:</p>
+<ol>
+<li><strong>SEG/ (Segmentation)</strong></li>
+<li>Sparse manual segmentations by human experts</li>
+<li>TIFF format</li>
+<li>Full cell masks at selected time points</li>
+<li>
+<p>Used for segmentation accuracy evaluation</p>
+</li>
+<li>
+<p><strong>TRA/ (Tracking)</strong></p>
+</li>
+<li>Point annotations for cell tracking</li>
+<li>TIFF format</li>
+<li>Single point per cell in each frame</li>
+<li>Used for tracking accuracy evaluation</li>
+</ol>
+<h3 id="silver-truth-01_st-and-02_st">Silver Truth (01_ST/ and 02_ST/)</h3>
+<ul>
+<li>Combined best results from competition participants</li>
+<li>Generated through consensus of top-performing methods</li>
+<li>TIFF format</li>
+<li>Provides more dense annotations than ground truth</li>
+</ul>
+<h3 id="synchronized-versions-_sync">Synchronized Versions (*_sync/)</h3>
+<ul>
+<li>Processed versions of GT and ST</li>
+<li>Ensures consistent labeling across temporal sequences</li>
+<li>Maintains label correspondence between frames</li>
+<li>TIFF format</li>
+</ul>
+<h3 id="competitor-results">Competitor Results</h3>
+<p>Each competitor folder contains:
+- 01_RES/: Results for first sequence
+- 02_RES/: Results for second sequence
+- All results in TIFF format
+- Each competitor uses their own methodology</p>
+<h2 id="file-format-specifications">File Format Specifications</h2>
+<p>All images are stored in TIFF format with the following characteristics:
+- Segmentation masks: Binary or labeled images where each cell has a unique identifier
+- Tracking markers: Binary images with single points marking cell positions
+- Raw images: Original microscopy data in the respective modality</p>
+<h2 id="usage-notes">Usage Notes</h2>
+<ul>
+<li>When working with the dataset, always maintain the original directory structure</li>
+<li>Synchronization between SEG and TRA files is crucial for accurate evaluation</li>
+<li>Silver truth can be used as a more extensive ground truth alternative</li>
+<li>Each sequence (01 and 02) should be processed independently</li>
+</ul>
+<h2 id="related-documentation">Related Documentation</h2>
+<ul>
+<li><a href="../data_processing/label_synchronization.md">Label Synchronization Process</a></li>
+<li><a href="../evaluation/metrics.md">Evaluation Metrics</a></li>
+</ul>
+              
+            </div>
+          </div><footer>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <!-- Copyright etc -->
+  </div>
+
+  Built with <a href="https://www.mkdocs.org/">MkDocs</a> using a <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>.
+</footer>
+          
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+
+  <div class="rst-versions" role="note" aria-label="Versions">
+  <span class="rst-current-version" data-toggle="rst-current-version">
+    
+    
+    
+  </span>
+</div>
+    <script src="../../js/jquery-3.6.0.min.js"></script>
+    <script>var base_url = "../..";</script>
+    <script src="../../js/theme_extra.js"></script>
+    <script src="../../js/theme.js"></script>
+      <script src="../../search/main.js"></script>
+    <script>
+        jQuery(function () {
+            SphinxRtdTheme.Navigation.enable(true);
+        });
+    </script>
+
+</body>
+</html>
