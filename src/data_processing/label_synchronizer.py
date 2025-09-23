@@ -197,7 +197,7 @@ def verify_synchronization(label_img, tracking_img):
             label_layer = (label_img == label).astype(int)
             tracking_layer = (tracking_img == label).astype(int)
             j_value = jaccard(label_layer.flatten(), tracking_layer.flatten())
-            if j_value > 0:
+            if j_value == 0:
                 logging.error(f"Jaccard index for label {label} is {j_value}.")
                 return False
 

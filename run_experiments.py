@@ -1,4 +1,3 @@
-
 import json
 import logging
 import re
@@ -37,10 +36,10 @@ def get_dvc_hash(dvc_file_path: Path) -> Optional[str]:
     if not dvc_file_path.exists():
         return None
     try:
-        with open(dvc_file_path, 'r') as f:
+        with open(dvc_file_path, "r") as f:
             dvc_data = yaml.safe_load(f)
-            if 'outs' in dvc_data and dvc_data['outs'] and 'md5' in dvc_data['outs'][0]:
-                return dvc_data['outs'][0]['md5']
+            if "outs" in dvc_data and dvc_data["outs"] and "md5" in dvc_data["outs"][0]:
+                return dvc_data["outs"][0]["md5"]
     except Exception as e:
         logging.warning(f"Could not read or parse DVC file {dvc_file_path}: {e}")
     return None
@@ -156,14 +155,16 @@ def run_fusion_experiment(
     if time_points is None:
         logging.info("Inferring time points from ground truth images...")
         df = pd.read_parquet(dataset_dataframe_path)
-        gt_df = df[df['gt_image'].notna()]
+        gt_df = df[df["gt_image"].notna()]
         if gt_df.empty:
             raise ValueError("No ground truth images found to infer time points from.")
-        inferred_points = sorted([
-            int(key.split('_')[1].replace('.tif', ''))
-            for key in gt_df['composite_key']
-            if '_' in key
-        ])
+        inferred_points = sorted(
+            [
+                int(key.split("_")[1].replace(".tif", ""))
+                for key in gt_df["composite_key"]
+                if "_" in key
+            ]
+        )
         time_points = format_time_points(inferred_points)
         logging.info(f"Inferred time points: {time_points}")
 
@@ -178,7 +179,7 @@ def run_fusion_experiment(
             logging.info(f"Logged Git commit: {commit_hash}")
 
         # --- Log DVC Hash ---
-        dvc_hash = get_dvc_hash(Path('data.dvc'))
+        dvc_hash = get_dvc_hash(Path("data.dvc"))
         if dvc_hash:
             mlflow.set_tag("dvc_data_hash", dvc_hash)
             logging.info(f"Logged DVC data hash: {dvc_hash}")
@@ -224,7 +225,7 @@ def run_fusion_experiment(
         # --- Add Fused Images to DataFrame ---
         try:
             logging.info("Adding fused images to dataframe...")
-            dataset_name = dataset_dataframe_path.stem.replace('_dataset_dataframe', '')
+            dataset_name = dataset_dataframe_path.stem.replace("_dataset_dataframe", "")
             updated_dataframe_path = dataset_dataframe_path.with_name(
                 f"{dataset_name}_dataset_dataframe_with_fused.parquet"
             )
@@ -259,7 +260,10 @@ def run_fusion_experiment(
             if eval_results and eval_results.get("overall_averages"):
                 overall_averages = eval_results["overall_averages"]
                 mlflow.log_metrics(
-                    {sanitize_metric_name(f"overall_avg_{k}"): v for k, v in overall_averages.items()}
+                    {
+                        sanitize_metric_name(f"overall_avg_{k}"): v
+                        for k, v in overall_averages.items()
+                    }
                 )
                 logging.info(f"Logged overall average metrics: {overall_averages}")
 
@@ -267,14 +271,16 @@ def run_fusion_experiment(
                 per_campaign_averages = eval_results["per_campaign_averages"]
                 for comp, camp_avgs in per_campaign_averages.items():
                     for camp, avg in camp_avgs.items():
-                        mlflow.log_metric(sanitize_metric_name(f"campaign_avg_{comp}_{camp}"), avg)
-                logging.info(f"Logged per-campaign average metrics.")
+                        mlflow.log_metric(
+                            sanitize_metric_name(f"campaign_avg_{comp}_{camp}"), avg
+                        )
+                logging.info("Logged per-campaign average metrics.")
 
             # --- Log Artifacts ---
             if eval_results and eval_results.get("all_results"):
                 results_path = Path(mlflow.get_artifact_uri()) / "detailed_results.json"
                 results_path.parent.mkdir(parents=True, exist_ok=True)
-                with open(results_path, 'w') as f:
+                with open(results_path, "w") as f:
                     json.dump(eval_results["all_results"], f, indent=4)
                 mlflow.log_artifact(str(results_path))
                 logging.info("Logged detailed results as JSON artifact.")
@@ -328,7 +334,7 @@ def run_baseline_evaluation(
             logging.info(f"Logged Git commit: {commit_hash}")
 
         # --- Log DVC Hash ---
-        dvc_hash = get_dvc_hash(Path('data.dvc'))
+        dvc_hash = get_dvc_hash(Path("data.dvc"))
         if dvc_hash:
             mlflow.set_tag("dvc_data_hash", dvc_hash)
             logging.info(f"Logged DVC data hash: {dvc_hash}")
@@ -356,7 +362,10 @@ def run_baseline_evaluation(
             if eval_results and eval_results.get("overall_averages"):
                 overall_averages = eval_results["overall_averages"]
                 mlflow.log_metrics(
-                    {sanitize_metric_name(f"overall_avg_{k}"): v for k, v in overall_averages.items()}
+                    {
+                        sanitize_metric_name(f"overall_avg_{k}"): v
+                        for k, v in overall_averages.items()
+                    }
                 )
                 logging.info(f"Logged overall average metrics: {overall_averages}")
 
@@ -364,14 +373,16 @@ def run_baseline_evaluation(
                 per_campaign_averages = eval_results["per_campaign_averages"]
                 for comp, camp_avgs in per_campaign_averages.items():
                     for camp, avg in camp_avgs.items():
-                        mlflow.log_metric(sanitize_metric_name(f"campaign_avg_{comp}_{camp}"), avg)
-                logging.info(f"Logged per-campaign average metrics.")
+                        mlflow.log_metric(
+                            sanitize_metric_name(f"campaign_avg_{comp}_{camp}"), avg
+                        )
+                logging.info("Logged per-campaign average metrics.")
 
             # --- Log Artifacts ---
             if eval_results and eval_results.get("all_results"):
                 results_path = Path(mlflow.get_artifact_uri()) / "detailed_results.json"
                 results_path.parent.mkdir(parents=True, exist_ok=True)
-                with open(results_path, 'w') as f:
+                with open(results_path, "w") as f:
                     json.dump(eval_results["all_results"], f, indent=4)
                 mlflow.log_artifact(str(results_path))
                 logging.info("Logged detailed results as JSON artifact.")

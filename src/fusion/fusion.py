@@ -21,7 +21,9 @@ class FusionModel(Enum):
     MAJORITY_FLAT = "Majority - flat weights"
     SIMPLE = "SIMPLE"
     BIC_FLAT_VOTING = "BICv2 with FlatVoting, SingleMaskFailSafe and CollisionResolver"
-    BIC_WEIGHTED_VOTING = "BICv2 with WeightedVoting, SingleMaskFailSafe and CollisionResolver"
+    BIC_WEIGHTED_VOTING = (
+        "BICv2 with WeightedVoting, SingleMaskFailSafe and CollisionResolver"
+    )
 
 
 def fuse_segmentations(
@@ -126,8 +128,12 @@ def add_fused_images_to_dataframe_logic(
             match = re.search(r"(\d+)\.tif", str(composite_key))
             if match:
                 time_num = int(match.group(1))
-                fused_filename_ttt = f"{dataset_name}_{campaign}_fused_{time_num:03d}.tif"
-                fused_filename_tttt = f"{dataset_name}_{campaign}_fused_{time_num:04d}.tif"
+                fused_filename_ttt = (
+                    f"{dataset_name}_{campaign}_fused_{time_num:03d}.tif"
+                )
+                fused_filename_tttt = (
+                    f"{dataset_name}_{campaign}_fused_{time_num:04d}.tif"
+                )
 
                 if fused_filename_ttt in existing_fused_images:
                     fused_filename = fused_filename_ttt
@@ -135,7 +141,7 @@ def add_fused_images_to_dataframe_logic(
                     fused_filename = fused_filename_tttt
                 else:
                     continue
-                
+
                 fused_image_mapping[composite_key] = str(
                     fused_images_dir / fused_filename
                 )
@@ -187,7 +193,9 @@ def process_all_datasets_logic(base_dir):
         print(f"\n{'='*50}")
 
         output_dir = Path(base_dir) / "fused_results_parquet"
-        output_parquet_path = output_dir / f"{dataset_name}_dataset_dataframe_with_fused.parquet"
+        output_parquet_path = (
+            output_dir / f"{dataset_name}_dataset_dataframe_with_fused.parquet"
+        )
         fused_images_dir = Path(base_dir) / "fused_results"
 
         if add_fused_images_to_dataframe_logic(

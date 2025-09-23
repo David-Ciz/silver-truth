@@ -88,7 +88,9 @@ def run_evaluation(
                 competitor_columns = potential_cols
                 logging.info(f"Inferred competitor columns: {competitor_columns}")
             else:
-                logging.error("Could not infer competitor columns from dataframe columns.")
+                logging.error(
+                    "Could not infer competitor columns from dataframe columns."
+                )
                 return {}
                 # Check competitor data availability
             logging.info(
