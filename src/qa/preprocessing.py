@@ -140,13 +140,18 @@ def create_qa_dataset(
                 try:
                     raw_image = tifffile.imread(raw_image_path)
                     segmentation = tifffile.imread(segmentation_path)
+                    gt_image = tifffile.imread(gt_image_path)
                 except Exception as e:
                     logging.error(
-                        f"Error reading image or segmentation file for {raw_image_path.stem}: {e}"
+                        f"Error reading image, segmentation or ground truth file for {raw_image_path.stem}: {e}"
                     )
                     continue
 
                 labels = np.unique(segmentation)[1:]  # Exclude background
+                ### guarantees that labels are synchronized
+                gt_labels_lst = np.unique(gt_image)[1:].tolist()
+                assert(all([lbl in gt_labels_lst for lbl in labels.tolist()]))
+                ###
 
                 for label in labels:
                     if crop:
@@ -216,6 +221,7 @@ def create_qa_dataset(
                                 "original_center_y": center_y,
                                 "original_center_x": center_x,
                                 "crop_size": crop_size,
+                                "gt_image": row["gt_image"],
                             }
                         )
                     else:  # not cropping
@@ -247,6 +253,7 @@ def create_qa_dataset(
                                 "original_center_y": raw_image.shape[0] // 2,
                                 "original_center_x": raw_image.shape[1] // 2,
                                 "crop_size": None,  # No cropping applied
+                                "gt_image": row["gt_image"],
                             }
                         )
             else:
