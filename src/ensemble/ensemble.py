@@ -105,7 +105,12 @@ def create_analysis_dataset(qa_dataset_dataframe_path: str, output_path: str) ->
 
 
 
-def build_initial_dataset_v001(qa_dataset_dataframe_path: str, output_path: str, crop_size: int = 64, apply_blue_layer: bool = True) -> None: 
+def build_initial_dataset_v001(
+        qa_dataset_dataframe_path: str, 
+        output_path: str, 
+        crop_size: int = 64, 
+        apply_blue_layer: bool = True
+        ) -> None: 
     """
     Generate the initial dataset for the ensamble.
     
@@ -176,7 +181,8 @@ def build_initial_dataset_v001(qa_dataset_dataframe_path: str, output_path: str,
             gt_crop = (gt_crop == label).astype(np.uint8) * 255
             # stack layers
             if apply_blue_layer:
-                stacked_crop = np.stack([canvas_crop, gt_crop, np.zeros((crop_size, crop_size), dtype=np.uint8)], axis=0)
+                empty_blue_layer = np.zeros((crop_size, crop_size), dtype=np.uint8)
+                stacked_crop = np.stack([canvas_crop, gt_crop, empty_blue_layer], axis=0)
             else:
                 stacked_crop = np.stack([canvas_crop, gt_crop], axis=0)
             # set new dataset image path
