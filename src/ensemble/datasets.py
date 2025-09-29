@@ -2,15 +2,18 @@ import tifffile
 from tqdm import tqdm
 import torch
 from torch.utils.data import Dataset
-from src.data_processing.utils.dataset_dataframe_creation import (
-    load_dataframe_from_parquet_with_metadata,
-)
+import src.ensemble.external as ext
+from enum import Enum
 
 
+class Version(Enum):
+    V1 = 1
+    V2 = 2
 
-class EnsembleDatasetV001(Dataset):
+
+class EnsembleDatasetV1(Dataset):
     """
-    Ensemble dataset data structure V001.
+    Ensemble dataset data structure V1.
 
     Input: crop image with the normalized overlap of competitors segmentations.
     Label: crop image of ground truth.
@@ -18,7 +21,7 @@ class EnsembleDatasetV001(Dataset):
     def __init__(self, ensemble_parquet_path) -> None:
         super().__init__()
         # load dataframe
-        df = load_dataframe_from_parquet_with_metadata(ensemble_parquet_path)
+        df = ext.load_parquet(ensemble_parquet_path)
         # get useful array properties
         img_count = len(df)
         img_size = df.iloc[0]["crop_size"]
@@ -44,9 +47,9 @@ class EnsembleDatasetV001(Dataset):
         return (self.data[index], self.gts[index])
 
 
-class EnsembleDatasetV002(Dataset):
+class EnsembleDatasetV2(Dataset):
     """
-    Ensemble dataset data structure V002.
+    Ensemble dataset data structure V2.
 
     Input: 
         - crop image with the normalized overlap of competitors segmentations.
@@ -56,7 +59,7 @@ class EnsembleDatasetV002(Dataset):
     def __init__(self, ensemble_parquet_path) -> None:
         super().__init__()
         # load dataframe
-        df = load_dataframe_from_parquet_with_metadata(ensemble_parquet_path)
+        df = ext.load_parquet(ensemble_parquet_path)
         # get useful array properties
         img_count = len(df)
         img_size = df.iloc[0]["crop_size"]
@@ -88,7 +91,7 @@ import time
 from tqdm import tqdm
 
 def benchmark_EnsembleDataset(path, epochs=1000):
-    en_dataset = EnsembleDatasetV001(path)
+    en_dataset = EnsembleDatasetV1(path)
     print(en_dataset)
 
     start = time.time()
