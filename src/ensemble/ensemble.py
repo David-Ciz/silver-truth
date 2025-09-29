@@ -1,13 +1,9 @@
 #import torch
 #import lightning as pl
-from tqdm import tqdm
-import tifffile
-from scipy.ndimage import find_objects
 import logging
+from ensemble.dataset_builds import build_dataset, Version
+import src.ensemble.external as ext
 
-from src.data_processing.utils.dataset_dataframe_creation import (
-    load_dataframe_from_parquet_with_metadata,
-)
 
 # Basic Logging Setup
 logging.basicConfig(
@@ -22,38 +18,24 @@ logger = logging.getLogger(__name__)
 #pl.seed_everything(seed_value)
 
 
-def _find_largest_gt_cell_size(dataset_dataframe_path: str) -> int:
-    """
-    Finds the largest ground truth segmentation.
-    """
-    largest_size = 0
 
-    # loads the QA dataset
-    df = load_dataframe_from_parquet_with_metadata(dataset_dataframe_path)
-    checked_gt_images = []
+def build_required_datasets(
+        ensemble_dataset_version=Version.V1
+):
+    original_dataset = "BF-C2DL-HSC"
+    dataset_dataframe_path = f"data/dataframes/{original_dataset}_dataset_dataframe.parquet"
+    qa_output_path = f"data/ensemble_data/qa/qa_images_{original_dataset}"
+    qa_parquet_path = f"data/ensemble_data/qa/qa_{original_dataset}.parquet"
 
-    for gt_image_path in tqdm(
-        df['gt_image'], total=len(df), desc="checking GT cell segmentation size"
-    ):
-        # check if the gt image was already processed
-        if gt_image_path in checked_gt_images:
-            continue
+    ext.build_qa_dataset(
+    dataset_dataframe_path, 
+    qa_output_path, 
+    qa_parquet_path)
 
-        checked_gt_images.append(gt_image_path)
-        
-        # load gt image 
-        gt_image = tifffile.imread(gt_image_path).astype(int)
+    ext.compress_images(qa_output_path)
 
-        # check for largest size
-        for obj in find_objects(gt_image):
-            if obj is not None:
-                slice_y, slice_x = obj
-                max_seg_size = max(slice_y.stop - slice_y.start, 
-                                   slice_x.stop - slice_x.start)
-                if largest_size < max_seg_size:
-                    largest_size = max_seg_size
-    return largest_size
-
+    ensemble_datasets_path = "data/ensemble_data/datasets"
+    build_dataset(qa_parquet_path, ensemble_datasets_path, ensemble_dataset_version)
 
 
 def run_ensemble_experiment(model: str, parameters: dict):
