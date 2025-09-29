@@ -3,11 +3,7 @@ import torch
 import pytorch_lightning as pl
 from torch.utils.data import Dataset
 #from ensemble.model_ae_v1 import Autoencoder
-import tifffile
 
-from src.data_processing.utils.dataset_dataframe_creation import (
-    load_dataframe_from_parquet_with_metadata,
-)
 
 """
 def get_model(model: str, parameters: dict):
