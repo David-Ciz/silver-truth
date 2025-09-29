@@ -5,14 +5,12 @@ from tqdm import tqdm
 import pandas as pd
 import numpy as np
 from scipy.ndimage import find_objects
-from src.data_processing.compression import compress_tifs_logic
-from src.data_processing.utils.dataset_dataframe_creation import (
-    load_dataframe_from_parquet_with_metadata,
-)
+import src.ensemble.external as ext
+from src.ensemble.datasets import Version
 
 
 
-def create_analysis_dataset(qa_dataset_dataframe_path: str, output_path: str) -> None:
+def build_analysis_dataset(qa_dataset_dataframe_path: str, output_path: str) -> None:
     """
     Creates an image dataset for helping visualizing the differences between GT and proposed segmentations.
     Should use cropped output of create_qa_dataset (in order to get the center of the cell).
@@ -20,7 +18,7 @@ def create_analysis_dataset(qa_dataset_dataframe_path: str, output_path: str) ->
     # create output path if it doesn't exist
     Path(output_path).mkdir(parents=True, exist_ok=True)
     # load the dataframe
-    df = load_dataframe_from_parquet_with_metadata(qa_dataset_dataframe_path)
+    df = ext.load_parquet(qa_dataset_dataframe_path)
     
     for row in tqdm(
         df.itertuples(), total=len(df), desc="Processing images"
@@ -49,17 +47,22 @@ def create_analysis_dataset(qa_dataset_dataframe_path: str, output_path: str) ->
         tifffile.imwrite(new_img_path, stacked_crop)
     
     # compress images
-    compress_tifs_logic(output_path, True, False, False)
+    ext.compress_images(output_path)
 
 
-def build_dataset_v001(
+def build_dataset(a_dataset_dataframe_path: str, output_path: str, version: Version):
+    if version == Version.V1:
+        _build_dataset_v1(a_dataset_dataframe_path, output_path)
+
+
+def _build_dataset_v1(
         qa_dataset_dataframe_path: str, 
         output_path: str,
         crop_size: int = 64, 
         apply_blue_layer: bool = True
         ) -> None: 
     """
-    Generate the dataset V001 for the ensemble.
+    Generate the dataset V1 for the ensemble.
     
     For each gt_image, for each label, all the competitors cropped segmentations (from qa) "votes" (each ON pixel equals 1 vote) /
     are summed into a single image layer, and then normalized by the number of competitors.
@@ -67,11 +70,9 @@ def build_dataset_v001(
     For each gt image, a new image (crop size) is created with the cropped sum image as the 1st layer /
     and the cropped gt image as 2nd layer.
     """
-
-    # dataset id
-    dataset_id = "v001"
+    version_id = "v1.00"
     new_images_folder = "images"
-    composed_output_path = os.path.join(output_path, dataset_id)
+    composed_output_path = os.path.join(output_path, version_id)
     # destination path of the created images
     images_output_path = os.path.join(composed_output_path, new_images_folder)
     # create images path if it doesn't exist
@@ -81,7 +82,7 @@ def build_dataset_v001(
     data_list = []
 
     # loads the QA dataset
-    df = load_dataframe_from_parquet_with_metadata(qa_dataset_dataframe_path)
+    df = ext.load_parquet(qa_dataset_dataframe_path)
     # get the gt images
     unique_gt_images = df["gt_image"].unique()
     # get crop size
@@ -170,9 +171,9 @@ def build_dataset_v001(
     # convert list to dataframe
     output_df = pd.DataFrame(data_list)
     # build output parquet path
-    parquet_output_path = os.path.join(composed_output_path, f"ensemble_dataset_{dataset_id}.parquet")
+    parquet_output_path = os.path.join(composed_output_path, f"ensemble_dataset_{version_id}.parquet")
     # save to parquet file
     output_df.to_parquet(parquet_output_path)
 
     # compress images
-    compress_tifs_logic(images_output_path, True, False, False)
+    ext.compress_images(images_output_path)
