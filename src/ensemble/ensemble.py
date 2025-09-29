@@ -98,8 +98,12 @@ def create_analysis_dataset(qa_dataset_dataframe_path: str, output_path: str) ->
         gt_crop = (gt_crop == row.label).astype(np.uint8) * 255
         stacked_crop = np.stack([seg_crop, gt_crop, blue_layer], axis=0)
 
+        # campaign - image id - cell id - competitor
+        campaign, img_id, competitor, suffix = Path(row.stacked_path).name.split("_") # type: ignore
+        cell_id, __ = suffix.split(".")
+        new_name = f"{campaign}_{img_id}_{cell_id}_{competitor}.tif"
         # Save the image
-        new_img_path = join(output_path, Path(row.stacked_path).name) # type: ignore
+        new_img_path = join(output_path, new_name)
         # output folder
         tifffile.imwrite(new_img_path, stacked_crop)
 
@@ -112,7 +116,7 @@ def build_initial_dataset_v001(
         apply_blue_layer: bool = True
         ) -> None: 
     """
-    Generate the initial dataset for the ensamble.
+    Generate the initial dataset for the ensemble.
     
     For each gt_image, for each label, all the competitors cropped segmentations (from qa) "votes" (each ON pixel equals 1 vote) /
     are summed into a single image layer, and then normalized by the number of competitors.
