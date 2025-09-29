@@ -1,6 +1,3 @@
-#from ensemble.models import get_model
-from ensemble.model_ae_v1 import Autoencoder
-
 #import torch
 #import lightning as pl
 import pandas as pd
@@ -61,15 +58,6 @@ def _find_largest_gt_cell_size(dataset_dataframe_path: str) -> int:
                 if largest_size < max_seg_size:
                     largest_size = max_seg_size
     return largest_size
-
-"""
-def _find_max_seg_overlap_size(dataset_dataframe_path: str) -> int:
-    """"""
-    Finds the largest size of the union of competitor's segmentations with the ground truth.
-    """"""
-    largest_size = 0
-
-"""
 
 
 
@@ -236,14 +224,7 @@ def build_initial_dataset_v001(
 
 
 def run_ensemble_experiment(model: str, parameters: dict):
-    if model == "ae-v1":
-        #en_model = Autoencoder(num_inputs=1, num_channels=64, latent_dim=128)
-        pass
-    elif model == "ae-v2":
-
-        pass
-    else:
-        raise Exception("Model name not found.")
+    pass
     
 
 
