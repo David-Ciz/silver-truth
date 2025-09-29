@@ -92,7 +92,7 @@ def create_qa_dataset(
         return
 
     # Use tqdm to create a progress bar for the main loop
-    for index, row in tqdm(
+    for __, row in tqdm(
         df_filtered.iterrows(), total=df_filtered.shape[0], desc="Processing images"
     ):
         # Construct raw image path from composite_key
@@ -221,6 +221,7 @@ def create_qa_dataset(
                                 "original_center_y": center_y,
                                 "original_center_x": center_x,
                                 "crop_size": crop_size,
+                                "original_image_path": str(raw_image_path),
                                 "gt_image": row["gt_image"],
                             }
                         )
@@ -253,6 +254,7 @@ def create_qa_dataset(
                                 "original_center_y": raw_image.shape[0] // 2,
                                 "original_center_x": raw_image.shape[1] // 2,
                                 "crop_size": None,  # No cropping applied
+                                "original_image_path": str(raw_image_path),
                                 "gt_image": row["gt_image"],
                             }
                         )
