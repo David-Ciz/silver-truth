@@ -33,9 +33,7 @@ device = torch.device("cuda:0") if torch.cuda.is_available() else torch.device("
 print("Device:", device)
 """
 
-# assumes:
-# -
-# 
+
 class EnsembleDataset(Dataset):
     """
     Ensemble dataset data structure.
@@ -72,6 +70,19 @@ class EnsembleDataset(Dataset):
 
 
 
+import time
+from tqdm import tqdm
 
-def run_models(path):
+def benchmark_EnsembleDataset(path, epochs=10000):
     en_dataset = EnsembleDataset(path)
+    print(en_dataset)
+
+    start = time.time()
+    for __ in tqdm(range(epochs), total=epochs):
+        for index in range(en_dataset.__len__()):
+            en_dataset.__getitem__(index)
+    end = time.time()
+
+    print(f"{(end-start)}s")
+
+
