@@ -1,9 +1,11 @@
+from typing import Callable, Optional
 import tifffile
 from tqdm import tqdm
 import torch
 from torch.utils.data import Dataset
 import src.ensemble.external as ext
 from enum import Enum
+from PIL import Image
 
 
 class Version(Enum):
@@ -18,18 +20,20 @@ class EnsembleDatasetV1(Dataset):
     Input: crop image with the normalized overlap of competitors segmentations.
     Label: crop image of ground truth.
     """
-    def __init__(self, ensemble_parquet_path) -> None:
+    def __init__(
+            self, 
+            ensemble_parquet_path, 
+            transform: Optional[Callable] = None,
+            target_transform: Optional[Callable] = None
+    ) -> None:
         super().__init__()
         # load dataframe
         df = ext.load_parquet(ensemble_parquet_path)
-        # get useful array properties
-        img_count = len(df)
-        img_size = df.iloc[0]["crop_size"]
  
-        # create dataset tensors
-        tensor_shape = (img_count, img_size, img_size)
-        self.data = torch.empty(tensor_shape, dtype=torch.float32)
-        self.gts = torch.empty(tensor_shape, dtype=torch.float32)
+        self.transform = transform
+        self.target_transform = target_transform
+        self.data = []
+        self.gts = []
         
         # fill tensors with actual data
         for index, row in enumerate(df.itertuples()):
@@ -37,14 +41,22 @@ class EnsembleDatasetV1(Dataset):
             composed_image = tifffile.imread(row.image_path) # type: ignore
             # split the composed image
             segmentation, gt_image = composed_image[0], composed_image[1]
-            self.data[index, : , :] = torch.from_numpy(segmentation)
-            self.gts[index, : , :] = torch.from_numpy(gt_image)
+            self.data.append(Image.fromarray(segmentation))
+            self.gts.append(Image.fromarray(gt_image))
 
     def __len__(self) -> int:
         return len(self.data)
 
     def __getitem__(self, index):
-        return (self.data[index], self.gts[index])
+        img, gt = self.data[index], self.gts[index]
+
+        if self.transform is not None:
+            img = self.transform(img)
+
+        if self.target_transform is not None:
+            gt = self.target_transform(gt)
+
+        return img, gt
 
 
 class EnsembleDatasetV2(Dataset):
