@@ -46,7 +46,6 @@ pyyaml_env_tag==1.1
 requests==2.32.4
 scikit-learn==1.7.1
 scipy==1.16.0
--e git+https://github.com/Monika-We/silver-truth.git@f010fb2898338f9065b1396457dbff3dd765647b#egg=silver_truth
 six==1.17.0
 tabulate==0.9.0
 threadpoolctl==3.6.0
@@ -58,3 +57,5 @@ tzdata==2025.2
 urllib3==2.5.0
 virtualenv==20.32.0
 watchdog==6.0.0
+pytorch_lightning==2.5.5
+mlflow==3.4.0

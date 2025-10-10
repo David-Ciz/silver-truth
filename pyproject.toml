@@ -14,7 +14,9 @@ dependencies = [
     "tabulate",
     "types-tabulate",
     "pandas",
-    "Pillow"
+    "Pillow",
+    "pytorch_lightning",
+    "mlflow"
 ]
 
 [project.optional-dependencies]
