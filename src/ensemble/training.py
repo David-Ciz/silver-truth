@@ -3,13 +3,15 @@ import os
 import torch
 import torch.nn.functional as F
 import torch.utils.data as data
+from torch.utils.data.dataset import Subset
 import torchvision
 from torchvision import transforms
 import pytorch_lightning as pl
-from pytorch_lightning.callbacks import Callback, LearningRateMonitor, ModelCheckpoint
+from pytorch_lightning.callbacks import Callback, EarlyStopping
+import mlflow
 import matplotlib.pyplot as plt
 from src.ensemble.datasets import EnsembleDatasetV1
-
+from src.ensemble.models_loss_type import LossType
 from ensemble.model_ae_v1 import Autoencoder_v1
 
 
@@ -29,46 +31,58 @@ def get_model(model: str, parameters: dict):
 """"""
 
 
-"""
-def compare_imgs(img1, img2, title_prefix=""):
-    # Calculate MSE loss between both images
-    loss = F.mse_loss(img1, img2, reduction="sum")
-    # Plot images for visual comparison
-    grid = torchvision.utils.make_grid(torch.stack([img1, img2], dim=0), nrow=2, normalize=True, value_range=(-1, 1))
-    grid = grid.permute(1, 2, 0)
-    plt.figure(figsize=(4, 2))
-    plt.title(f"{title_prefix} Loss: {loss.item():4.2f}")
-    plt.imshow(grid)
-    plt.axis("off")
-    plt.show()
-"""
+def _evaluate_model(model, input_set, target_set):
+    with torch.no_grad():
+        model.eval()
+        reconst_imgs = model(input_set)
+        loss = F.mse_loss(reconst_imgs, target_set, reduction="none")
+        loss = loss.sum(dim=[1, 2, 3]).mean(dim=[0])
+        model.train()
+        return loss.item()
 
 
-class PrintValidationLossCallback(pl.Callback):
-    def __init__(self, train_imgs, every_n_epochs=1):
+class EvaluationCallback(Callback):
+    def __init__(self, train_set, val_set, every_n_epochs=1):
         super().__init__()
-        self.input_imgs = train_imgs[0]
-        self.targets = train_imgs[1]
+        self.train_inputs, self.train_targets = train_set[0], train_set[1]
+        self.val_inputs, self.val_targets = val_set[0], val_set[1]
         self.every_n_epochs = every_n_epochs
 
     def on_train_epoch_end(self, trainer, pl_module):
         if trainer.current_epoch % self.every_n_epochs == 0:
-            with torch.no_grad():
-                pl_module.eval()
-                reconst_imgs = pl_module(self.input_imgs)
-                loss = F.mse_loss(reconst_imgs, self.targets, reduction="none")
-                loss = loss.sum(dim=[1, 2, 3]).mean(dim=[0])
-                print(f"train_loss: {loss}")
-                pl_module.train()
-            
-
-def get_train_images(train_dataset, num):
-    return  torch.stack([train_dataset[i][0] for i in range(num)], dim=0), \
-            torch.stack([train_dataset[i][1] for i in range(num)], dim=0)
+            train_result = _evaluate_model(pl_module, self.train_inputs, self.train_targets)
+            val_result = _evaluate_model(pl_module, self.val_inputs, self.val_targets)
+            # Log the loss metric
+            mlflow.log_metric("train_loss", value=train_result, step=trainer.current_epoch+1)
+            mlflow.log_metric("val_loss", value=val_result, step=trainer.current_epoch+1)
+            print(f"val_loss: {val_result}")
 
 
-def _train_model(max_epochs, checkpoint_path, train_dataset, train_loader, val_loader, test_loader, latent_dim):
-    model = Autoencoder_v1(num_inputs=1, num_channels=64, width=32, height=32, latent_dim=latent_dim)
+def _get_eval_sets(subset: Subset):
+    return  torch.stack([subset.dataset[i][0] for i in subset.indices], dim=0), \
+            torch.stack([subset.dataset[i][1] for i in subset.indices], dim=0)
+
+
+def _get_stacked_images(dataset, num):
+    return  torch.stack([dataset[i][0] for i in range(num)], dim=0), \
+            torch.stack([dataset[i][1] for i in range(num)], dim=0)
+
+
+def _train_model(
+        max_epochs, 
+        checkpoint_path, 
+        train_dataset, 
+        val_dataset, 
+        train_loader, 
+        val_loader, 
+        test_loader, 
+        latent_dim,
+        model_input_size,
+    ):
+    loss_type = LossType.MSE
+    model = Autoencoder_v1(num_inputs=1, num_channels=64, latent_dim=latent_dim, input_size=model_input_size, loss_type=loss_type)
+    mlflow.log_param("model", model)
+    mlflow.log_param("loss_type", loss_type)
 
     # Create a PyTorch Lightning trainer with the generation callback
     trainer = pl.Trainer(
@@ -79,16 +93,18 @@ def _train_model(max_epochs, checkpoint_path, train_dataset, train_loader, val_l
         max_epochs=max_epochs,
         callbacks=[
             #ModelCheckpoint(save_weights_only=True),
-            #GenerateCallback(get_train_images(train_dataset, 8), every_n_epochs=10),
-            PrintValidationLossCallback(get_train_images(train_dataset, 10), every_n_epochs=1),
+            #GenerateCallback(_get_stacked_images(train_dataset, 8), every_n_epochs=10),
             #LearningRateMonitor("epoch"),
+            EvaluationCallback(
+                _get_eval_sets(train_dataset),
+                _get_eval_sets(val_dataset),
+            ),
+            EarlyStopping(monitor="val_loss", patience=10)
         ],
     )
-    trainer.logger._log_graph = True  # type: ignore # If True, we plot the computation graph in tensorboard
-    trainer.logger._default_hp_metric = None  # type: ignore # Optional logging argument that we don't need
-
 
     trainer.fit(model, train_loader, val_loader)
+
     # Test best model on validation and test set
     val_result = trainer.test(model, dataloaders=val_loader, verbose=False)
     test_result = trainer.test(model, dataloaders=test_loader, verbose=False)
@@ -97,26 +113,28 @@ def _train_model(max_epochs, checkpoint_path, train_dataset, train_loader, val_l
 
 
 
-def _visualize_reconstructions(model, train_imgs):
+def _visualize_reconstructions(model, train_set):
+    train_imgs, gt_images = train_set[0], train_set[1]
     # Reconstruct images
     model.eval()
     with torch.no_grad():
-        reconst_imgs = model(train_imgs[0].to(model.device))
+        reconst_imgs = model(train_imgs.to(model.device))
     reconst_imgs = reconst_imgs.cpu()
 
     # Plotting
-    imgs = torch.stack([train_imgs[1], reconst_imgs], dim=1).flatten(0, 1)
+    imgs = torch.stack([gt_images, reconst_imgs], dim=1).flatten(0, 1)
     grid = torchvision.utils.make_grid(imgs, nrow=4, normalize=True, value_range=(-1, 1))
     grid = grid.permute(1, 2, 0)
-    plt.figure(figsize=(7, 4.5))
+    plt.figure(figsize=(14, 10))
     plt.title(f"Reconstructed from {model.hparams.latent_dim} latents")
     plt.imshow(grid)
     plt.axis("off")
     plt.show()
 
 
-def run():
-    pl.seed_everything(seed=42)
+def run() -> None:
+    rand_seed = 42
+    pl.seed_everything(seed=rand_seed)
 
     # Ensure that all operations are deterministic on GPU (if used) for reproducibility
     torch.backends.cudnn.deterministic = True
@@ -126,59 +144,59 @@ def run():
     print("Device:", device)
     """"""
 
-    # Transformations applied on each image => only make them a tensor
-    transform = transforms.Compose([transforms.ToTensor(), transforms.Normalize((0.5,), (0.5,)), transforms.Resize((32,32))])
+    # set the input size for the model
+    model_input_size = 64
+    transform = transforms.Compose([
+        transforms.ToTensor(), 
+        #transforms.Normalize((0.5,), (0.5,)), 
+        transforms.Resize((model_input_size, model_input_size)),
+    ])
+    mlflow.log_param("dataset_input_transform", transform)
+    mlflow.log_param("dataset_target_transform", transform)
 
     # get dataset
     #dataset_path = os.path.join(os.getcwd(), "data/ensemble_data/datasets/v1.00")
     dataset_path = "data/ensemble_data/datasets/v1.00"
     parquet_filename = "ensemble_dataset_v1.00.parquet"
+    parquet_path = os.path.join(dataset_path, parquet_filename)
     checkpoint_path = os.path.join(dataset_path, "training_logs")
-    train_dataset = EnsembleDatasetV1(os.path.join(dataset_path, parquet_filename), transform, transform)
+    ensemble_dataset = EnsembleDatasetV1(parquet_path, transform, transform)
     # split dataset
-    train_set, val_set, test_set = torch.utils.data.random_split(train_dataset, [0.7, 0.15, 0.15])
+    dataset_split = [0.7, 0.15, 0.15]
+    train_set, val_set, test_set = torch.utils.data.random_split(ensemble_dataset, dataset_split)
     # dataloaders
-    train_loader = data.DataLoader(train_set, batch_size=20, shuffle=True, drop_last=True, pin_memory=True, num_workers=4)
-    val_loader = data.DataLoader(val_set, batch_size=20, shuffle=False, drop_last=False, num_workers=4)
-    test_loader = data.DataLoader(test_set, batch_size=20, shuffle=False, drop_last=False, num_workers=4)
+    batch_size = 20
+    train_loader = data.DataLoader(train_set, batch_size=batch_size, shuffle=True, drop_last=True, pin_memory=True, num_workers=4)
+    val_loader = data.DataLoader(val_set, batch_size=batch_size, shuffle=False, drop_last=False, num_workers=4)
+    test_loader = data.DataLoader(test_set, batch_size=batch_size, shuffle=False, drop_last=False, num_workers=4)
 
-    max_epochs = 10
-    model_dict = {}
-    for latent_dim in [96]:#, 128, 256]:
-        model_ld, result_ld = _train_model(
-            max_epochs,
-            checkpoint_path, 
-            train_dataset, 
-            train_loader, 
-            val_loader,
-            test_loader,
-            latent_dim
-        )
-        model_dict[latent_dim] = {"model": model_ld, "result": result_ld}
-        print(f"latent_dim: {latent_dim},   {result_ld}")
+    max_epochs = 100
+    latent_dim = 96
+
+    # log parameters
+    params = {
+        "rand_seed": rand_seed,
+        "dataset_split": dataset_split,
+        "latent_dim": latent_dim,
+        "parquet_path": parquet_path,
+        "ensemble_dataset": ensemble_dataset,
+        "batch_size": batch_size,
+        "model_input_size": model_input_size,
+    }
+    mlflow.log_params(params)
 
 
-    latent_dims = sorted(k for k in model_dict)
-    val_scores = [model_dict[k]["result"]["val"][0]["test_loss"] for k in latent_dims]
-
-    """
-
-    fig = plt.figure(figsize=(6, 4))
-    plt.plot(
-        latent_dims, val_scores, "--", color="#000", marker="*", markeredgecolor="#000", markerfacecolor="y", markersize=16
+    # train model
+    model, result = _train_model(
+        max_epochs,
+        checkpoint_path, 
+        train_set,
+        val_set,
+        train_loader, 
+        val_loader,
+        test_loader,
+        latent_dim,
+        model_input_size,
     )
-    plt.xscale("log")
-    plt.xticks(latent_dims, labels=latent_dims)
-    plt.title("Reconstruction error over latent dimensionality", fontsize=14)
-    plt.xlabel("Latent dimensionality")
-    plt.ylabel("Reconstruction error")
-    plt.minorticks_off()
-    plt.ylim(0, 100)
-    plt.show()
-    plt.waitforbuttonpress(0)
 
-    """
-
-    input_imgs = get_train_images(train_dataset, 4)
-    for latent_dim in model_dict:
-        _visualize_reconstructions(model_dict[latent_dim]["model"], input_imgs)
+    _visualize_reconstructions(model, _get_stacked_images(val_set, 8))

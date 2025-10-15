@@ -3,9 +3,10 @@ from torch import nn, optim
 import pytorch_lightning as pl
 from pytorch_lightning.utilities.types import OptimizerLRSchedulerConfig
 from collections.abc import Callable
+from src.ensemble.models_loss_type import LossType
 
 
-class Encoder_original(nn.Module):
+class Encoder32(nn.Module):
     def __init__(self, num_input_channels: int, base_channel_size: int, latent_dim: int, act_fn: Callable = nn.GELU):
         """Encoder.
 
@@ -37,7 +38,7 @@ class Encoder_original(nn.Module):
         return self.net(x)
 
 
-class Decoder_original(nn.Module):
+class Decoder32(nn.Module):
     def __init__(self, num_input_channels: int, base_channel_size: int, latent_dim: int, act_fn: Callable = nn.GELU):
         """Decoder.
 
@@ -52,9 +53,7 @@ class Decoder_original(nn.Module):
         c_hid = base_channel_size
         self.linear = nn.Sequential(nn.Linear(latent_dim, 2 * 16 * c_hid), act_fn())
         self.net = nn.Sequential(
-            nn.ConvTranspose2d(
-                2 * c_hid, 2 * c_hid, kernel_size=3, output_padding=1, padding=1, stride=2
-            ),  # 4x4 => 8x8
+            nn.ConvTranspose2d(2 * c_hid, 2 * c_hid, kernel_size=3, output_padding=1, padding=1, stride=2),  # 4x4 => 8x8
             act_fn(),
             nn.Conv2d(2 * c_hid, 2 * c_hid, kernel_size=3, padding=1),
             act_fn(),
@@ -62,10 +61,10 @@ class Decoder_original(nn.Module):
             act_fn(),
             nn.Conv2d(c_hid, c_hid, kernel_size=3, padding=1),
             act_fn(),
-            nn.ConvTranspose2d(
-                c_hid, num_input_channels, kernel_size=3, output_padding=1, padding=1, stride=2
-            ),  # 16x16 => 32x32
+            nn.ConvTranspose2d(c_hid, num_input_channels, kernel_size=3, output_padding=1, padding=1, stride=2),  # 16x16 => 32x32
             nn.Tanh(),  # The input images is scaled between -1 and 1, hence the output has to be bounded as well
+            #nn.GELU(),
+            #nn.Sigmoid(),
         )
 
     def forward(self, x):
@@ -74,7 +73,7 @@ class Decoder_original(nn.Module):
         x = self.net(x)
         return x
 
-class Encoder(nn.Module):
+class Encoder64(nn.Module):
     """Encoder.
 
         Args:
@@ -88,8 +87,6 @@ class Encoder(nn.Module):
         super().__init__()
         self.net = nn.Sequential(
             nn.Conv2d(num_inputs, num_channels, kernel_size=3, padding=1, stride=2),  # 64x64 => 32x32
-            act_fn(),
-            nn.Conv2d(num_channels, num_channels, kernel_size=3, padding=1),
             act_fn(),
             nn.Conv2d(num_channels, 2 * num_channels, kernel_size=3, padding=1, stride=2),  # 32x32 => 16x16
             act_fn(),
@@ -105,12 +102,11 @@ class Encoder(nn.Module):
             nn.Linear(4 * 16 * num_channels, latent_dim),
         )
 
-
     def forward(self, x):
         return self.net(x)
 
 
-class Decoder(nn.Module):
+class Decoder64(nn.Module):
     def __init__(self, num_channels: int, latent_dim: int, act_fn: Callable = nn.GELU):
         """Decoder.
 
@@ -136,11 +132,12 @@ class Decoder(nn.Module):
             act_fn(),
             nn.ConvTranspose2d(
                2 * num_channels, num_channels, kernel_size=3, output_padding=1, padding=1, stride=2),  # 16x16 => 32x32
-            nn.Conv2d(num_channels, num_channels, kernel_size=3, padding=1),
-            act_fn(),
             nn.ConvTranspose2d(
                num_channels, num_outputs, kernel_size=3, output_padding=1, padding=1, stride=2),  # 32x32 => 64x64
-            nn.Tanh(),  # The input images is scaled between -1 and 1, hence the output has to be bounded as well
+            nn.Tanh(), # The input images is scaled between -1 and 1, hence the output has to be bounded as well
+            #nn.GELU(),
+            #nn.Sigmoid(),
+
         )
 
     def forward(self, x):
@@ -156,19 +153,24 @@ class Autoencoder_v1(pl.LightningModule):
         num_inputs: int,
         num_channels: int,
         latent_dim: int,
-        encoder_class: Callable = Encoder_original,
-        decoder_class: Callable = Decoder_original,
-        width: int = 64,
-        height: int = 64,
+        input_size: int,
+        loss_type: LossType,
     ):
         super().__init__()
         # Saving hyperparameters of autoencoder
         self.save_hyperparameters()
         # Creating encoder and decoder
-        self.encoder = encoder_class(num_inputs, num_channels, latent_dim)
-        self.decoder = decoder_class(num_inputs, num_channels, latent_dim)
+        if input_size == 32:
+            self.encoder = Encoder32(num_inputs, num_channels, latent_dim)
+            self.decoder = Decoder32(num_inputs, num_channels, latent_dim)
+        elif input_size == 64:
+            self.encoder = Encoder64(num_inputs, num_channels, latent_dim)
+            self.decoder = Decoder64(num_channels, latent_dim)
+        else:
+            raise Exception("This model only supports input_size of 32 or 64.") 
         # Example input array needed for visualizing the graph of the network
-        self.example_input_array = torch.zeros(3, num_inputs, width, height)
+        self.example_input_array = torch.zeros(3, num_inputs, input_size, input_size)
+        self.loss_type = loss_type
 
     def forward(self, x):
         """The forward function takes in an image and returns the reconstructed image."""
@@ -177,12 +179,19 @@ class Autoencoder_v1(pl.LightningModule):
         return x_hat
 
     def _get_reconstruction_loss(self, batch):
-        """Given a batch of images, this function returns the reconstruction loss (MSE in our case)."""
+        """Given a batch of images, this function returns the reconstruction loss."""
         x, y = batch
         x_hat = self.forward(x)
-        loss = nn.functional.mse_loss(x_hat, y, reduction="none")
-        loss = loss.sum(dim=[1, 2, 3]).mean(dim=[0])
-        return loss
+
+        if self.loss_type == LossType.MSE:
+            loss = nn.functional.mse_loss(x_hat, y, reduction="none")
+            loss = loss.sum(dim=[1, 2, 3]).mean(dim=[0])
+
+        elif self.loss_type == LossType.BCE:
+            loss = nn.functional.binary_cross_entropy(x_hat, y, reduction="none")
+            loss = loss.sum(dim=[1, 2, 3]).mean(dim=[0])
+
+        return loss # type: ignore
 
     def configure_optimizers(self):
         optimizer = optim.Adam(self.parameters(), lr=1e-3)

@@ -1,6 +1,6 @@
 import click
 import logging
-from src.ensemble.ensemble import run_ensemble_experiment
+import src.ensemble.ensemble as ensemble
 
 # from pathlib import Path
 
@@ -11,12 +11,15 @@ logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
 
 @click.command()
 @click.option(
+    "--name", required=True, help="The name of the Ensemble experiment."
+)
+@click.option(
     "--model", required=True, help="The A.I. model that replaces fusion."
 )
-def ensemble_experiment(model: str,):
+def ensemble_experiment(name: str, model: str,):
     """Runs an Ensemble experiment via command-line interface."""
     try:
-        run_ensemble_experiment(model, {})
+        ensemble.run_experiment(name, model, {})
     except Exception as e:
         click.echo(
             click.style(f"An unexpected error occurred: {e}", fg="red", bold=True)
