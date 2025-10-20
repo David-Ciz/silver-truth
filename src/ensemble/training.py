@@ -6,14 +6,15 @@ import torch.utils.data as data
 from torch.utils.data.dataset import Subset
 import torchvision
 from torchvision import transforms
-from torchmetrics import JaccardIndex
+from torchmetrics.classification import BinaryJaccardIndex
 import pytorch_lightning as pl
 from pytorch_lightning.callbacks import Callback, EarlyStopping
 import mlflow
 import matplotlib.pyplot as plt
 from src.ensemble.datasets import EnsembleDatasetV1
 from src.ensemble.models_loss_type import LossType
-from ensemble.model_ae_v1 import Autoencoder_v1
+from ensemble.model_ae32 import Autoencoder32
+from ensemble.model_ae64 import Autoencoder64
 
 
 """
@@ -30,33 +31,21 @@ def get_model(model: str, parameters: dict):
 """
 
 """"""
-
-
-def _evaluate_model_jaccard(model, input_set, target_set):
-    jaccard = JaccardIndex("binary", threshold=0.5)
-    with torch.no_grad():
-        model.eval()
-        reconst_imgs = model(input_set)
-        #total_iou = 0
-        #for x,y in zip(reconst_imgs, target_set):
-        #    total_iou += jaccard(x, y).item()
-        iou = jaccard(reconst_imgs, target_set)
-        #my_iou = total_iou / input_set.shape[0]
-        #print(f"my_iou: {my_iou}, iou: {jaccard(reconst_imgs, target_set)}")
-        model.train()
-        #return total_iou / input_set.shape[0]
-        return iou.item()
-
     
-
-def _evaluate_model_loss(model, input_set, target_set):
+def _evaluate_model(model, input_set, target_set):
+    jaccard = BinaryJaccardIndex()
     with torch.no_grad():
         model.eval()
+        # inference
         reconst_imgs = model(input_set)
+        # calculate MSE loss
         loss = F.mse_loss(reconst_imgs, target_set, reduction="none")
         loss = loss.sum(dim=[1, 2, 3]).mean(dim=[0])
+        # calculate IoU
+        iou = jaccard(reconst_imgs, target_set)
+
         model.train()
-        return loss.item()
+        return loss.item(), iou.item()
 
 
 class EvaluationCallback(Callback):
@@ -68,14 +57,9 @@ class EvaluationCallback(Callback):
 
     def on_train_epoch_end(self, trainer, pl_module):
         if trainer.current_epoch % self.every_n_epochs == 0:
-            #train_loss = _evaluate_model_loss(pl_module, self.train_inputs, self.train_targets)
-            val_loss = _evaluate_model_loss(pl_module, self.val_inputs, self.val_targets)
-            val_iou = _evaluate_model_jaccard(pl_module, self.val_inputs, self.val_targets)
-            # Log the loss metric
-            #mlflow.log_metric("train_loss", value=train_loss, step=trainer.current_epoch+1)
+            val_loss, val_iou = _evaluate_model(pl_module, self.val_inputs, self.val_targets)
             mlflow.log_metric("val_loss", value=val_loss, step=trainer.current_epoch+1)
             mlflow.log_metric("val_iou", value=val_iou, step=trainer.current_epoch+1)
-            
             print(f"val_loss: {val_loss}, val_iou: {val_iou}")
 
 
@@ -98,11 +82,16 @@ def _train_model(
         val_loader, 
         test_loader, 
         latent_dim,
-        model_input_size,
     ):
 
     loss_type = LossType.MSE
-    model = Autoencoder_v1(num_inputs=1, num_channels=64, latent_dim=latent_dim, input_size=model_input_size, loss_type=loss_type)
+
+    model = Autoencoder32(
+        num_inputs=1, 
+        num_channels=64, 
+        latent_dim=latent_dim,
+        loss_type=loss_type
+    )
     mlflow.log_param("model", model)
     mlflow.log_param("loss_type", loss_type)
 
@@ -115,13 +104,12 @@ def _train_model(
         max_epochs=max_epochs,
         callbacks=[
             #ModelCheckpoint(save_weights_only=True),
-            #GenerateCallback(_get_stacked_images(train_dataset, 8), every_n_epochs=10),
             #LearningRateMonitor("epoch"),
             EvaluationCallback(
                 _get_eval_sets(train_dataset),
                 _get_eval_sets(val_dataset),
             ),
-            EarlyStopping(monitor="val_loss", patience=10)
+            #EarlyStopping(monitor="val_loss", patience=10)
         ],
     )
 
@@ -166,12 +154,12 @@ def run() -> None:
     print("Device:", device)
     """"""
 
+    max_epochs = 100
+    latent_dim = 41
     # set the input size for the model
-    model_input_size = 32
     transform = transforms.Compose([
         transforms.ToTensor(), 
         #transforms.Normalize((0.5,), (0.5,)), 
-        #transforms.Resize((model_input_size, model_input_size)),
     ])
     mlflow.log_param("dataset_input_transform", transform)
     mlflow.log_param("dataset_target_transform", transform)
@@ -192,9 +180,6 @@ def run() -> None:
     val_loader = data.DataLoader(val_set, batch_size=batch_size, shuffle=False, drop_last=False, num_workers=4)
     test_loader = data.DataLoader(test_set, batch_size=batch_size, shuffle=False, drop_last=False, num_workers=4)
 
-    max_epochs = 100
-    latent_dim = 32
-
     # log parameters
     params = {
         "rand_seed": rand_seed,
@@ -203,7 +188,6 @@ def run() -> None:
         "parquet_path": parquet_path,
         "ensemble_dataset": ensemble_dataset,
         "batch_size": batch_size,
-        "model_input_size": model_input_size,
     }
     mlflow.log_params(params)
 
@@ -218,7 +202,6 @@ def run() -> None:
         val_loader,
         test_loader,
         latent_dim,
-        model_input_size,
     )
 
     _visualize_reconstructions(model, _get_stacked_images(val_set, 8))
