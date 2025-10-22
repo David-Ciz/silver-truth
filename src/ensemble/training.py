@@ -15,6 +15,8 @@ from src.ensemble.datasets import EnsembleDatasetV1
 from src.ensemble.models_loss_type import LossType
 from ensemble.model_ae32 import Autoencoder32
 from ensemble.model_ae64 import Autoencoder64
+from ensemble.model_vae32 import VariationalAutoencoder32
+from src.ensemble.act_functions import LevelTrigger
 
 
 """
@@ -31,19 +33,24 @@ def get_model(model: str, parameters: dict):
 """
 
 """"""
-    
+
 def _evaluate_model(model, input_set, target_set):
+    level_trigger = LevelTrigger()
     jaccard = BinaryJaccardIndex()
     with torch.no_grad():
         model.eval()
-        # inference
-        reconst_imgs = model(input_set)
-        # calculate MSE loss
-        loss = F.mse_loss(reconst_imgs, target_set, reduction="none")
-        loss = loss.sum(dim=[1, 2, 3]).mean(dim=[0])
-        # calculate IoU
-        iou = jaccard(reconst_imgs, target_set)
+        if model.loss_type == LossType.KLDIV:
+            reconst_imgs, mean, logvar = model.forward_full(input_set)
+            # calculate model's loss
+            loss = model.get_loss(reconst_imgs, target_set, mean, logvar)
+        else:
+            # inference
+            reconst_imgs = model(input_set)
+            # calculate model's loss
+            loss = model.get_loss(reconst_imgs, target_set)
 
+        # calculate IoU
+        iou = jaccard(level_trigger(reconst_imgs), target_set)
         model.train()
         return loss.item(), iou.item()
 
@@ -84,14 +91,14 @@ def _train_model(
         latent_dim,
     ):
 
-    loss_type = LossType.MSE
-
-    model = Autoencoder32(
+    #model = Autoencoder32(
+    model = VariationalAutoencoder32(
         num_inputs=1, 
         num_channels=64, 
         latent_dim=latent_dim,
-        loss_type=loss_type
+        #loss_type=LossType.MSE,
     )
+    loss_type = model.get_loss
     mlflow.log_param("model", model)
     mlflow.log_param("loss_type", loss_type)
 
@@ -109,7 +116,7 @@ def _train_model(
                 _get_eval_sets(train_dataset),
                 _get_eval_sets(val_dataset),
             ),
-            #EarlyStopping(monitor="val_loss", patience=10)
+            EarlyStopping(monitor="val_loss",  patience=10)
         ],
     )
 
@@ -120,7 +127,6 @@ def _train_model(
     test_result = trainer.test(model, dataloaders=test_loader, verbose=False)
     result = {"val": val_result, "test": test_result}
     return model, result
-
 
 
 def _visualize_reconstructions(model, train_set):
@@ -155,7 +161,7 @@ def run() -> None:
     """"""
 
     max_epochs = 100
-    latent_dim = 41
+    latent_dim = 32
     # set the input size for the model
     transform = transforms.Compose([
         transforms.ToTensor(), 

@@ -1,5 +1,4 @@
 # AE based: https://lightning.ai/docs/pytorch/stable/notebooks/course_UvA-DL/08-deep-autoencoders.html
-# VAE based: https://github.com/dariocazzani/pytorch-AE/blob/master/models/VAE.py
 
 import torch
 from torch import nn, optim
@@ -9,6 +8,8 @@ from pytorch_lightning.utilities.types import OptimizerLRSchedulerConfig
 from collections.abc import Callable
 from src.ensemble.models_loss_type import LossType
 from torchvision import transforms
+from src.ensemble.act_functions import LevelTrigger
+from torchmetrics.classification import BinaryJaccardIndex
 
 
 class Encoder64(nn.Module):
@@ -93,16 +94,22 @@ class Autoencoder64(pl.LightningModule):
     ):
         super().__init__()
 
+        self.loss_type = loss_type
         if loss_type == LossType.MSE:
             last_decoder_act_fn = nn.Tanh
             self.loss_function = F.mse_loss
         elif loss_type == LossType.BCE:
             last_decoder_act_fn = nn.Sigmoid
             self.loss_function = F.binary_cross_entropy
+        else:
+            raise Exception("LossType must be MSE or BCE")
 
         # Creating encoder and decoder
         self.encoder = Encoder64(num_inputs, num_channels, latent_dim)
         self.decoder = Decoder64(num_channels, latent_dim, last_decoder_act_fn)
+
+        self.level_trigger = LevelTrigger()
+        self.jaccard = BinaryJaccardIndex()
 
         # Example input array needed for visualizing the graph of the network
         self.example_input_array = torch.zeros(3, num_inputs, 64, 64)
@@ -112,14 +119,30 @@ class Autoencoder64(pl.LightningModule):
     def forward(self, x):
         """The forward function takes in an image and returns the reconstructed image."""
         x = self.encoder(x)
-        return self.decoder(x)
+        x = self.decoder(x)
+        if not self.training:
+            # filter out values below high_pass_filter threshold
+            x = self.level_trigger(x)
+        return x
 
     def _get_reconstruction_loss(self, batch):
-        """Given a batch of images, this function returns the reconstruction loss."""
         x, y = batch
         x_hat = self.forward(x)
-        loss = self.loss_function(x_hat, y, reduction="sum")
+        return self.get_loss(x_hat, y)
+    
+    def get_loss(self, x, y):
+        loss = self.loss_function(x, y, reduction="none")
+        loss = loss.sum(dim=[1, 2, 3]).mean(dim=[0])
         return loss
+    
+    #TODO: experiment with a more complex loss
+    # -> Remove if it doesn't improve learning
+    def get_loss_with_jaccard(self, x, y):
+        loss = self.get_loss(x, y)
+        # calculate jaccard
+        iou = self.jaccard(self.level_trigger(x), y)
+        iou_loss = loss * (1 - iou)
+        return loss + iou_loss
  
     def configure_optimizers(self):
         optimizer = optim.Adam(self.parameters(), lr=1e-3)
