@@ -125,6 +125,9 @@ class SparseAutoencoder32(pl.LightningModule):
     def forward_full(self, x):
         x_enc = self.encoder(x)
         x_hat = self.decoder(x_enc)
+        if not self.training:
+            # filter out values below high_pass_filter threshold
+            x_hat = self.level_trigger(x_hat)
         return x_hat, x_enc
 
     def _get_reconstruction_loss(self, batch):
