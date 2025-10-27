@@ -17,6 +17,7 @@ from ensemble.model_ae32 import Autoencoder32
 from ensemble.model_ae64 import Autoencoder64
 from ensemble.model_vae32 import VariationalAutoencoder32
 from ensemble.model_spae32 import SparseAutoencoder32
+from ensemble.model_unet import Unet
 from src.ensemble.act_functions import LevelTrigger
 
 
@@ -99,7 +100,8 @@ def _train_model(
         test_loader, 
         latent_dim,
     ):
-
+    
+    """
     model = Autoencoder32(
     #model = VariationalAutoencoder32(
     #model = SparseAutoencoder32(
@@ -108,9 +110,11 @@ def _train_model(
         latent_dim=latent_dim,
         loss_type=LossType.MSE,
     )
-    loss_type = model.get_loss
+    """
+    model = Unet()
+    
     mlflow.log_param("model", model)
-    mlflow.log_param("loss_type", loss_type)
+    mlflow.log_param("loss_type", model.loss_type)
 
     # Create a PyTorch Lightning trainer with the generation callback
     trainer = pl.Trainer(
@@ -152,10 +156,11 @@ def _visualize_reconstructions(model, train_set):
     grid = torchvision.utils.make_grid(imgs, nrow=4, normalize=True, value_range=(-1, 1))
     grid = grid.permute(1, 2, 0)
     plt.figure(figsize=(14, 10))
-    plt.title(f"Reconstructed from {model.hparams.latent_dim} latents")
+    plt.title(f"Reconstructions. Let's go!")
     plt.imshow(grid)
     plt.axis("off")
     plt.show()
+    plt.waitforbuttonpress(0)
 
 
 def run() -> None:
@@ -171,10 +176,10 @@ def run() -> None:
     """"""
 
     max_epochs = 100
-    latent_dim = 32
+    latent_dim = None#32
     # set the input size for the model
     transform = transforms.Compose([
-        transforms.ToTensor(), 
+                transforms.ToTensor(), 
         #transforms.Normalize((0.5,), (0.5,)), 
     ])
     mlflow.log_param("dataset_input_transform", transform)

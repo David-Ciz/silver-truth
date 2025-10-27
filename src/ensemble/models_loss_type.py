@@ -5,4 +5,5 @@ class LossType(Enum):
     BCE = 2
     MSE_KL = 3
     BCE_KL = 4
+    DICE = 5
     
