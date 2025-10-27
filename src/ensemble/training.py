@@ -6,7 +6,7 @@ import torch.utils.data as data
 from torch.utils.data.dataset import Subset
 import torchvision
 from torchvision import transforms
-from torchmetrics.classification import BinaryJaccardIndex
+from torchmetrics.classification import BinaryJaccardIndex, BinaryF1Score
 import pytorch_lightning as pl
 from pytorch_lightning.callbacks import Callback, EarlyStopping
 import mlflow
@@ -36,8 +36,8 @@ def get_model(model: str, parameters: dict):
 """"""
 
 def _evaluate_model(model, input_set, target_set):
-    level_trigger = LevelTrigger()
     jaccard = BinaryJaccardIndex()
+    f1_score = BinaryF1Score()
     with torch.no_grad():
         model.eval()
         if model.loss_type == LossType.BCE_KL:
@@ -56,9 +56,11 @@ def _evaluate_model(model, input_set, target_set):
             loss = model.get_loss(reconst_imgs, target_set)
 
         # calculate IoU
-        iou = jaccard(level_trigger(reconst_imgs), target_set)
+        iou = jaccard(reconst_imgs, target_set)
+        # calculate binary f1-score
+        f1 = f1_score(reconst_imgs, target_set)
         model.train()
-        return loss.item(), iou.item()
+        return loss.item(), f1.item(), iou.item()
 
 
 class EvaluationCallback(Callback):
@@ -70,10 +72,11 @@ class EvaluationCallback(Callback):
 
     def on_train_epoch_end(self, trainer, pl_module):
         if trainer.current_epoch % self.every_n_epochs == 0:
-            val_loss, val_iou = _evaluate_model(pl_module, self.val_inputs, self.val_targets)
+            val_loss, val_f1, val_iou = _evaluate_model(pl_module, self.val_inputs, self.val_targets)
             mlflow.log_metric("val_loss", value=val_loss, step=trainer.current_epoch+1)
+            mlflow.log_metric("val_f1", value=val_f1, step=trainer.current_epoch+1)
             mlflow.log_metric("val_iou", value=val_iou, step=trainer.current_epoch+1)
-            print(f"val_loss: {val_loss}, val_iou: {val_iou}")
+            print(f"val_loss: {val_loss}, val_f1: {val_f1}, val_iou: {val_iou}")
 
 
 def _get_eval_sets(subset: Subset):
