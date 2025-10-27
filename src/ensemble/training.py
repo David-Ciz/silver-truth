@@ -16,6 +16,7 @@ from src.ensemble.models_loss_type import LossType
 from ensemble.model_ae32 import Autoencoder32
 from ensemble.model_ae64 import Autoencoder64
 from ensemble.model_vae32 import VariationalAutoencoder32
+from ensemble.model_spae32 import SparseAutoencoder32
 from src.ensemble.act_functions import LevelTrigger
 
 
@@ -39,10 +40,15 @@ def _evaluate_model(model, input_set, target_set):
     jaccard = BinaryJaccardIndex()
     with torch.no_grad():
         model.eval()
-        if model.loss_type == LossType.KLDIV:
+        if model.loss_type == LossType.BCE_KL:
             reconst_imgs, mean, logvar = model.forward_full(input_set)
             # calculate model's loss
             loss = model.get_loss(reconst_imgs, target_set, mean, logvar)
+        
+        elif model.loss_type == LossType.MSE_KL:
+            reconst_imgs, x_enc = model.forward_full(input_set)
+            # calculate model's loss
+            loss = model.get_loss(reconst_imgs, target_set, x_enc)
         else:
             # inference
             reconst_imgs = model(input_set)
@@ -91,12 +97,13 @@ def _train_model(
         latent_dim,
     ):
 
-    #model = Autoencoder32(
-    model = VariationalAutoencoder32(
+    model = Autoencoder32(
+    #model = VariationalAutoencoder32(
+    #model = SparseAutoencoder32(
         num_inputs=1, 
         num_channels=64, 
         latent_dim=latent_dim,
-        #loss_type=LossType.MSE,
+        loss_type=LossType.MSE,
     )
     loss_type = model.get_loss
     mlflow.log_param("model", model)

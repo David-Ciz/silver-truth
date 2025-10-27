@@ -1,4 +1,4 @@
-# VAE based: https://medium.com/@rekalantar/variational-auto-encoder-vae-pytorch-tutorial-dce2d2fe0f5f
+# Sparse Autoencoder, based on: https://github.com/IParraMartin/Sparse-Autoencoder/blob/main/sae.py
 
 import torch
 from torch import nn, optim
@@ -36,7 +36,7 @@ class Encoder32(nn.Module):
             nn.Conv2d(2 * c_hid, 2 * c_hid, kernel_size=3, padding=1),
             act_fn(),
             nn.Conv2d(2 * c_hid, 2 * c_hid, kernel_size=3, padding=1, stride=2),  # 8x8 => 4x4
-            act_fn(),
+            nn.Sigmoid(),
             nn.Flatten(),  # Image grid to single feature vector
             nn.Linear(2 * 16 * c_hid, latent_dim),
         )
@@ -62,12 +62,7 @@ class Decoder32(nn.Module):
         num_outputs = 1 # the output is a single "grayscale" image
         c_hid = base_channel_size
 
-        self.linear = nn.Sequential(
-            nn.Linear(2, latent_dim),
-            act_fn(),
-            nn.Linear(latent_dim, 2 * 16 * c_hid),
-            act_fn(),
-        )
+        self.linear = nn.Sequential(nn.Linear(latent_dim, 2 * 16 * c_hid), act_fn(),)
         self.net = nn.Sequential(
             nn.ConvTranspose2d(2 * c_hid, 2 * c_hid, kernel_size=3, output_padding=1, padding=1, stride=2),  # 4x4 => 8x8
             act_fn(),
@@ -89,20 +84,22 @@ class Decoder32(nn.Module):
         return x
 
 
-class VariationalAutoencoder32(pl.LightningModule):
+class SparseAutoencoder32(pl.LightningModule):
     def __init__(
         self,
         num_inputs: int,
         num_channels: int,
         latent_dim: int,
+        sparsity_lambda=1e-4,
+        sparsity_target=0.05,
     ):
         super().__init__()
-        self.loss_type = LossType.BCE_KL
-        last_decoder_act_fn = nn.Sigmoid
-        self.loss_function = F.binary_cross_entropy
 
-        self.mean_layer = nn.Linear(latent_dim, 2)
-        self.logvar_layer = nn.Linear(latent_dim, 2)
+        self.sparsity_lambda = sparsity_lambda
+        self.sparsity_target = sparsity_target
+
+        self.loss_type = LossType.MSE_KL
+        last_decoder_act_fn = nn.Tanh
 
         # Creating encoder and decoder
         self.encoder = Encoder32(num_inputs, num_channels, latent_dim)
@@ -116,34 +113,53 @@ class VariationalAutoencoder32(pl.LightningModule):
         # Saving hyperparameters of autoencoder
         self.save_hyperparameters()
 
-    def forward_full(self, x):
+    def forward(self, x):
         """The forward function takes in an image and returns the reconstructed image."""
         x = self.encoder(x)
-        mean, logvar = self.mean_layer(x), self.logvar_layer(x)
-        # reparameterization trick
-        epsilon = torch.randn_like(logvar).to(self.device)      
-        z = mean + logvar*epsilon
-        new_x = self.decoder(z)
+        x = self.decoder(x)
         if not self.training:
             # filter out values below high_pass_filter threshold
-            new_x = self.level_trigger(new_x)
-        return new_x, mean, logvar
+            x = self.level_trigger(x)
+        return x
     
-    def forward(self, x):
-        x_hat, *_ = self.forward_full(x)
-        return x_hat
-    
+    def forward_full(self, x):
+        x_enc = self.encoder(x)
+        x_hat = self.decoder(x_enc)
+        return x_hat, x_enc
+
     def _get_reconstruction_loss(self, batch):
         x, y = batch
-        x_hat, mean, logvar = self.forward_full(x)
-        return self.get_loss(x_hat, y, mean, logvar)
-    
-    def get_loss(self, x, y, mean, logvar):
-        loss = F.binary_cross_entropy(x, y, reduction='none')
-        #loss = F.mse_loss(x, y, reduction='none')
+        x_hat, x_enc = self.forward_full(x)
+        return self.get_loss(x_hat, y, x_enc)
+
+    def sparsity_penalty(self, encoded):
+        #rho_hat = torch.mean(encoded, dim=0)
+        rho_hat = encoded.sum(dim=[0, 1]).mean(dim=[0])
+        rho = self.sparsity_target
+        epsilon = 1e-8
+        rho_hat = torch.clamp(rho_hat, min=epsilon, max=1 - epsilon)
+        kl_divergence = rho * torch.log(rho / rho_hat) + (1 - rho) * torch.log((1 - rho) / (1 - rho_hat))
+        sparsity_penalty = torch.sum(kl_divergence)
+        return self.sparsity_lambda * sparsity_penalty
+
+    """
+    Create a custom loss that combine mean squared error (MSE) loss 
+    for reconstruction with the sparsity penalty.
+    """
+    def get_loss(self, x, y, x_enc):
+        loss = F.mse_loss(x, y, reduction="none")
         loss = loss.sum(dim=[1, 2, 3]).mean(dim=[0])
-        kld = -0.5 * torch.sum(1 + logvar - mean.pow(2) - logvar.exp())
-        return loss + kld
+        sparsity_loss = self.sparsity_penalty(x_enc)
+        return loss + sparsity_loss
+    
+    #TODO: experiment with a more complex loss
+    # -> Remove if it doesn't improve learning
+    def get_loss_with_jaccard(self, x, y, x_enc):
+        loss = self.get_loss(x, y, x_enc)
+        # calculate jaccard
+        iou = self.jaccard(self.level_trigger(x), y)
+        iou_loss = loss * (1 - iou)
+        return loss + iou_loss
  
     def configure_optimizers(self):
         optimizer = optim.Adam(self.parameters(), lr=1e-3)
