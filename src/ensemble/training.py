@@ -11,7 +11,7 @@ import pytorch_lightning as pl
 from pytorch_lightning.callbacks import Callback, EarlyStopping
 import mlflow
 import matplotlib.pyplot as plt
-from src.ensemble.datasets import EnsembleDatasetV1
+from src.ensemble.datasets import EnsembleDatasetC1
 from src.ensemble.models_loss_type import LossType
 from ensemble.model_ae32 import Autoencoder32
 from ensemble.model_ae64 import Autoencoder64
@@ -92,13 +92,11 @@ def _get_stacked_images(dataset, num):
 
 def _train_model(
         max_epochs, 
-        checkpoint_path, 
         train_dataset, 
         val_dataset, 
         train_loader, 
         val_loader, 
-        test_loader, 
-        latent_dim,
+        test_loader,
     ):
     
     """
@@ -111,14 +109,14 @@ def _train_model(
         loss_type=LossType.MSE,
     )
     """
-    model = Unet()
+    model_pl = Unet()
     
-    mlflow.log_param("model", model)
-    mlflow.log_param("loss_type", model.loss_type)
+    mlflow.log_param("model", model_pl.model)
+    mlflow.log_param("loss_type", model_pl.loss_type)
 
     # Create a PyTorch Lightning trainer with the generation callback
     trainer = pl.Trainer(
-        default_root_dir=os.path.join(checkpoint_path, f"modelV1_dsV1.00_{latent_dim}"),
+        default_root_dir=os.path.join(os.getcwd(), f'data/ensemble_data/results/checkpoints/model_{model_pl.loss_type.name}'),
         deterministic=True,
         accelerator="auto",
         devices="auto",
@@ -134,13 +132,13 @@ def _train_model(
         ],
     )
 
-    trainer.fit(model, train_loader, val_loader)
+    trainer.fit(model_pl, train_loader, val_loader)
 
     # Test best model on validation and test set
-    val_result = trainer.test(model, dataloaders=val_loader, verbose=False)
-    test_result = trainer.test(model, dataloaders=test_loader, verbose=False)
+    val_result = trainer.test(model_pl, dataloaders=val_loader, verbose=False)
+    test_result = trainer.test(model_pl, dataloaders=test_loader, verbose=False)
     result = {"val": val_result, "test": test_result}
-    return model, result
+    return model_pl, result
 
 
 def _visualize_reconstructions(model, train_set):
@@ -163,7 +161,11 @@ def _visualize_reconstructions(model, train_set):
     plt.waitforbuttonpress(0)
 
 
-def run() -> None:
+def run(parquet_path: str, remote: bool=True) -> None:
+    """
+    Run a training session.
+    With "remote", there's no visual feedback, such as image reconstructions.
+    """
     rand_seed = 42
     pl.seed_everything(seed=rand_seed)
 
@@ -187,11 +189,11 @@ def run() -> None:
 
     # get dataset
     #dataset_path = os.path.join(os.getcwd(), "data/ensemble_data/datasets/v1.00")
-    dataset_path = "data/ensemble_data/datasets/v1.00"
-    parquet_filename = "ensemble_dataset_v1.00.parquet"
-    parquet_path = os.path.join(dataset_path, parquet_filename)
-    checkpoint_path = os.path.join(dataset_path, "training_logs")
-    ensemble_dataset = EnsembleDatasetV1(parquet_path, transform, transform)
+    #dataset_path = "data/ensemble_data/datasets/v1.00"
+    #parquet_filename = "ensemble_dataset_v1.00.parquet"
+    #parquet_path = os.path.join(dataset_path, parquet_filename)
+    #checkpoint_path = os.path.join(dataset_path, "training_logs")
+    ensemble_dataset = EnsembleDatasetC1(parquet_path, transform)
     # split dataset
     dataset_split = [0.7, 0.15, 0.15]
     train_set, val_set, test_set = torch.utils.data.random_split(ensemble_dataset, dataset_split)
@@ -216,14 +218,13 @@ def run() -> None:
     # train model
     model, result = _train_model(
         max_epochs,
-        checkpoint_path, 
         train_set,
         val_set,
         train_loader, 
         val_loader,
         test_loader,
-        latent_dim,
     )
 
-    _visualize_reconstructions(model, _get_stacked_images(val_set, 8))
+    if not remote:
+        _visualize_reconstructions(model, _get_stacked_images(val_set, 8))
     print("Done.")
