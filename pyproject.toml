@@ -16,7 +16,8 @@ dependencies = [
     "pandas",
     "Pillow",
     "pytorch_lightning",
-    "mlflow"
+    "mlflow",
+    "albumentations"
 ]
 
 [project.optional-dependencies]

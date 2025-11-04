@@ -59,3 +59,4 @@ virtualenv==20.32.0
 watchdog==6.0.0
 pytorch_lightning==2.5.5
 mlflow==3.4.0
+albumentations==2.0.8
