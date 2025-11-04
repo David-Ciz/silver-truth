@@ -67,7 +67,7 @@ Specific startegies are related to different datasets.
     - each parquet file contains, among other information:
         - a checksum for each file/image;
         - the name of each file.
-    - the parquet files are saved in github (?).
+    - the parquet files are saved in github/mlflow (?).
 
 2. Create Ensemble databank:
     - for each ground truth, create the input series (a sequence of images corresponding to the same cell: norm_seg, seg1, seg2...):
@@ -77,7 +77,7 @@ Specific startegies are related to different datasets.
             - layers RGB: [seg, gt, raw];
     - each segmentation/raw image is centered according to the normalized segmentation image of the same series;
     - the parquet file also contains the name and checksum of each file;
-    - the parquet files are saved in github (?).
+    - the parquet files are saved in github/mlflow (?).
 
 3. Compute a split of the Ensemble parquet indices according to the different datasets:
     - each resulting set (train, val, test) must contain the same input series as the other sets of the same type;
