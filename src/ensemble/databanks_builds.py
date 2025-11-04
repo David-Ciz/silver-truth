@@ -10,7 +10,7 @@ from src.ensemble.datasets import Version
 
 
 
-def build_analysis_dataset(qa_dataset_dataframe_path: str, output_path: str) -> None:
+def build_analysis_databank(qa_dataset_dataframe_path: str, output_path: str) -> None:
     """
     Creates an image dataset for helping visualizing the differences between GT and proposed segmentations.
     Should use cropped output of create_qa_dataset (in order to get the center of the cell).
@@ -50,19 +50,21 @@ def build_analysis_dataset(qa_dataset_dataframe_path: str, output_path: str) -> 
     ext.compress_images(output_path)
 
 
-def build_dataset(a_dataset_dataframe_path: str, output_path: str, version: Version):
-    if version == Version.V1:
-        _build_dataset_v1(a_dataset_dataframe_path, output_path)
+def build_databank_old(qa_dataset_dataframe_path: str, output_path: str, version: Version):
+    #if version == Version.C1:
+    #_build_databank(qa_dataset_dataframe_path, output_path)
+    pass
 
 
-def _build_dataset_v1(
+def build_databank(
+        name,
         qa_dataset_dataframe_path: str, 
         output_path: str,
         crop_size: int = 64, 
-        apply_blue_layer: bool = True
+        #apply_blue_layer: bool = True
         ) -> None: 
     """
-    Generate the dataset V1 for the ensemble.
+    Generate the databank for the different dataset versions.
     
     For each gt_image, for each label, all the competitors cropped segmentations (from qa) "votes" (each ON pixel equals 1 vote) /
     are summed into a single image layer, and then normalized by the number of competitors.
@@ -70,9 +72,10 @@ def _build_dataset_v1(
     For each gt image, a new image (crop size) is created with the cropped sum image as the 1st layer /
     and the cropped gt image as 2nd layer.
     """
-    version_id = "v1.00"
+    #TODO: update description
+
     new_images_folder = "images"
-    composed_output_path = os.path.join(output_path, version_id)
+    composed_output_path = os.path.join(output_path, name)
     # destination path of the created images
     images_output_path = os.path.join(composed_output_path, new_images_folder)
     # create images path if it doesn't exist
@@ -144,11 +147,10 @@ def _build_dataset_v1(
             gt_crop = (gt_crop == label).astype(np.uint8) * 255
 
             # stack layers
-            if apply_blue_layer:
-                empty_blue_layer = np.zeros((crop_size, crop_size), dtype=np.uint8)
-                stacked_crop = np.stack([canvas_crop, gt_crop, empty_blue_layer], axis=0)
-            else:
-                stacked_crop = np.stack([canvas_crop, gt_crop], axis=0)
+            # apply_blue_layer:
+            empty_blue_layer = np.zeros((crop_size, crop_size), dtype=np.uint8)
+            stacked_crop = np.stack([canvas_crop, gt_crop, empty_blue_layer], axis=0)
+
 
             # set new dataset image path
             campaign, img_id, __, __ = first_row.cell_id.split("_")
@@ -171,7 +173,7 @@ def _build_dataset_v1(
     # convert list to dataframe
     output_df = pd.DataFrame(data_list)
     # build output parquet path
-    parquet_output_path = os.path.join(composed_output_path, f"ensemble_dataset_{version_id}.parquet")
+    parquet_output_path = os.path.join(composed_output_path, f"ensemble_{name}.parquet")
     # save to parquet file
     output_df.to_parquet(parquet_output_path)
 
