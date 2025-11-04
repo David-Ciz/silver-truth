@@ -1,21 +1,29 @@
 from typing import Callable, Optional
 import tifffile
 from tqdm import tqdm
+from enum import Enum
+from PIL import Image
 import torch
 from torch.utils.data import Dataset
 import src.ensemble.external as ext
-from enum import Enum
-from PIL import Image
+import numpy as np
 
 
 class Version(Enum):
-    V1 = 1
-    V2 = 2
+    A1 = 1  # gt, gt            [1,1]
+    A2 = 2  # gt&raw, gt        [2,1]
+    B1 = 3  # seg, gt           [1,1]
+    B2 = 4  # seg&raw, gt       [2,1]
+    B3 = 5  # seg+gt, gt        [1,1]
+    C1 = 6  # norm_seg, gt      [1,1]
+    C2 = 7  # norm_seg&raw, gt  [2,1]
+    D1 = 8  # raw, gt           [1,1]
 
 
-class EnsembleDatasetV1(Dataset):
+
+class EnsembleDatasetC1(Dataset):
     """
-    Ensemble dataset data structure V1.
+    Ensemble dataset data structure C1.
 
     Input: crop image with the normalized overlap of competitors segmentations.
     Label: crop image of ground truth.
@@ -24,14 +32,16 @@ class EnsembleDatasetV1(Dataset):
             self, 
             ensemble_parquet_path, 
             transform: Optional[Callable] = None,
-            target_transform: Optional[Callable] = None
+            #target_transform: Optional[Callable] = None
     ) -> None:
         super().__init__()
+
         # load dataframe
         df = ext.load_parquet(ensemble_parquet_path)
  
+        self.version = Version.C1
         self.transform = transform
-        self.target_transform = target_transform
+        #self.target_transform = target_transform
         self.data = []
         self.gts = []
         
@@ -52,16 +62,18 @@ class EnsembleDatasetV1(Dataset):
 
         if self.transform is not None:
             img = self.transform(img)
+            gt = self.transform(gt)
 
-        if self.target_transform is not None:
-            gt = self.target_transform(gt)
+
+        #if self.target_transform is not None:
+        #    gt = self.target_transform(gt)
 
         return img, gt
 
 
-class EnsembleDatasetV2(Dataset):
+class EnsembleDatasetC2(Dataset):
     """
-    Ensemble dataset data structure V2.
+    Ensemble dataset data structure C2.
 
     Input: 
         - crop image with the normalized overlap of competitors segmentations.
@@ -72,6 +84,8 @@ class EnsembleDatasetV2(Dataset):
         super().__init__()
         # load dataframe
         df = ext.load_parquet(ensemble_parquet_path)
+
+        self.version = Version.C2
         # get useful array properties
         img_count = len(df)
         img_size = df.iloc[0]["crop_size"]
@@ -103,7 +117,7 @@ import time
 from tqdm import tqdm
 
 def benchmark_EnsembleDataset(path, epochs=1000):
-    en_dataset = EnsembleDatasetV1(path)
+    en_dataset = EnsembleDatasetC1(path)
     print(en_dataset)
 
     start = time.time()
