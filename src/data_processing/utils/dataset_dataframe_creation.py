@@ -1,4 +1,5 @@
 import ast
+import logging
 
 import pandas as pd
 from pathlib import Path
@@ -34,28 +35,43 @@ def process_dataset_directory(
     Returns:
         Dictionary containing organized dataset information
     """
+    logging.info(f"Processing dataset directory: {directory}")
     dataset_info: defaultdict[str, dict] = defaultdict(dict)
     competitor_columns = set()
-    for dataset_subfolder in directory.iterdir():
+    
+    subfolders = list(directory.iterdir())
+    logging.info(f"Found {len(subfolders)} items in directory")
+    
+    for dataset_subfolder in subfolders:
         if not dataset_subfolder.is_dir():
+            logging.debug(f"Skipping non-directory: {dataset_subfolder.name}")
             continue
 
+        logging.info(f"Processing subfolder: {dataset_subfolder.name}")
+        
         # Process source data (campaigns 01 and 02)
         if dataset_subfolder.name in ["01", "02"]:
+            logging.info(f"Found source image folder: {dataset_subfolder.name}")
             process_source_images(dataset_subfolder, dataset_info)
 
         # Process ground truth and tracking markers
         elif dataset_subfolder.name == GT_FOLDER_FIRST:
+            logging.info(f"Found GT folder (01): {dataset_subfolder.name}")
             process_gt_data(dataset_subfolder, "01", dataset_info)
         elif dataset_subfolder.name == GT_FOLDER_SECOND:
+            logging.info(f"Found GT folder (02): {dataset_subfolder.name}")
             process_gt_data(dataset_subfolder, "02", dataset_info)
 
         # Process competitor results
         elif is_valid_competitor_folder(dataset_subfolder):
             competitor_key = dataset_subfolder.name
             competitor_columns.add(competitor_key)
+            logging.info(f"Found competitor folder: {competitor_key}")
             process_competitor_data(dataset_subfolder, dataset_info)
+        else:
+            logging.debug(f"Skipping unrecognized folder: {dataset_subfolder.name}")
 
+    logging.info(f"Processed {len(dataset_info)} images")
     return dataset_info, competitor_columns
 
 
@@ -81,20 +97,28 @@ def process_gt_data(
     tra_subfolder = folder / TRA_FOLDER
 
     # Process ground truth images
-    for image in gt_subfolder.iterdir():
-        if image.suffix == ".tif":
-            image_number = extract_image_number(image.name)
-            composite_key = f"{campaign_number}_{image_number}"
-            dataset_info[composite_key]["gt_image"] = str(image)
-            dataset_info[composite_key]["campaign_number"] = campaign_number
+    if gt_subfolder.exists():
+        logging.info(f"Processing GT SEG folder: {gt_subfolder}")
+        for image in gt_subfolder.iterdir():
+            if image.suffix == ".tif":
+                image_number = extract_image_number(image.name)
+                composite_key = f"{campaign_number}_{image_number}"
+                dataset_info[composite_key]["gt_image"] = str(image)
+                dataset_info[composite_key]["campaign_number"] = campaign_number
+    else:
+        logging.warning(f"GT SEG folder not found: {gt_subfolder}")
 
     # Process tracking marker images
-    for image in tra_subfolder.iterdir():
-        if image.suffix == ".tif":
-            image_number = extract_image_number(image.name)
-            composite_key = f"{campaign_number}_{image_number}"
-            dataset_info[composite_key]["tracking_markers"] = str(image)
-            dataset_info[composite_key]["campaign_number"] = campaign_number
+    if tra_subfolder.exists():
+        logging.info(f"Processing TRA folder: {tra_subfolder}")
+        for image in tra_subfolder.iterdir():
+            if image.suffix == ".tif":
+                image_number = extract_image_number(image.name)
+                composite_key = f"{campaign_number}_{image_number}"
+                dataset_info[composite_key]["tracking_markers"] = str(image)
+                dataset_info[composite_key]["campaign_number"] = campaign_number
+    else:
+        logging.warning(f"TRA folder not found: {tra_subfolder}")
 
 
 def process_competitor_data(
@@ -105,10 +129,18 @@ def process_competitor_data(
     res2_subfolder = folder / RES_FOLDER_SECOND
 
     # Process campaign 01 results
-    process_competitor_campaign(res1_subfolder, "01", folder, dataset_info)
+    if res1_subfolder.exists():
+        logging.info(f"Processing competitor 01_RES folder: {res1_subfolder}")
+        process_competitor_campaign(res1_subfolder, "01", folder, dataset_info)
+    else:
+        logging.warning(f"Competitor 01_RES folder not found: {res1_subfolder}")
 
     # Process campaign 02 results
-    process_competitor_campaign(res2_subfolder, "02", folder, dataset_info)
+    if res2_subfolder.exists():
+        logging.info(f"Processing competitor 02_RES folder: {res2_subfolder}")
+        process_competitor_campaign(res2_subfolder, "02", folder, dataset_info)
+    else:
+        logging.warning(f"Competitor 02_RES folder not found: {res2_subfolder}")
 
 
 def process_competitor_campaign(
@@ -269,13 +301,28 @@ def create_dataset_dataframe_logic(
     if output_path is None:
         output_path = f"{synchronized_dataset_dir.name}_dataset_dataframe.parquet"
 
+    logging.info(f"Creating dataset dataframe from: {synchronized_dataset_dir}")
     dataset_info, competitor_columns = process_dataset_directory(
         synchronized_dataset_dir
     )
+    
+    if not dataset_info:
+        logging.error("No dataset information was collected. Check directory structure.")
+        logging.error("Expected structure:")
+        logging.error("  - 01/ and 02/ folders for source images")
+        logging.error("  - 01_GT/ and 02_GT/ folders with SEG/ and TRA/ subfolders")
+        logging.error("  - Competitor folders with 01_RES/ and/or 02_RES/ subfolders")
+        raise ValueError("No data found in the specified directory")
+    
     dataset_dataframe = convert_to_dataframe(dataset_info)
+    logging.info(f"Created dataframe with {len(dataset_dataframe)} rows and {len(dataset_dataframe.columns)} columns")
+    
     # Store metadata
     dataset_dataframe.attrs["base_directory"] = str(synchronized_dataset_dir)
     dataset_dataframe.attrs["competitor_columns"] = list(competitor_columns)
     dataset_dataframe.attrs["created_by"] = "David-Ciz"  #
     dataset_dataframe.attrs["creation_time"] = pd.Timestamp.now()
+    
+    logging.info(f"Saving dataframe to: {output_path}")
     save_dataframe_to_parquet_with_metadata(dataset_dataframe, str(output_path))
+    logging.info("Dataframe saved successfully")
