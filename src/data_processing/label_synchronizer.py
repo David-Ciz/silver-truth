@@ -243,18 +243,21 @@ def verify_dataset_synchronization_logic(
     # Verify the synchronization for each dataset type
     desynchronized_subfolders = set()
     for dataset_type, data in tqdm.tqdm(dataset_data.items()):
-        if data["segmentations"] is None:
+        if not data["segmentations"]:  # Check if list is empty
             logging.error(
-                f"⚠️ Segmentation folder not found for dataset, type {dataset_type}"
+                f"Segmentation folder not found for dataset, type {dataset_type}"
             )
         else:
             # Choose the corresponding tracking folder based on dataset type
             tracking_folder = data["tracking_folder"]
-            desynchronized_images = verify_folder_synchronization_logic(
-                str(data["segmentations"]), str(tracking_folder)
-            )
-            if desynchronized_images:
-                desynchronized_subfolders.add(dataset_type)
+            # Process each segmentation folder in the list
+            for seg_folder in data["segmentations"]:
+                desynchronized_images = verify_folder_synchronization_logic(
+                    str(seg_folder), str(tracking_folder)
+                )
+                if desynchronized_images:
+                    desynchronized_subfolders.add(dataset_type)
+                    break  # No need to check other folders if we found desynchronization
     return desynchronized_subfolders
 
 
@@ -316,12 +319,12 @@ def synchronize_datasets_logic(datasets_folder, output_directory, debug):
             if data["tracking_folder"] is None:
                 missing_tracking = True
                 logging.error(
-                    f"⚠️ Tracking folder not found for dataset {dataset.name}, type {dataset_type}"
+                    f"Tracking folder not found for dataset {dataset.name}, type {dataset_type}"
                 )
 
         if missing_tracking:
             logging.error(
-                f"⛔ Skipping dataset {dataset.name} due to missing tracking data"
+                f"Skipping dataset {dataset.name} due to missing tracking data"
             )
             failed_datasets.append(dataset.name)
             skipped_datasets += 1
@@ -339,10 +342,10 @@ def synchronize_datasets_logic(datasets_folder, output_directory, debug):
 
     # Summary at the end of processing
     logging.info("--- Processing Summary ---")
-    logging.info(f"✅ Successfully processed datasets: {processed_datasets}")
+    logging.info(f"Successfully processed datasets: {processed_datasets}")
 
     if skipped_datasets > 0:
         logging.info(
-            f"⚠️ Skipped datasets due to missing tracking data: {skipped_datasets}"
+            f"Skipped datasets due to missing tracking data: {skipped_datasets}"
         )
         logging.info(f"Failed datasets: {', '.join(failed_datasets)}")
