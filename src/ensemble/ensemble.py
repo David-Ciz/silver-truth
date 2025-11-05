@@ -42,6 +42,8 @@ def _set_mlflow_experiment(name: str) -> None:
     experiment = mlflow.get_experiment_by_name(name)
     if experiment is None:
         mlflow.create_experiment(name, envs.mlflow_mlruns_path)
+    else:
+        mlflow.set_experiment(name)
 
 
 def run_experiment(name: str, parquet_file: str, parameters: dict):
@@ -57,20 +59,10 @@ def run_experiment(name: str, parquet_file: str, parameters: dict):
         with mlflow.start_run() as mlflow_run:
             run_id = mlflow_run.info.run_id
             _logger.info(f"MLflow experiment \"{name}\": a run started with ID \"{run_id}\".")
-            training.run(parquet_file)
+            training.run(parquet_file, max_epochs=10, remote=False)
     except Exception as ex:
             print(f"Error during Ensemble experiment: {ex}")
             mlflow.set_tag("status", "failed")
-
-
-
-
-
-
-
-
-
-
 
 
 def build_required_datasets_DEPRECATED(ensemble_dataset_version=Version.C1):

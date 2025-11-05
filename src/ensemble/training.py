@@ -5,7 +5,6 @@ import torch.nn.functional as F
 import torch.utils.data as data
 from torch.utils.data.dataset import Subset
 import torchvision
-from torchvision import transforms
 from torchmetrics.classification import BinaryJaccardIndex, BinaryF1Score
 import pytorch_lightning as pl
 from pytorch_lightning.callbacks import Callback, EarlyStopping
@@ -18,7 +17,8 @@ from ensemble.model_ae64 import Autoencoder64
 from ensemble.model_vae32 import VariationalAutoencoder32
 from ensemble.model_spae32 import SparseAutoencoder32
 from ensemble.model_unet import Unet
-from src.ensemble.act_functions import LevelTrigger
+import albumentations as A
+import segmentation_models_pytorch as smp
 
 
 """
@@ -55,6 +55,10 @@ def _evaluate_model(model, input_set, target_set):
             reconst_imgs = model(input_set)
             # calculate model's loss
             loss = model.get_loss(reconst_imgs, target_set)
+
+        #tp, fp, fn, tn = smp.metrics.get_stats(reconst_imgs, target_set, mode='binary', threshold=0.5)
+        #iou = smp.metrics.iou_score(tp, fp, fn, tn, reduction="micro")
+        #f1 = smp.metrics.f1_score(tp, fp, fn, tn, reduction="micro")
 
         # calculate IoU
         iou = jaccard(reconst_imgs, target_set)
@@ -161,12 +165,11 @@ def _visualize_reconstructions(model, train_set):
     plt.waitforbuttonpress(0)
 
 
-def run(parquet_path: str, remote: bool=True) -> None:
+def run(parquet_path: str, max_epochs: int=100, rand_seed: int=42, remote: bool=True) -> None:
     """
     Run a training session.
     With "remote", there's no visual feedback, such as image reconstructions.
     """
-    rand_seed = 42
     pl.seed_everything(seed=rand_seed)
 
     # Ensure that all operations are deterministic on GPU (if used) for reproducibility
@@ -177,26 +180,24 @@ def run(parquet_path: str, remote: bool=True) -> None:
     print("Device:", device)
     """"""
 
-    max_epochs = 100
     latent_dim = None#32
-    # set the input size for the model
-    transform = transforms.Compose([
-                transforms.ToTensor(), 
-        #transforms.Normalize((0.5,), (0.5,)), 
+
+    transform = A.Compose([
+        A.HorizontalFlip(),
+        A.Rotate(p=1.0),
+        A.ToTensorV2()
     ])
-    mlflow.log_param("dataset_input_transform", transform)
-    mlflow.log_param("dataset_target_transform", transform)
+
+    mlflow.log_param("dataset_transform", transform)
 
     # get dataset
-    #dataset_path = os.path.join(os.getcwd(), "data/ensemble_data/datasets/v1.00")
-    #dataset_path = "data/ensemble_data/datasets/v1.00"
-    #parquet_filename = "ensemble_dataset_v1.00.parquet"
-    #parquet_path = os.path.join(dataset_path, parquet_filename)
-    #checkpoint_path = os.path.join(dataset_path, "training_logs")
     ensemble_dataset = EnsembleDatasetC1(parquet_path, transform)
     # split dataset
     dataset_split = [0.7, 0.15, 0.15]
     train_set, val_set, test_set = torch.utils.data.random_split(ensemble_dataset, dataset_split)
+    #TODO: note: use this to see the difference in learning with and without data augmentation
+    #train_set.dataset = EnsembleDatasetC1(parquet_path, None)
+    
     # dataloaders
     batch_size = 20
     train_loader = data.DataLoader(train_set, batch_size=batch_size, shuffle=True, drop_last=True, pin_memory=True, num_workers=4)

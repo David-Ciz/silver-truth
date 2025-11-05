@@ -24,8 +24,8 @@ class Unet(pl.LightningModule):
         super().__init__()
         self.model = smp.Unet(encoder_name="resnet34", encoder_weights=None, in_channels=1)
         self.level_trigger = LevelTrigger()
-        self.loss_type = LossType.DICE
-        self.loss_function = DiceLoss("binary", from_logits=True)
+        self.loss_type = LossType.MSE
+        #self.loss_function = DiceLoss("binary", from_logits=True)
     
     def forward(self, x):
         x = self.model(x)
@@ -40,9 +40,9 @@ class Unet(pl.LightningModule):
         return self.get_loss(x_hat, y)
     
     def get_loss(self, x, y):
-        #loss = F.mse_loss(x, y, reduction="none")
-        #loss = loss.sum(dim=[1, 2, 3]).mean(dim=[0])
-        loss = self.loss_function(x, y)
+        loss = F.mse_loss(x, y, reduction="none")
+        loss = loss.sum(dim=[1, 2, 3]).mean(dim=[0])
+        #loss = self.loss_function(x, y)
         return loss
 
     def configure_optimizers(self):

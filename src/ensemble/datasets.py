@@ -2,11 +2,13 @@ from typing import Callable, Optional
 import tifffile
 from tqdm import tqdm
 from enum import Enum
-from PIL import Image
 import torch
 from torch.utils.data import Dataset
 import src.ensemble.external as ext
+import albumentations as A
 import numpy as np
+#from PIL import Image
+
 
 
 class Version(Enum):
@@ -32,7 +34,6 @@ class EnsembleDatasetC1(Dataset):
             self, 
             ensemble_parquet_path, 
             transform: Optional[Callable] = None,
-            #target_transform: Optional[Callable] = None
     ) -> None:
         super().__init__()
 
@@ -40,8 +41,10 @@ class EnsembleDatasetC1(Dataset):
         df = ext.load_parquet(ensemble_parquet_path)
  
         self.version = Version.C1
-        self.transform = transform
-        #self.target_transform = target_transform
+        if transform is None:
+            self.transform = A.Compose([A.ToTensorV2()])
+        else:
+            self.transform = transform
         self.data = []
         self.gts = []
         
@@ -50,25 +53,26 @@ class EnsembleDatasetC1(Dataset):
             # load the image
             composed_image = tifffile.imread(row.image_path) # type: ignore
             # split the composed image
+            
+            # albumentations require (H, W, C) for images
+            segmentation = composed_image[0].astype(dtype=np.float32) / 255 # scale down to [0,1]
+            gt_image = composed_image[1].astype(dtype=np.float32) / 255 # scale down to [0,1]
+            self.data.append(segmentation)
+            self.gts.append(gt_image)
+            """
+            # torchvision
             segmentation, gt_image = composed_image[0], composed_image[1]
             self.data.append(Image.fromarray(segmentation))
             self.gts.append(Image.fromarray(gt_image))
+            """
 
     def __len__(self) -> int:
         return len(self.data)
 
     def __getitem__(self, index):
-        img, gt = self.data[index], self.gts[index]
-
-        if self.transform is not None:
-            img = self.transform(img)
-            gt = self.transform(gt)
-
-
-        #if self.target_transform is not None:
-        #    gt = self.target_transform(gt)
-
-        return img, gt
+        #return self.transform(self.data[index]), self.transform(self.gts[index])
+        augmented = self.transform(image=self.data[index], mask=self.gts[index])
+        return augmented["image"], augmented["mask"].unsqueeze(-3)
 
 
 class EnsembleDatasetC2(Dataset):
