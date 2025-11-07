@@ -46,7 +46,7 @@ def _set_mlflow_experiment(name: str) -> None:
         mlflow.set_experiment(name)
 
 
-def run_experiment(name: str, parquet_file: str, parameters: dict):
+def run_experiment(name: str, parquet_file: str, parameters: dict, remote: bool):
     "Entry point for new Ensemble experiment."
 
     _set_mlflow_experiment(name)
@@ -59,7 +59,7 @@ def run_experiment(name: str, parquet_file: str, parameters: dict):
         with mlflow.start_run() as mlflow_run:
             run_id = mlflow_run.info.run_id
             _logger.info(f"MLflow experiment \"{name}\": a run started with ID \"{run_id}\".")
-            training.run(parquet_file, max_epochs=10, remote=False)
+            training.run(parquet_file, max_epochs=100, remote=remote)
     except Exception as ex:
             print(f"Error during Ensemble experiment: {ex}")
             mlflow.set_tag("status", "failed")
