@@ -8,7 +8,7 @@ import tifffile
 from src.data_processing.utils.dataset_dataframe_creation import (
     load_dataframe_from_parquet_with_metadata,
 )
-from src.metrics.metrics import calculate_jaccard_scores
+from src.metrics.metrics import calculate_jaccard_scores, calculate_dice_scores
 from src.metrics.utils import print_results
 
 # Setup basic logging
@@ -196,11 +196,19 @@ def run_evaluation(
     all_results = {
         comp: {camp: {} for camp in campaigns} for comp in competitor_columns
     }
+    all_dice_results = {
+        comp: {camp: {} for camp in campaigns} for comp in competitor_columns
+    }
     per_image_averages = {
         comp: {camp: {} for camp in campaigns} for comp in competitor_columns
     }
+    per_image_dice_averages = {
+        comp: {camp: {} for camp in campaigns} for comp in competitor_columns
+    }
     per_campaign_averages = {comp: {} for comp in competitor_columns}
+    per_campaign_dice_averages = {comp: {} for comp in competitor_columns}
     overall_averages = {}
+    overall_dice_averages = {}
     all_labels = set()
 
     # --- Processing Loop ---
@@ -221,6 +229,7 @@ def run_evaluation(
             logging.info(f"  Processing Campaign: {campaign}")
             campaign_df = filtered_df[filtered_df[campaign_col] == campaign]
             campaign_all_label_scores = []
+            campaign_all_dice_scores = []
             image_count = 0
             processed_count = 0
             skipped_count = 0
@@ -265,9 +274,14 @@ def run_evaluation(
                     gt_img = tifffile.imread(gt_path)
                     seg_img = tifffile.imread(seg_path)
 
+                    # Calculate Jaccard scores
                     jaccard_scores = calculate_jaccard_scores(gt_img, seg_img)
                     all_results[comp][campaign][composite_key] = jaccard_scores
                     all_labels.update(jaccard_scores.keys())
+
+                    # Calculate Dice scores
+                    dice_scores = calculate_dice_scores(gt_img, seg_img)
+                    all_dice_results[comp][campaign][composite_key] = dice_scores
 
                     if jaccard_scores:
                         image_avg = sum(jaccard_scores.values()) / len(jaccard_scores)
@@ -276,6 +290,13 @@ def run_evaluation(
                     else:
                         per_image_averages[comp][campaign][composite_key] = 0.0
 
+                    if dice_scores:
+                        dice_image_avg = sum(dice_scores.values()) / len(dice_scores)
+                        per_image_dice_averages[comp][campaign][composite_key] = dice_image_avg
+                        campaign_all_dice_scores.extend(list(dice_scores.values()))
+                    else:
+                        per_image_dice_averages[comp][campaign][composite_key] = 0.0
+
                     processed_count += 1
 
                 except Exception as e:
@@ -283,7 +304,9 @@ def run_evaluation(
                         f"    {composite_key}: Error processing images ({gt_path}, {seg_path}): {e}. Skipping image."
                     )
                     all_results[comp][campaign][composite_key] = {}
+                    all_dice_results[comp][campaign][composite_key] = {}
                     per_image_averages[comp][campaign][composite_key] = float("nan")
+                    per_image_dice_averages[comp][campaign][composite_key] = float("nan")
                     skipped_count += 1
 
             logging.info(
@@ -304,6 +327,18 @@ def run_evaluation(
                 logging.warning(
                     f"    No valid Jaccard scores found for '{comp}' in campaign '{campaign}'. Average set to NaN."
                 )
+            
+            # Calculate Dice averages
+            if campaign_all_dice_scores:
+                campaign_dice_avg = sum(campaign_all_dice_scores) / len(
+                    campaign_all_dice_scores
+                )
+                per_campaign_dice_averages[comp][campaign] = campaign_dice_avg
+                logging.info(
+                    f"    Campaign '{campaign}' avg Dice for '{comp}': {campaign_dice_avg:.4f} (from {len(campaign_all_dice_scores)} label scores)"
+                )
+            else:
+                per_campaign_dice_averages[comp][campaign] = float("nan")
 
         if competitor_all_label_scores:
             overall_avg = sum(competitor_all_label_scores) / len(
@@ -318,6 +353,25 @@ def run_evaluation(
             logging.warning(
                 f"  No valid Jaccard scores found for '{comp}' across all campaigns. Overall average set to NaN."
             )
+        
+        # Calculate overall Dice average
+        competitor_all_dice_scores = []
+        for campaign in campaigns:
+            campaign_df = filtered_df[filtered_df[campaign_col] == campaign]
+            for index, row in campaign_df.iterrows():
+                composite_key = row.get("composite_key", f"Row_{index}")
+                dice_scores_dict = all_dice_results.get(comp, {}).get(campaign, {}).get(composite_key, {})
+                if dice_scores_dict:
+                    competitor_all_dice_scores.extend(list(dice_scores_dict.values()))
+        
+        if competitor_all_dice_scores:
+            overall_dice_avg = sum(competitor_all_dice_scores) / len(competitor_all_dice_scores)
+            overall_dice_averages[comp] = overall_dice_avg
+            logging.info(
+                f"  Overall avg Dice for '{comp}': {overall_dice_avg:.4f} (from {len(competitor_all_dice_scores)} label scores across all campaigns)"
+            )
+        else:
+            overall_dice_averages[comp] = float("nan")
 
     logging.info("--- Evaluation Summary ---")
 
@@ -378,9 +432,55 @@ def run_evaluation(
                         campaign, float("nan")
                     )
                     overall_avg = overall_averages.get(comp, float("nan"))
+                    
+                    # Get fusion metadata from the dataframe for this image_key and campaign
+                    fusion_metadata = {}
+                    if comp == "fused_images":
+                        # Find the row matching this campaign and image_key
+                        matching_row = filtered_df[
+                            (filtered_df[campaign_col] == campaign) & 
+                            (filtered_df["composite_key"] == image_key)
+                        ]
+                        
+                        if not matching_row.empty:
+                            row = matching_row.iloc[0]
+                            fusion_metadata = {
+                                "fusion_timepoint": row.get("fusion_timepoint", None),
+                                "fusion_model": row.get("fusion_model", None),
+                                "fusion_threshold": row.get("fusion_threshold", None),
+                                "fusion_timepoints_range": row.get("fusion_timepoints_range", None),
+                            }
+                        else:
+                            fusion_metadata = {
+                                "fusion_timepoint": None,
+                                "fusion_model": None,
+                                "fusion_threshold": None,
+                                "fusion_timepoints_range": None,
+                            }
+                    else:
+                        # For non-fused competitors, set to None
+                        fusion_metadata = {
+                            "fusion_timepoint": None,
+                            "fusion_model": None,
+                            "fusion_threshold": None,
+                            "fusion_timepoints_range": None,
+                        }
 
+                    # Get Dice scores for this image
+                    dice_labels_data = all_dice_results.get(comp, {}).get(campaign, {}).get(image_key, {})
+                    dice_img_avg = (
+                        per_image_dice_averages.get(comp, {})
+                        .get(campaign, {})
+                        .get(image_key, float("nan"))
+                    )
+                    dice_camp_avg = per_campaign_dice_averages.get(comp, {}).get(
+                        campaign, float("nan")
+                    )
+                    dice_overall_avg = overall_dice_averages.get(comp, float("nan"))
+                    
                     if labels_data:
                         for label, score in labels_data.items():
+                            dice_score = dice_labels_data.get(label, float("nan"))
                             output_data.append(
                                 {
                                     "competitor": comp,
@@ -388,9 +488,12 @@ def run_evaluation(
                                     "image_key": image_key,
                                     "label": label,
                                     "jaccard_score": score,
-                                    "image_average": img_avg,
-                                    "campaign_average": camp_avg,
-                                    "overall_competitor_average": overall_avg,
+                                    "dice_score": dice_score,
+                                    "image_average_jaccard": img_avg,
+                                    "image_average_dice": dice_img_avg,
+                                    "campaign_average_jaccard": camp_avg,
+                                    "campaign_average_dice": dice_camp_avg,
+                                    **fusion_metadata,  # Add fusion metadata
                                 }
                             )
                     else:
@@ -401,9 +504,12 @@ def run_evaluation(
                                 "image_key": image_key,
                                 "label": None,
                                 "jaccard_score": float("nan"),
-                                "image_average": img_avg,
-                                "campaign_average": camp_avg,
-                                "overall_competitor_average": overall_avg,
+                                "dice_score": float("nan"),
+                                "image_average_jaccard": img_avg,
+                                "image_average_dice": dice_img_avg,
+                                "campaign_average_jaccard": camp_avg,
+                                "campaign_average_dice": dice_camp_avg,
+                                **fusion_metadata,  # Add fusion metadata
                             }
                         )
 

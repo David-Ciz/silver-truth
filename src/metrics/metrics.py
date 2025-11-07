@@ -19,6 +19,51 @@ def calculate_jaccard_scores(gt_image, mask_image):
     return scores
 
 
+def calculate_dice_coefficient(gt_mask, pred_mask):
+    """
+    Calculate Dice coefficient (F1 score) between two binary masks.
+    
+    Dice = 2 * |A ∩ B| / (|A| + |B|)
+    
+    Args:
+        gt_mask: Ground truth binary mask (numpy array)
+        pred_mask: Predicted binary mask (numpy array)
+        
+    Returns:
+        Dice coefficient (float) between 0 and 1
+    """
+    intersection = np.sum(gt_mask & pred_mask)
+    sum_masks = np.sum(gt_mask) + np.sum(pred_mask)
+    
+    if sum_masks == 0:
+        # Both masks are empty
+        return 1.0 if intersection == 0 else 0.0
+    
+    dice = (2.0 * intersection) / sum_masks
+    return dice
+
+
+def calculate_dice_scores(gt_image, mask_image):
+    """
+    Calculate Dice coefficient for each label in the images.
+    
+    Args:
+        gt_image: Ground truth segmentation image
+        mask_image: Predicted segmentation image
+        
+    Returns:
+        Dictionary mapping label -> Dice score
+    """
+    labels = np.unique(gt_image)[1:]  # Exclude background (0)
+    scores = {}
+    for label in labels:
+        label_layer = (gt_image == label).astype(np.uint8)
+        mask_layer = (mask_image == label).astype(np.uint8)
+        dice = calculate_dice_coefficient(label_layer, mask_layer)
+        scores[label] = dice
+    return scores
+
+
 def calculate_qa_jaccard_score(gt_image, predicted_mask, target_label, original_image_key, campaign, qa_row):
     """
     Calculate Jaccard score for QA cropped images.

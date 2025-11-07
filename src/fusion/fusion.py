@@ -5,6 +5,7 @@ from enum import Enum
 from typing import Optional
 import pandas as pd
 from pathlib import Path
+import re
 
 # Configure basic logging
 logging.basicConfig(
@@ -87,23 +88,61 @@ def fuse_segmentations(
         logging.info("Fusers Java process completed successfully.")
 
 
-def add_fused_images_to_dataframe_logic(dataset_name, base_dir):
+def extract_timepoint_from_filename(filename):
     """
-    Process a single dataset to add fused image paths.
+    Extract timepoint number from fused image filename.
+    Examples:
+        - mask_0000.tif -> 0
+        - mask_0042.tif -> 42
+        - fused_0123.tif -> 123
+    """
+    if pd.isna(filename) or not filename:
+        return None
+    
+    # Match patterns like mask_0000.tif, fused_0123.tif, etc.
+    match = re.search(r'_(\d+)\.tif$', filename)
+    if match:
+        return int(match.group(1))
+    return None
+
+
+def add_fused_images_to_dataframe_logic(dataset_name, base_dir, parquet_path=None, fused_dir=None, output_path=None,
+                                       fusion_model="threshold_flat", fusion_threshold=1.0, 
+                                       fusion_timepoints_range="0-61"):
+    """
+    Process a single dataset to add fused image paths and fusion metadata.
 
     Args:
-        dataset_name: Name of the dataset (e.g., 'Fluo-C3DH-A549')
+        dataset_name: Name of the dataset (e.g., 'BF-C2DL-MuSC')
         base_dir: Base directory path
+        parquet_path: Optional custom path to parquet file
+        fused_dir: Optional custom path to fused images directory
+        output_path: Optional custom output path for parquet with fused images
+        fusion_model: Fusion model used (default: 'threshold_flat')
+        fusion_threshold: Fusion threshold used (default: 1.0)
+        fusion_timepoints_range: Timepoints range used in fusion (default: '0-61')
     """
-    # Construct paths
-    parquet_path = (
-        Path(base_dir) / "dataframes" / f"{dataset_name}_dataset_dataframe.parquet"
-    )
-    fused_images_dir = Path(base_dir) / "fused_results"
-    output_dir = Path(base_dir) / "fused_results_parquet"
-    output_parquet_path = (
-        output_dir / f"{dataset_name}_dataset_dataframe_with_fused.parquet"
-    )
+    # Construct paths - use custom paths if provided, otherwise use default structure
+    if parquet_path is None:
+        parquet_path = (
+            Path(base_dir) / "dataframes" / f"{dataset_name}_dataset_dataframe.parquet"
+        )
+    else:
+        parquet_path = Path(parquet_path)
+    
+    if fused_dir is None:
+        fused_images_dir = Path(base_dir) / "fused_results"
+    else:
+        fused_images_dir = Path(fused_dir)
+    
+    if output_path is None:
+        output_dir = Path(base_dir) / "fused_results_parquet"
+        output_parquet_path = (
+            output_dir / f"{dataset_name}_dataset_dataframe_with_fused.parquet"
+        )
+    else:
+        output_parquet_path = Path(output_path)
+        output_dir = output_parquet_path.parent
 
     # Check if parquet file exists
     if not parquet_path.exists():
@@ -117,13 +156,12 @@ def add_fused_images_to_dataframe_logic(dataset_name, base_dir):
     print(f"Processing dataset: {dataset_name}")
     df = pd.read_parquet(parquet_path)
 
-    # Create a new column for fused images, initialized to None
+    # Create new columns for fused images and metadata, initialized to None
     df["fused_images"] = None
-
-    # Get a set of existing fused image filenames for efficient lookup
-    existing_fused_images = {
-        p.name for p in Path(fused_images_dir).glob("*_fused_*.tif")
-    }
+    df["fusion_timepoint"] = None
+    df["fusion_model"] = None
+    df["fusion_threshold"] = None
+    df["fusion_timepoints_range"] = None
 
     # Get unique campaign numbers from the dataset
     campaign_numbers = df["campaign_number"].unique()
@@ -131,6 +169,25 @@ def add_fused_images_to_dataframe_logic(dataset_name, base_dir):
 
     # Process each campaign
     for campaign in campaign_numbers:
+        # Build a dictionary of fused images for THIS campaign only
+        campaign_fused_dir = fused_images_dir / campaign
+        existing_fused_images = {}
+        
+        # If campaign subfolder exists, search there
+        if campaign_fused_dir.exists():
+            for pattern in ["*_fused_*.tif", "mask_*.tif", "fused_*.tif"]:
+                for p in campaign_fused_dir.glob(pattern):
+                    existing_fused_images[p.name] = str(p)
+            print(f"Found {len(existing_fused_images)} fused images in {campaign_fused_dir}")
+        else:
+            # Fallback: search in root fused_images_dir for campaign-specific patterns
+            for pattern in ["*_fused_*.tif", "mask_*.tif", "fused_*.tif"]:
+                for p in fused_images_dir.rglob(pattern):
+                    # Only include if path contains the campaign number
+                    if f"/{campaign}/" in str(p).replace("\\", "/") or f"_{campaign}_" in p.name:
+                        existing_fused_images[p.name] = str(p)
+            print(f"Found {len(existing_fused_images)} fused images for campaign {campaign}")
+        
         # Filter for current campaign rows and sort by composite_key to match fusion order
         df_campaign = df[df["campaign_number"] == campaign].copy()
         df_campaign = df_campaign.sort_values("composite_key").reset_index(drop=True)
@@ -145,38 +202,60 @@ def add_fused_images_to_dataframe_logic(dataset_name, base_dir):
                 # Convert to integer and determine the correct format based on existing files
                 time_num = int(time_part)
 
-                # Try TTT format first (3 digits) as it's more common
-                fused_filename_ttt = (
-                    f"{dataset_name}_{campaign}_fused_{time_num:03d}.tif"
-                )
-                # Also try TTTT format (4 digits) as fallback
-                fused_filename_tttt = (
-                    f"{dataset_name}_{campaign}_fused_{time_num:04d}.tif"
-                )
+                # Try multiple filename patterns
+                possible_filenames = [
+                    f"{dataset_name}_{campaign}_fused_{time_num:03d}.tif",
+                    f"{dataset_name}_{campaign}_fused_{time_num:04d}.tif",
+                    f"mask_{time_num:03d}.tif",
+                    f"mask_{time_num:04d}.tif",
+                    f"fused_{time_num:03d}.tif",
+                    f"fused_{time_num:04d}.tif",
+                ]
 
-                if fused_filename_ttt in existing_fused_images:
-                    fused_filename = fused_filename_ttt
-                elif fused_filename_tttt in existing_fused_images:
-                    fused_filename = fused_filename_tttt
-                else:
-                    continue  # No matching fused file found
+                fused_path = None
+                for filename in possible_filenames:
+                    if filename in existing_fused_images:
+                        fused_path = existing_fused_images[filename]
+                        break
+                
+                # Debug: print first few misses for campaign 02
+                if fused_path is None and campaign == "02" and index < 3:
+                    print(f"  DEBUG: Could not find fused image for {composite_key}")
+                    print(f"    Tried filenames: {possible_filenames[:4]}")
+                    print(f"    Available (first 5): {list(existing_fused_images.keys())[:5]}")
+                
+                if fused_path:
+                    fused_image_mapping[row["composite_key"]] = fused_path
             else:
                 # Fallback to sequential index if composite_key format is unexpected
-                fused_filename = f"{dataset_name}_{campaign}_fused_{index:03d}.tif"
-                if fused_filename not in existing_fused_images:
-                    fused_filename = f"{dataset_name}_{campaign}_fused_{index:04d}.tif"
-                if fused_filename not in existing_fused_images:
-                    continue
-
-            if fused_filename in existing_fused_images:
-                fused_image_mapping[row["composite_key"]] = str(
-                    Path(fused_images_dir) / fused_filename
-                )
+                possible_filenames = [
+                    f"{dataset_name}_{campaign}_fused_{index:03d}.tif",
+                    f"{dataset_name}_{campaign}_fused_{index:04d}.tif",
+                    f"mask_{index:03d}.tif",
+                    f"mask_{index:04d}.tif",
+                ]
+                for filename in possible_filenames:
+                    if filename in existing_fused_images:
+                        fused_image_mapping[row["composite_key"]] = existing_fused_images[filename]
+                        break
 
         # Apply the mapping to the DataFrame
-        df.loc[df["campaign_number"] == campaign, "fused_images"] = df_campaign[
-            "composite_key"
-        ].map(fused_image_mapping)
+        # Use composite_key from the original df, not df_campaign, to avoid index mismatch
+        campaign_mask = df["campaign_number"] == campaign
+        df.loc[campaign_mask, "fused_images"] = df.loc[campaign_mask, "composite_key"].map(fused_image_mapping)
+        
+        # Add fusion metadata for rows with fused images
+        has_fused = campaign_mask & df["fused_images"].notna()
+        
+        # Extract timepoint from fused image filename
+        df.loc[has_fused, "fusion_timepoint"] = df.loc[has_fused, "fused_images"].apply(
+            lambda x: extract_timepoint_from_filename(os.path.basename(x))
+        )
+        
+        # Add fusion configuration metadata
+        df.loc[has_fused, "fusion_model"] = fusion_model
+        df.loc[has_fused, "fusion_threshold"] = fusion_threshold
+        df.loc[has_fused, "fusion_timepoints_range"] = fusion_timepoints_range
 
         print(f"Campaign {campaign}: {len(fused_image_mapping)} fused images mapped")
 
@@ -188,7 +267,8 @@ def add_fused_images_to_dataframe_logic(dataset_name, base_dir):
     # Show summary for each campaign
     for campaign in campaign_numbers:
         campaign_data = df[df["campaign_number"] == campaign][
-            ["composite_key", "fused_images"]
+            ["composite_key", "fused_images", "fusion_timepoint", "fusion_model", 
+             "fusion_threshold", "fusion_timepoints_range"]
         ]
         mapped_count = campaign_data["fused_images"].notna().sum()
         total_count = len(campaign_data)
@@ -197,6 +277,14 @@ def add_fused_images_to_dataframe_logic(dataset_name, base_dir):
         )
         if mapped_count > 0:
             print(campaign_data[campaign_data["fused_images"].notna()].head())
+    
+    # Show fusion metadata summary
+    if df["fused_images"].notna().any():
+        print("\nFusion metadata summary:")
+        print(f"  - Fusion model: {df['fusion_model'].unique()}")
+        print(f"  - Fusion threshold: {df['fusion_threshold'].unique()}")
+        print(f"  - Timepoints range: {df['fusion_timepoints_range'].unique()}")
+        print(f"  - Timepoint values: {df['fusion_timepoint'].min():.0f} - {df['fusion_timepoint'].max():.0f}")
 
     return True
 

@@ -204,24 +204,68 @@ def generate_jobfiles(
 
 @cli.command()
 @click.option(
-    "--dataset", type=str, help="Process specific dataset (e.g., 'Fluo-C3DH-A549')"
+    "--dataset", type=str, help="Process specific dataset (e.g., 'BF-C2DL-MuSC')"
 )
 @click.option(
     "--base-dir",
     type=str,
-    default=r"C:\Users\wei0068\Desktop\Cell_Tracking\silver-truth",
-    help="Base directory path",
+    help="Base directory path (used only if custom paths not provided)",
+)
+@click.option(
+    "--parquet-file",
+    type=click.Path(exists=True),
+    help="Custom path to input parquet file"
+)
+@click.option(
+    "--fused-dir",
+    type=click.Path(exists=True),
+    help="Custom path to directory containing fused images"
+)
+@click.option(
+    "--output-path",
+    type=click.Path(),
+    help="Custom path for output parquet file with fused images"
+)
+@click.option(
+    "--fusion-model",
+    default="threshold_flat",
+    help="Fusion model used (default: threshold_flat)"
+)
+@click.option(
+    "--fusion-threshold",
+    type=float,
+    default=1.0,
+    help="Fusion threshold used (default: 1.0)"
+)
+@click.option(
+    "--fusion-timepoints",
+    default="0-61",
+    help="Timepoints range used in fusion (default: 0-61)"
 )
 @click.option("--all", is_flag=True, help="Process all datasets")
-def add_fused_images(dataset, base_dir, all):
-    """Add fused image paths to dataset dataframes"""
+def add_fused_images(dataset, base_dir, parquet_file, fused_dir, output_path, 
+                     fusion_model, fusion_threshold, fusion_timepoints, all):
+    """Add fused image paths and fusion metadata to dataset dataframes"""
     if dataset:
         # Process specific dataset
-        success = add_fused_images_to_dataframe_logic(dataset, base_dir)
+        success = add_fused_images_to_dataframe_logic(
+            dataset, 
+            base_dir, 
+            parquet_path=parquet_file,
+            fused_dir=fused_dir,
+            output_path=output_path,
+            fusion_model=fusion_model,
+            fusion_threshold=fusion_threshold,
+            fusion_timepoints_range=fusion_timepoints
+        )
         if not success:
             exit(1)
     elif all:
         # Process all datasets
+        if parquet_file or fused_dir or output_path:
+            click.echo(click.style("Warning: Custom paths are ignored when using --all flag", fg="yellow"))
+        # Note: When processing all datasets, default fusion metadata will be used
+        # You may need to pass these as parameters if different values are needed
         process_all_datasets_logic(base_dir)
     else:
         # If no arguments provided, process all datasets
