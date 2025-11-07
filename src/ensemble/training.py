@@ -84,14 +84,22 @@ class EvaluationCallback(Callback):
             print(f"val_loss: {val_loss}, val_f1: {val_f1}, val_iou: {val_iou}")
 
 
-def _get_eval_sets(subset: Subset):
-    return  torch.stack([subset.dataset[i][0] for i in subset.indices], dim=0), \
-            torch.stack([subset.dataset[i][1] for i in subset.indices], dim=0)
+def _get_eval_sets(subset):
+    imgs, gts = [],[]
+    for i in range(len(subset.indices)):
+        img, gt = subset[i]
+        imgs.append(img)
+        gts.append(gt)
+    return torch.stack(imgs, dim=0), torch.stack(gts, dim=0)
 
 
-def _get_stacked_images(dataset, num):
-    return  torch.stack([dataset[i][0] for i in range(num)], dim=0), \
-            torch.stack([dataset[i][1] for i in range(num)], dim=0)
+def _get_stacked_images(subset, num):
+    imgs, gts = [],[]
+    for i in range(num):
+        img, gt = subset[i]
+        imgs.append(img)
+        gts.append(gt)
+    return torch.stack(imgs, dim=0), torch.stack(gts, dim=0)
 
 
 def _train_model(
@@ -155,10 +163,25 @@ def _visualize_reconstructions(model, train_set):
 
     # Plotting
     imgs = torch.stack([gt_images, reconst_imgs], dim=1).flatten(0, 1)
-    grid = torchvision.utils.make_grid(imgs, nrow=4, normalize=True, value_range=(-1, 1))
+    grid = torchvision.utils.make_grid(imgs, nrow=8, normalize=True, value_range=(-1, 1))
     grid = grid.permute(1, 2, 0)
-    plt.figure(figsize=(14, 10))
+    plt.figure(figsize=(18, 13))
     plt.title(f"Reconstructions. Let's go!")
+    plt.imshow(grid)
+    plt.axis("off")
+    plt.show()
+    plt.waitforbuttonpress(0)
+
+
+def _visualize_dataset(subset):
+    input_imgs, gt_images = subset[0], subset[1]
+
+    # Plotting
+    imgs = torch.stack([input_imgs, gt_images], dim=1).flatten(0, 1)
+    grid = torchvision.utils.make_grid(imgs, nrow=8, normalize=True, value_range=(-1, 1))
+    grid = grid.permute(1, 2, 0)
+    plt.figure(figsize=(18, 13))
+    plt.title(f"Check dataset.")
     plt.imshow(grid)
     plt.axis("off")
     plt.show()
@@ -184,7 +207,8 @@ def run(parquet_path: str, max_epochs: int=100, rand_seed: int=42, remote: bool=
 
     transform = A.Compose([
         A.HorizontalFlip(),
-        A.Rotate(p=1.0),
+        #A.Rotate(p=1.0),
+        A.RandomRotate90(),
         A.ToTensorV2()
     ])
 
@@ -203,6 +227,9 @@ def run(parquet_path: str, max_epochs: int=100, rand_seed: int=42, remote: bool=
     train_loader = data.DataLoader(train_set, batch_size=batch_size, shuffle=True, drop_last=True, pin_memory=True, num_workers=4)
     val_loader = data.DataLoader(val_set, batch_size=batch_size, shuffle=False, drop_last=False, num_workers=4)
     test_loader = data.DataLoader(test_set, batch_size=batch_size, shuffle=False, drop_last=False, num_workers=4)
+
+    if not remote and False:
+        _visualize_dataset(_get_eval_sets(val_set))
 
     # log parameters
     params = {
@@ -227,5 +254,5 @@ def run(parquet_path: str, max_epochs: int=100, rand_seed: int=42, remote: bool=
     )
 
     if not remote:
-        _visualize_reconstructions(model, _get_stacked_images(val_set, 8))
+        _visualize_reconstructions(model, _get_stacked_images(val_set, 16))
     print("Done.")
