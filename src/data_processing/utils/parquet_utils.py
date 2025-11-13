@@ -1,10 +1,21 @@
 import math
+import numpy as np
 import tifffile
 import random
 import src.data_processing.utils.dataset_dataframe_creation as ddc
 
+# Constants
+SPLITS_COLUMN = "split" # column containing "train", "validation" or "test"
+CELL_ID_COLUMNS = ["gt_image", "label",] # columns that uniquely indentify a cell from a QA parquet
+COMMON_COLUMN = "crop_size" # column common to both QA and Ensemble parquets
 
-def create_parquet_with_split_column(parquet_path: str, seed: int, set_splits: list[float], group_by: str=""):
+
+def add_split_type(parquet_path: str, seed: int, set_splits: list[float]) -> str:
+    """
+    Create a parquet with an added column of random train/validation/test splits, with the given seed.
+    Returns the path to the newly created file.
+    """
+
     # must sum to 1
     assert (math.fsum(set_splits) == 1.0)
     # must have 3 floats for train/val/test
@@ -15,13 +26,11 @@ def create_parquet_with_split_column(parquet_path: str, seed: int, set_splits: l
     # load dataframe
     df = ddc.load_dataframe_from_parquet_with_metadata(parquet_path)
 
-    no_group = group_by == ""
+    assert(COMMON_COLUMN in df.columns) # must be a parquet from either QA ot Ensemble
+    is_ensemple = not set(CELL_ID_COLUMNS).issubset(df.columns)
 
-    # check that the group_by is empty or a name of a column
-    assert(no_group or group_by in df.columns)
-
-    # find how many "groups"
-    groups_count = df.shape[0] if no_group else df[group_by].nunique()
+    # find how many "groups" (competitors segmentation of each cell)
+    groups_count = df.shape[0] if is_ensemple else df[CELL_ID_COLUMNS].drop_duplicates().shape[0]
     train_count = round(groups_count * train_percent)
     val_count = round(groups_count * val_percent)
     test_count = groups_count - train_count - val_count
@@ -34,13 +43,15 @@ def create_parquet_with_split_column(parquet_path: str, seed: int, set_splits: l
     # suffle
     random.Random(seed).shuffle(splits)
 
-    split_col_name = "split"
-    if no_group:
-        df[split_col_name] = splits
+    if is_ensemple:
+        df[SPLITS_COLUMN] = splits
     else:
-        # create a mapping with unique gt file name and the corresponding split value
-        mappings = dict(zip(df[group_by].unique(), splits))
-        df[split_col_name] = df[group_by].map(mappings)    
+        # create a mapping between each unique "cell group" and the corresponding split value
+        uniques_col = ",".join(CELL_ID_COLUMNS)
+        df[uniques_col] = df[CELL_ID_COLUMNS[0]] + df[CELL_ID_COLUMNS[1]].astype(str)
+        mappings = dict(zip(df[uniques_col].drop_duplicates().to_numpy(), splits))
+        df[SPLITS_COLUMN] = df[uniques_col].map(mappings)
+        df.drop(columns=[uniques_col])
 
     # save parquet
     parquet_suffix = f"_split{int(train_percent*100)}-{int(val_percent*100)}-{int(test_percent*100)}_seed{seed}"
@@ -48,7 +59,30 @@ def create_parquet_with_split_column(parquet_path: str, seed: int, set_splits: l
     assert(filetype_pos >= 0) # the '.' char must exist in the filename
     output_parquet_path = parquet_path[:filetype_pos] + parquet_suffix + parquet_path[filetype_pos:]
     df.to_parquet(output_parquet_path)
+    return output_parquet_path
 
 
+def _get_uniques(parquet_path) -> np.ndarray:
+    # load dataframe
+    df = ddc.load_dataframe_from_parquet_with_metadata(parquet_path)
+    is_ensemple = not set(CELL_ID_COLUMNS).issubset(df.columns)
+    if is_ensemple:
+        return df[SPLITS_COLUMN].to_numpy()
+    else:
+        uniques_col = ",".join(CELL_ID_COLUMNS)
+        df[uniques_col] = df[CELL_ID_COLUMNS[0]] + df[CELL_ID_COLUMNS[1]].astype(str)
+        a = df[[uniques_col, SPLITS_COLUMN]].drop_duplicates()
+        return df[[uniques_col, SPLITS_COLUMN]].drop_duplicates()[SPLITS_COLUMN].to_numpy()
+
+
+def same_splits(parquet1_path: str, parquet2_path: str) -> bool:
+    """
+    Check if the 2 parquets have the same splits.
+    Assumes the files are in the same order.
+    """
+    uniques1 =_get_uniques(parquet1_path)
+    uniques2 =_get_uniques(parquet2_path)
+
+    return bool((uniques1==uniques2).all())
 
 #TODO: a method that receives 2 parquet and checks if they have the same split (each gt and related segmentations must have direct correspondence)
