@@ -32,7 +32,8 @@ class EnsembleDatasetC1(Dataset):
     """
     def __init__(
             self, 
-            ensemble_parquet_path, 
+            ensemble_parquet_path,
+            split,
             transform: Optional[Callable] = None,
     ) -> None:
         super().__init__()
@@ -50,6 +51,8 @@ class EnsembleDatasetC1(Dataset):
         
         # fill tensors with actual data
         for index, row in enumerate(df.itertuples()):
+            if row.split != split:
+                continue
             # load the image
             composed_image = tifffile.imread(row.image_path) # type: ignore
             # split the composed image
@@ -121,7 +124,7 @@ import time
 from tqdm import tqdm
 
 def benchmark_EnsembleDataset(path, epochs=1000):
-    en_dataset = EnsembleDatasetC1(path)
+    en_dataset = EnsembleDatasetC1(path, "train")
     print(en_dataset)
 
     start = time.time()

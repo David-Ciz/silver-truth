@@ -84,19 +84,19 @@ class EvaluationCallback(Callback):
             print(f"val_loss: {val_loss}, val_f1: {val_f1}, val_iou: {val_iou}")
 
 
-def _get_eval_sets(subset):
+def _get_eval_sets(dataset):
     imgs, gts = [],[]
-    for i in range(len(subset.indices)):
-        img, gt = subset[i]
+    for i in range(len(dataset)):
+        img, gt = dataset[i]
         imgs.append(img)
         gts.append(gt)
     return torch.stack(imgs, dim=0), torch.stack(gts, dim=0)
 
 
-def _get_stacked_images(subset, num):
+def _get_stacked_images(dataset, num):
     imgs, gts = [],[]
     for i in range(num):
-        img, gt = subset[i]
+        img, gt = dataset[i]
         imgs.append(img)
         gts.append(gt)
     return torch.stack(imgs, dim=0), torch.stack(gts, dim=0)
@@ -215,10 +215,14 @@ def run(parquet_path: str, max_epochs: int=100, rand_seed: int=42, remote: bool=
     mlflow.log_param("dataset_transform", transform)
 
     # get dataset
-    ensemble_dataset = EnsembleDatasetC1(parquet_path, transform)
+    #ensemble_dataset = EnsembleDatasetC1(parquet_path, transform)
+    train_set = EnsembleDatasetC1(parquet_path, "train", transform)
+    val_set = EnsembleDatasetC1(parquet_path, "validation", transform)
+    test_set = EnsembleDatasetC1(parquet_path, "test", transform)
     # split dataset
-    dataset_split = [0.7, 0.15, 0.15]
-    train_set, val_set, test_set = torch.utils.data.random_split(ensemble_dataset, dataset_split)
+    #dataset_split = [0.7, 0.15, 0.15]
+    #train_set, val_set, test_set = torch.utils.data.random_split(ensemble_dataset, dataset_split)
+
     #TODO: note: use this to see the difference in learning with and without data augmentation
     #train_set.dataset = EnsembleDatasetC1(parquet_path, None)
     
@@ -234,10 +238,10 @@ def run(parquet_path: str, max_epochs: int=100, rand_seed: int=42, remote: bool=
     # log parameters
     params = {
         "rand_seed": rand_seed,
-        "dataset_split": dataset_split,
+        #"dataset_split": dataset_split,
         "latent_dim": latent_dim,
         "parquet_path": parquet_path,
-        "ensemble_dataset": ensemble_dataset,
+        #"ensemble_dataset": ensemble_dataset,
         "batch_size": batch_size,
     }
     mlflow.log_params(params)
