@@ -6,7 +6,7 @@
 #SBATCH --nodes 1
 #SBATCH --gpus 1
 #SBATCH --ntasks-per-node 64
-#SBATCH --time 4:00:00
+#SBATCH --time 0:05:00
 
 ml CUDA/12.8.0
 ml Python/3.11.3-GCCcore-12.3.0
