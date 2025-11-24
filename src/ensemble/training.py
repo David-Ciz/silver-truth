@@ -219,8 +219,8 @@ def run(parquet_path: str, max_epochs: int=100, rand_seed: int=42, remote: bool=
     # get dataset
     #ensemble_dataset = EnsembleDatasetC1(parquet_path, transform)
     train_set = EnsembleDatasetC1(parquet_path, "train", transform)
-    val_set = EnsembleDatasetC1(parquet_path, "validation", transform)
-    test_set = EnsembleDatasetC1(parquet_path, "test", transform)
+    val_set = EnsembleDatasetC1(parquet_path, "validation")
+    test_set = EnsembleDatasetC1(parquet_path, "test")
     # split dataset
     #dataset_split = [0.7, 0.15, 0.15]
     #train_set, val_set, test_set = torch.utils.data.random_split(ensemble_dataset, dataset_split)
