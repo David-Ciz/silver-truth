@@ -39,6 +39,8 @@ def get_model(model: str, parameters: dict):
 def _evaluate_model(model, input_set, target_set):
     jaccard = BinaryJaccardIndex()
     f1_score = BinaryF1Score()
+    input_set = input_set.to(model.device)
+    target_set = target_set.to(model.device)
     with torch.no_grad():
         model.eval()
         if model.loss_type == LossType.BCE_KL:
