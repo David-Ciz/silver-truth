@@ -14,4 +14,4 @@ ml Python/3.11.3-GCCcore-12.3.0
 python -m venv .venv
 source .venv/bin/activate
 
-python cli_ensemble.py ensemble-experiment --name "test_ensemble_experiment_1" --parquet_file "data/ensemble_data/datasets/v1.00/ensemble_dataset_v1.00.parquet"
+python cli_ensemble.py ensemble-experiment --name "test_ensemble_experiment_1" --parquet_file data/ensemble_data/datasets/v1.00/ensemble_dataset_v1.00_split70-15-15_seed42.parquet'
