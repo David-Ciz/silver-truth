@@ -199,8 +199,8 @@ def run(parquet_path: str, max_epochs: int=100, rand_seed: int=42, remote: bool=
     torch.backends.cudnn.deterministic = True
     torch.backends.cudnn.benchmark = False
 
-    device = torch.device("cuda:0") if torch.cuda.is_available() else torch.device("cpu")
-    print("Device:", device)
+    #device = torch.device("cuda:0") if torch.cuda.is_available() else torch.device("cpu")
+    #print("Device:", device)
     """"""
 
     latent_dim = None#32
@@ -210,7 +210,7 @@ def run(parquet_path: str, max_epochs: int=100, rand_seed: int=42, remote: bool=
         #A.Rotate(p=1.0),
         A.RandomRotate90(),
         A.ToTensorV2()
-    ])
+    ], seed=rand_seed)
 
     mlflow.log_param("dataset_transform", transform)
 
