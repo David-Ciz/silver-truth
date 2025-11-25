@@ -16,11 +16,11 @@ class HighPassFilter(nn.Module):
     
 
 class LevelTrigger(nn.Module):
-    def __init__(self, threshold: float = 0.5):
+    def __init__(self, device: torch.device, threshold: float = 0.5):
         super().__init__()
         assert(threshold >= 0.0 and threshold < 1.0)
-        self.threshold = Tensor([threshold]) 
+        self.threshold = Tensor([threshold]).to(device)
 
     def forward(self, input: Tensor) -> Tensor:
         # filter out values below self.cutoff
-        return (input >= self.threshold).to(dtype=torch.float32)
+        return (input >= self.threshold).to(input.dtype)

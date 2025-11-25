@@ -2,6 +2,7 @@ from typing import Any, Callable, Dict, Sequence
 from segmentation_models_pytorch.losses import DiceLoss
 import pytorch_lightning as pl
 from pytorch_lightning.utilities.types import OptimizerLRSchedulerConfig
+import torch
 from torch import nn, optim
 from torch.nn import functional as F
 import segmentation_models_pytorch as smp
@@ -20,10 +21,10 @@ Unet.loss_type = LossType.SMP   # type: ignore
 """
 
 class Unet(pl.LightningModule):
-    def __init__(self):
+    def __init__(self, device: torch.device):
         super().__init__()
         self.model = smp.Unet(encoder_name="resnet34", encoder_weights=None, in_channels=1)
-        self.level_trigger = LevelTrigger()
+        self.level_trigger = LevelTrigger(device)
         self.loss_type = LossType.MSE
         #self.loss_function = DiceLoss("binary", from_logits=True)
     

@@ -37,8 +37,8 @@ def get_model(model: str, parameters: dict):
 """"""
 
 def _evaluate_model(model, input_set, target_set):
-    jaccard = BinaryJaccardIndex()
-    f1_score = BinaryF1Score()
+    jaccard = BinaryJaccardIndex().to(model.device)
+    f1_score = BinaryF1Score().to(model.device)
     input_set = input_set.to(model.device)
     target_set = target_set.to(model.device)
     with torch.no_grad():
@@ -113,6 +113,9 @@ def _train_model(
         test_loader,
     ):
     
+    device = torch.device("cuda:0") if torch.cuda.is_available() else torch.device("cpu")
+    print("Device:", device)
+
     """
     model = Autoencoder32(
     #model = VariationalAutoencoder32(
@@ -123,7 +126,7 @@ def _train_model(
         loss_type=LossType.MSE,
     )
     """
-    model_pl = Unet()
+    model_pl = Unet(device)
     
     mlflow.log_param("model", model_pl.model)
     mlflow.log_param("loss_type", model_pl.loss_type)
