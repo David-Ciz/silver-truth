@@ -7,7 +7,7 @@ from torch.utils.data.dataset import Subset
 import torchvision
 from torchmetrics.classification import BinaryJaccardIndex, BinaryF1Score
 import pytorch_lightning as pl
-from pytorch_lightning.callbacks import Callback, EarlyStopping
+from pytorch_lightning.callbacks import Callback, EarlyStopping, ModelCheckpoint
 import mlflow
 import matplotlib.pyplot as plt
 from src.ensemble.datasets import EnsembleDatasetC1
@@ -20,6 +20,10 @@ from ensemble.model_unet import Unet
 import albumentations as A
 import segmentation_models_pytorch as smp
 
+#TODO: create config pipepline: 
+# config dictionary should be provided
+#checkpoint_path = "data/ensemble_data/results/checkpoints222/"
+_checkpoint_path = None
 
 """
 def get_model(model: str, parameters: dict):
@@ -139,7 +143,12 @@ def _train_model(
         devices="auto",
         max_epochs=max_epochs,
         callbacks=[
-            #ModelCheckpoint(save_weights_only=True),
+            ModelCheckpoint(
+                dirpath=_checkpoint_path,
+                monitor="val_loss",
+                mode="min",
+                save_top_k=1,
+                save_weights_only=True),
             #LearningRateMonitor("epoch"),
             EvaluationCallback(
                 _get_eval_sets(train_dataset),
