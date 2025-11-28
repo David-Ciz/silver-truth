@@ -1,9 +1,16 @@
 import logging
 import mlflow
-from ensemble.databanks_builds import build_databank, Version
-import ensemble.envs as envs
+from src.ensemble.datasets import EnsembleDatasetC1
+from src.ensemble.databanks_builds import build_databank, Version
+import src.ensemble.envs as envs
 import src.ensemble.external as ext
 import src.ensemble.training as training
+from src.ensemble.model_unet import Unet
+import src.ensemble.utils as utils
+import segmentation_models_pytorch as smp
+import torch
+import pandas as pd
+
 
 # Basic Logging Setup
 logging.basicConfig(level=logging.INFO, format="\n%(asctime)s ### %(levelname)s --> %(message)s", force=True)
@@ -63,6 +70,80 @@ def run_experiment(name: str, parquet_file: str, parameters: dict, remote: bool)
     except Exception as ex:
             print(f"Error during Ensemble experiment: {ex}")
             mlflow.set_tag("status", "failed")
+
+
+def find_best_ensemble(models_path, val_set):
+    pass
+
+
+#TODO: same as in training
+def _get_eval_sets(dataset):
+    imgs, gts = [],[]
+    for i in range(len(dataset)):
+        img, gt = dataset[i]
+        imgs.append(img)
+        gts.append(gt)
+    return torch.stack(imgs, dim=0), torch.stack(gts, dim=0)
+
+
+def generate_evaluation(model_path: str, dataset_path: str) -> str:
+    """
+    Generate a parquet file with the evaluation of the given model checkpoint against the test set of the given dataset.
+    """
+    
+    # load model
+    #TODO: what about if it's other models
+    model = Unet.load_from_checkpoint(model_path, device=utils.get_device())
+
+    # load test set
+    #TODO: what if it's other dataset?
+    test_dataset = EnsembleDatasetC1(dataset_path, "test")
+    input_set, target_set = _get_eval_sets(test_dataset)
+    input_set = input_set.to(model.device)
+    target_set = target_set.to(model.device)
+
+    with torch.no_grad():
+        model.eval()
+        # inference
+        reconst_imgs = model(input_set)
+
+    # calculate metrics
+    tp, fp, fn, tn = smp.metrics.get_stats(reconst_imgs.long(), target_set.long(), mode='binary', threshold=0.5) #type: ignore
+    iou = smp.metrics.iou_score(tp, fp, fn, tn)
+    f1 = smp.metrics.f1_score(tp, fp, fn, tn)
+    #iou_total = smp.metrics.iou_score(tp, fp, fn, tn, reduction="micro")
+    #f1_total = smp.metrics.f1_score(tp, fp, fn, tn, reduction="micro")
+
+    # create dataframe
+    data_list = []
+    # load dataframe
+    df = ext.load_parquet(dataset_path)
+    df = df[df["split"]=="test"]
+    
+    for index, row in enumerate(df.itertuples()):
+        data_list.append(
+        {
+            "image_path": row.image_path,
+            "tp": tp[index].item(),
+            "fp": fp[index].item(),
+            "fn": fn[index].item(),
+            "tn": tn[index].item(),
+            "iou": iou[index].item(),
+            "f1": f1[index].item(),
+        })
+
+    # save results
+    #TODO: improme naming
+    output_parquet_path = model_path[:-4] + "parquet" # remove "ckpt" filetype and add "parquet"
+    output_df = pd.DataFrame(data_list)
+    output_df.to_parquet(output_parquet_path)
+    return output_parquet_path
+
+
+
+
+
+
 
 
 def build_required_datasets_DEPRECATED(ensemble_dataset_version=Version.C1):

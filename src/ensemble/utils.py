@@ -2,6 +2,11 @@ from tqdm import tqdm
 import tifffile
 from scipy.ndimage import find_objects
 import src.ensemble.external as ext
+import torch
+
+
+def get_device():
+    return torch.device("cuda:0") if torch.cuda.is_available() else torch.device("cpu")
 
 
 def _find_largest_gt_cell_size(dataset_dataframe_path: str) -> int:

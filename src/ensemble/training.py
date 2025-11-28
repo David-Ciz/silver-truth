@@ -17,6 +17,7 @@ from ensemble.model_ae64 import Autoencoder64
 from ensemble.model_vae32 import VariationalAutoencoder32
 from ensemble.model_spae32 import SparseAutoencoder32
 from ensemble.model_unet import Unet
+import src.ensemble.utils as utils
 import albumentations as A
 import segmentation_models_pytorch as smp
 
@@ -117,7 +118,7 @@ def _train_model(
         test_loader,
     ):
     
-    device = torch.device("cuda:0") if torch.cuda.is_available() else torch.device("cpu")
+    device = utils.get_device()
     print("Device:", device)
 
     """
