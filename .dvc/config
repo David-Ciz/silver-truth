@@ -1,0 +1,4 @@
+[core]
+    remote = hpc_storage
+['remote "hpc_storage"']
+    url = ssh://karolina.it4i.cz/mnt/proj1/eu-25-40/innovaite/dvc_store
