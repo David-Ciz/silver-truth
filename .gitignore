@@ -128,7 +128,6 @@ typings/
 .vscode/
 
 # DVC
-/data/*
 !/data/.gitkeep
 .dvc/cache
 .dvc/tmp

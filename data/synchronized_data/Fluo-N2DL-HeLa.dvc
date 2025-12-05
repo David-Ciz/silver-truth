@@ -1,0 +1,6 @@
+outs:
+- md5: 95e65a2aa26dbe9462e00c6dfae61e79.dir
+  size: 125313718
+  nfiles: 3717
+  hash: md5
+  path: Fluo-N2DL-HeLa
