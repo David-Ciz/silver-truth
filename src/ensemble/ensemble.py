@@ -53,7 +53,7 @@ def _set_mlflow_experiment(name: str) -> None:
         mlflow.set_experiment(name)
 
 
-def run_experiment(name: str, parquet_file: str, parameters: dict, remote: bool):
+def run_experiment(name: str, parquet_file: str, run_sequence: list[dict]):
     "Entry point for new Ensemble experiment."
 
     _set_mlflow_experiment(name)
@@ -61,15 +61,16 @@ def run_experiment(name: str, parquet_file: str, parameters: dict, remote: bool)
     #TODO: prepare here database loading because lots of models use the same
     #      add parameter to pass train and val datasets
 
-    try:
-        # start mlflow run
-        with mlflow.start_run() as mlflow_run:
-            run_id = mlflow_run.info.run_id
-            _logger.info(f"MLflow experiment \"{name}\": a run started with ID \"{run_id}\".")
-            training.run(parquet_file, max_epochs=100, remote=remote)
-    except Exception as ex:
-            print(f"Error during Ensemble experiment: {ex}")
-            mlflow.set_tag("status", "failed")
+    for run_params in run_sequence:
+        try:
+            # start mlflow run
+            with mlflow.start_run() as mlflow_run:
+                run_id = mlflow_run.info.run_id
+                _logger.info(f"MLflow experiment \"{name}\": a run started with ID \"{run_id}\".")
+                training.run(run_params, parquet_file)
+        except Exception as ex:
+                print(f"Error during Ensemble experiment: {ex}")
+                mlflow.set_tag("status", "failed")
 
 
 def find_best_ensemble(models_path, val_set):

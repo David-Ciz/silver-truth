@@ -109,7 +109,7 @@ def _get_stacked_images(dataset, num):
 
 
 def _train_model(
-        max_epochs, 
+        run_params,
         train_dataset, 
         val_dataset, 
         train_loader, 
@@ -131,9 +131,12 @@ def _train_model(
     )
     """
 
+    # TODO: following models not working
     #model_type = ModelType.PAN
     #model_type = ModelType.DPT
-    model_type = ModelType.UnetPlusPlus
+
+    model_type = run_params["model_type"]
+    max_epochs = run_params["max_epochs"]
     model_pl = SMP_Model(model_type, device)
     
     mlflow.log_param("model_type", model_type)
@@ -207,7 +210,7 @@ def _visualize_dataset(subset):
     plt.waitforbuttonpress(0)
 
 
-def run(parquet_path: str, max_epochs: int=100, rand_seed: int=42, remote: bool=True) -> None:
+def run(run_params: dict, parquet_path: str, rand_seed: int=42) -> None:
     """
     Run a training session.
     With "remote", there's no visual feedback, such as image reconstructions.
@@ -251,8 +254,8 @@ def run(parquet_path: str, max_epochs: int=100, rand_seed: int=42, remote: bool=
     val_loader = data.DataLoader(val_set, batch_size=batch_size, shuffle=False, drop_last=False, num_workers=4)
     test_loader = data.DataLoader(test_set, batch_size=batch_size, shuffle=False, drop_last=False, num_workers=4)
 
-    if not remote and False:
-        _visualize_dataset(_get_eval_sets(val_set))
+    # DEBUG only
+    #_visualize_dataset(_get_eval_sets(val_set))
 
     # log parameters
     params = {
@@ -268,7 +271,7 @@ def run(parquet_path: str, max_epochs: int=100, rand_seed: int=42, remote: bool=
 
     # train model
     model, result = _train_model(
-        max_epochs,
+        run_params,
         train_set,
         val_set,
         train_loader, 
@@ -276,6 +279,6 @@ def run(parquet_path: str, max_epochs: int=100, rand_seed: int=42, remote: bool=
         test_loader,
     )
 
-    if not remote:
-        _visualize_reconstructions(model, _get_stacked_images(val_set, 16))
+    # DEBUG only
+    #_visualize_reconstructions(model, _get_stacked_images(val_set, 16))
     print("Done.")

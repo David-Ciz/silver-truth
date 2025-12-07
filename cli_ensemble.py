@@ -1,6 +1,7 @@
 import click
 import logging
 import src.ensemble.ensemble as ensemble
+from src.ensemble.models import ModelType
 
 # from pathlib import Path
 
@@ -22,7 +23,7 @@ logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
 def ensemble_experiment(name: str, parquet_file: str,):
     """Runs an Ensemble experiment via command-line interface."""
     try:
-        ensemble.run_experiment(name, parquet_file, {}, remote=True)
+        ensemble.run_experiment(name, parquet_file, [{"model_type": ModelType.UnetPlusPlus, "max_epochs": 100}])
     except Exception as e:
         click.echo(
             click.style(f"An unexpected error occurred: {e}", fg="red", bold=True)
