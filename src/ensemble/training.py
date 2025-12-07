@@ -16,10 +16,9 @@ from ensemble.model_ae32 import Autoencoder32
 from ensemble.model_ae64 import Autoencoder64
 from ensemble.model_vae32 import VariationalAutoencoder32
 from ensemble.model_spae32 import SparseAutoencoder32
-from ensemble.model_unet import Unet
+from ensemble.models import SMP_Model, ModelType
 import src.ensemble.utils as utils
 import albumentations as A
-import segmentation_models_pytorch as smp
 
 #TODO: create config pipepline: 
 # config dictionary should be provided
@@ -131,8 +130,13 @@ def _train_model(
         loss_type=LossType.MSE,
     )
     """
-    model_pl = Unet(device)
+
+    #model_type = ModelType.PAN
+    #model_type = ModelType.DPT
+    model_type = ModelType.UnetPlusPlus
+    model_pl = SMP_Model(model_type, device)
     
+    mlflow.log_param("model_type", model_type)
     mlflow.log_param("model", model_pl.model)
     mlflow.log_param("loss_type", model_pl.loss_type)
 
