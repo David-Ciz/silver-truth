@@ -22,8 +22,8 @@ import albumentations as A
 
 #TODO: create config pipepline: 
 # config dictionary should be provided
-#checkpoint_path = "data/ensemble_data/results/checkpoints222/"
-_checkpoint_path = None
+_checkpoint_path = "data/ensemble_data/results/checkpoints"
+
 
 """
 def get_model(model: str, parameters: dict):
@@ -80,10 +80,14 @@ class EvaluationCallback(Callback):
         self.train_inputs, self.train_targets = train_set[0], train_set[1]
         self.val_inputs, self.val_targets = val_set[0], val_set[1]
         self.every_n_epochs = every_n_epochs
+        self.best_f1 = 0
 
     def on_train_epoch_end(self, trainer, pl_module):
         if trainer.current_epoch % self.every_n_epochs == 0:
             val_loss, val_f1, val_iou = _evaluate_model(pl_module, self.val_inputs, self.val_targets)
+            if self.best_f1 < val_f1:
+                self.best_f1 = val_f1
+                mlflow.log_metric("best_val_f1", value=self.best_f1)
             mlflow.log_metric("val_loss", value=val_loss, step=trainer.current_epoch+1)
             mlflow.log_metric("val_f1", value=val_f1, step=trainer.current_epoch+1)
             mlflow.log_metric("val_iou", value=val_iou, step=trainer.current_epoch+1)
@@ -145,14 +149,15 @@ def _train_model(
 
     # Create a PyTorch Lightning trainer with the generation callback
     trainer = pl.Trainer(
-        default_root_dir=os.path.join(os.getcwd(), f'data/ensemble_data/results/checkpoints/model_{model_pl.loss_type.name}'),
+        default_root_dir=os.path.join(os.getcwd(), _checkpoint_path),
         deterministic=True,
         accelerator="auto",
         devices="auto",
         max_epochs=max_epochs,
         callbacks=[
             ModelCheckpoint(
-                dirpath=_checkpoint_path,
+                filename= f"{model_type.name}",
+                dirpath = _checkpoint_path,
                 monitor="val_loss",
                 mode="min",
                 save_top_k=1,
