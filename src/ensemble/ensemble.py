@@ -5,7 +5,7 @@ from src.ensemble.databanks_builds import build_databank, Version
 import src.ensemble.envs as envs
 import src.ensemble.external as ext
 import src.ensemble.training as training
-from src.ensemble.model_unet import Unet
+from src.ensemble.models import SMP_Model
 import src.ensemble.utils as utils
 import segmentation_models_pytorch as smp
 import torch
@@ -94,7 +94,7 @@ def generate_evaluation(model_path: str, dataset_path: str) -> str:
     
     # load model
     #TODO: what about if it's other models
-    model = Unet.load_from_checkpoint(model_path, device=utils.get_device())
+    model = SMP_Model.load_from_checkpoint(model_path, device=utils.get_device())
 
     # load test set
     #TODO: what if it's other dataset?
