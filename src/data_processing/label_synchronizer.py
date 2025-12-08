@@ -197,7 +197,7 @@ def verify_synchronization(label_img, tracking_img):
             label_layer = (label_img == label).astype(int)
             tracking_layer = (tracking_img == label).astype(int)
             j_value = jaccard(label_layer.flatten(), tracking_layer.flatten())
-            if j_value > 0:
+            if j_value == 0:
                 logging.error(f"Jaccard index for label {label} is {j_value}.")
                 return False
 
@@ -250,10 +250,12 @@ def verify_dataset_synchronization_logic(
         else:
             # Choose the corresponding tracking folder based on dataset type
             tracking_folder = data["tracking_folder"]
-            desynchronized_images = verify_folder_synchronization_logic(
-                str(data["segmentations"]), str(tracking_folder)
-            )
-            if desynchronized_images:
+            desynchronized_images = []
+            for label_folder in data["segmentations"]:
+                desynchronized_images.append(verify_folder_synchronization_logic(
+                    label_folder, str(tracking_folder))
+                    )
+            if len(desynchronized_images) > 0:
                 desynchronized_subfolders.add(dataset_type)
     return desynchronized_subfolders
 
