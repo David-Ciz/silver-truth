@@ -87,7 +87,7 @@ def _get_eval_sets(dataset):
     return torch.stack(imgs, dim=0), torch.stack(gts, dim=0)
 
 
-def generate_evaluation(model_path: str, dataset_path: str) -> str:
+def generate_evaluation(model_path: str, dataset_path: str, split_type: str = "test") -> str:
     """
     Generate a parquet file with the evaluation of the given model checkpoint against the test set of the given dataset.
     """
@@ -96,10 +96,10 @@ def generate_evaluation(model_path: str, dataset_path: str) -> str:
     #TODO: what about if it's other models
     model = SMP_Model.load_from_checkpoint(model_path, device=utils.get_device())
 
-    # load test set
+    # load dataset
     #TODO: what if it's other dataset?
-    test_dataset = EnsembleDatasetC1(dataset_path, "test")
-    input_set, target_set = _get_eval_sets(test_dataset)
+    dataset = EnsembleDatasetC1(dataset_path, split_type)
+    input_set, target_set = _get_eval_sets(dataset)
     input_set = input_set.to(model.device)
     target_set = target_set.to(model.device)
 
@@ -119,7 +119,7 @@ def generate_evaluation(model_path: str, dataset_path: str) -> str:
     data_list = []
     # load dataframe
     df = ext.load_parquet(dataset_path)
-    df = df[df["split"]=="test"]
+    df = df[df["split"]==split_type]
     
     for index, row in enumerate(df.itertuples()):
         data_list.append(
@@ -134,8 +134,8 @@ def generate_evaluation(model_path: str, dataset_path: str) -> str:
         })
 
     # save results
-    #TODO: improme naming
-    output_parquet_path = model_path[:-4] + "parquet" # remove "ckpt" filetype and add "parquet"
+    #TODO: improve naming, add dataset name
+    output_parquet_path = model_path[:-5] + f"_{split_type}" + ".parquet" # remove "ckpt" filetype and add "parquet"
     output_df = pd.DataFrame(data_list)
     output_df.to_parquet(output_parquet_path)
     return output_parquet_path
