@@ -54,7 +54,8 @@ def add_split_type(parquet_path: str, seed: int, set_splits: list[float]) -> str
         df.drop(columns=[uniques_col])
 
     # save parquet
-    parquet_suffix = f"_split{int(train_percent*100)}-{int(val_percent*100)}-{int(test_percent*100)}_seed{seed}"
+    #parquet_suffix = f"_split{int(train_percent*100)}-{int(val_percent*100)}-{int(test_percent*100)}_seed{seed}"
+    parquet_suffix = f"_split{seed}"
     filetype_pos = parquet_path.rfind(".")
     assert(filetype_pos >= 0) # the '.' char must exist in the filename
     output_parquet_path = parquet_path[:filetype_pos] + parquet_suffix + parquet_path[filetype_pos:]
@@ -84,5 +85,3 @@ def same_splits(parquet1_path: str, parquet2_path: str) -> bool:
     uniques2 =_get_uniques(parquet2_path)
 
     return bool((uniques1==uniques2).all())
-
-#TODO: a method that receives 2 parquet and checks if they have the same split (each gt and related segmentations must have direct correspondence)
