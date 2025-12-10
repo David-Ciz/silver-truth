@@ -132,11 +132,13 @@ def generate_evaluation(model_path: str, dataset_path: str, split_type: str = "t
             "iou": iou[index].item(),
             "f1": f1[index].item(),
         })
+    output_df = pd.DataFrame(data_list)
 
     # save results
-    #TODO: improve naming, add dataset name
-    output_parquet_path = model_path[:-5] + f"_{split_type}" + ".parquet" # remove "ckpt" filetype and add "parquet"
-    output_df = pd.DataFrame(data_list)
+    model_reference = model_path.split("/")[-1]
+    dataset_reference = dataset_path.split("/")[-1][len("ensemble_"):-len(".parquet")]
+    output_parquet_path = f"{model_path[:-len(model_reference)]}eval_{model_reference[:-len(".ckpt")]}_{dataset_reference}_{split_type}set" + ".parquet"
+    
     output_df.to_parquet(output_parquet_path)
     return output_parquet_path
 
