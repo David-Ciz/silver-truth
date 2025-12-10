@@ -28,9 +28,7 @@ def _evaluate_strategy(result):
 
 def evaluate_strategies(experiment_name, results):
     experiment_id = _set_mlflow_experiment(experiment_name)
-    # create new experiment in mlflow
     for result in results:
-        # create new run in mlflow
         try:
             # start mlflow run
             with mlflow.start_run(experiment_id=experiment_id, run_name=result["strategy"]) as mlflow_run:
