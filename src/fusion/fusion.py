@@ -3,6 +3,10 @@ import subprocess
 import logging
 from enum import Enum
 from typing import Optional
+from ensemble.datasets import EnsembleDatasetC1
+from ensemble.ensemble import _get_eval_sets
+import src.ensemble.external as ext
+import segmentation_models_pytorch as smp
 import pandas as pd
 from pathlib import Path
 
@@ -233,3 +237,44 @@ def process_all_datasets_logic(base_dir):
     print(
         f"Processing complete: {success_count}/{len(parquet_files)} datasets processed successfully"
     )
+
+
+def generate_evaluation(parquet_path: str, split_type: str = "test") -> str:
+    """
+    Generate a parquet file with the evaluation of the fusion results.
+    """
+
+    # load dataset
+    #TODO: what if it's other dataset?
+    dataset = EnsembleDatasetC1(parquet_path, split_type)
+    result_set, target_set = _get_eval_sets(dataset)
+
+    # calculate metrics
+    tp, fp, fn, tn = smp.metrics.get_stats(result_set.long(), target_set.long(), mode='binary', threshold=0.5) #type: ignore
+    iou = smp.metrics.iou_score(tp, fp, fn, tn)
+    f1 = smp.metrics.f1_score(tp, fp, fn, tn)
+
+    # create dataframe
+    data_list = []
+    # load dataframe
+    df = ext.load_parquet(parquet_path)
+    df = df[df["split"]==split_type]
+    
+    for index, row in enumerate(df.itertuples()):
+        data_list.append(
+        {
+            "image_path": row.image_path,
+            "tp": tp[index].item(),
+            "fp": fp[index].item(),
+            "fn": fn[index].item(),
+            "tn": tn[index].item(),
+            "iou": iou[index].item(),
+            "f1": f1[index].item(),
+        })
+
+    # save results
+    output_prefix = parquet_path.split("/")[-1]
+    output_parquet_path = f"{parquet_path[:-len(output_prefix)]}eval_{output_prefix[:-len(".parquet")]}_{split_type}set" + ".parquet"
+    output_df = pd.DataFrame(data_list)
+    output_df.to_parquet(output_parquet_path)
+    return output_parquet_path
