@@ -5,16 +5,20 @@ from enum import Enum
 from typing import Optional
 from ensemble.datasets import EnsembleDatasetC1
 from ensemble.ensemble import _get_eval_sets
+import tifffile
+from tqdm import tqdm
 import src.ensemble.external as ext
 import segmentation_models_pytorch as smp
 import pandas as pd
 from pathlib import Path
+import numpy as np
+from scipy.ndimage import find_objects
 
 # Configure basic logging
 logging.basicConfig(
     level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
 )
-
+logger = logging.getLogger(__name__)
 
 class FusionModel(Enum):
     """Enumeration for the fusion models available in Fusers.java."""
@@ -237,6 +241,171 @@ def process_all_datasets_logic(base_dir):
     print(
         f"Processing complete: {success_count}/{len(parquet_files)} datasets processed successfully"
     )
+
+
+def build_results_databank(original_parquet, results_path, output_parquet_path, crop_size=64):
+    #load original dataset
+    df = ext.load_parquet(original_parquet)
+
+    data_list = []
+    competitor_columns = df.attrs.get("competitor_columns", [])
+
+    # If no competitor_columns in attrs, infer them from columns
+    if not competitor_columns:
+        # Exclude standard columns to get competitor columns
+        excluded_columns = [
+            "composite_key",
+            "campaign_number",
+            "gt_image",
+            "tracking_markers",
+        ]
+        competitor_columns = [col for col in df.columns if col not in excluded_columns]
+        logging.info(f"Inferred competitor columns: {competitor_columns}")
+
+    logging.info(f"Using competitor columns: {competitor_columns}")
+
+    # Filter for rows that have ground truth images
+    initial_count = len(df)
+
+    # First filter: check if gt_image column has non-null values
+    df_with_gt = df[df["gt_image"].notna()].copy()
+
+    # Second filter: check if GT files actually exist on disk
+    gt_exists_mask = df_with_gt["gt_image"].apply(
+        lambda gt_path: Path(gt_path).exists() if gt_path else False
+    )
+    df_filtered = df_with_gt[gt_exists_mask].copy()
+
+    filtered_count = len(df_filtered)
+    logging.info(
+        f"Filtered dataset: {initial_count} -> {filtered_count} images (only those with existing Ground Truth)"
+    )
+
+    if filtered_count == 0:
+        logging.warning("No images with valid Ground Truth found. Exiting.")
+        return
+        
+    # Use tqdm to create a progress bar for the main loop
+    for __, row in tqdm(
+        df_filtered.iterrows(), total=df_filtered.shape[0], desc="Processing images"
+    ):
+       # Construct raw image path from composite_key
+        composite_key = row["composite_key"]  # e.g., "01_0061.tif"
+        campaign_number = row["campaign_number"]  # e.g., "01"
+
+        # Extract time frame number from composite_key (e.g., "0061" from "01_0061.tif")
+        time_frame = composite_key.split("_")[1].split(".")[0]  # "0061"
+
+        # Construct the path to the raw image by deriving it from GT image path
+        gt_image_path = Path(row["gt_image"])
+        # GT path: .../synchronized_data/DIC-C2DH-HeLa/01_GT/SEG/man_seg002.tif
+        
+        base_path = Path(results_path)
+        # Try different formats for raw image files
+        time_frame_int = int(time_frame)
+        fused_path = None
+        for format_str in [
+            f"fused_{time_frame_int:03d}.tif",
+            f"fused_{time_frame_int:04d}.tif",
+            f"fused_{time_frame}.tif",
+        ]:
+            candidate_path = base_path / campaign_number / format_str
+            if candidate_path.exists():
+                fused_path = candidate_path
+                break
+
+        if fused_path is None:
+            logger.error(
+                f"Fused image file not found for time frame {time_frame} in {base_path / campaign_number}"
+            )
+            continue
+
+        try:
+            fused_img = tifffile.imread(fused_path)
+            gt_image = tifffile.imread(gt_image_path)
+        except Exception as e:
+            logging.error(
+                f"Error reading fused image or ground truth file for {fused_path}: {e}"
+            )
+            continue
+
+        labels = np.unique(fused_img)[1:]  # Exclude background
+        ### guarantees that labels are synchronized
+        gt_labels_lst = np.unique(gt_image)[1:].tolist()
+        assert(all([lbl in gt_labels_lst for lbl in labels.tolist()]))
+        ###
+
+        for label in labels:
+            # Get bounding box for the cell
+            try:
+                labeled_segmentation = (fused_img == label).astype(int)
+                slice_y, slice_x = find_objects(labeled_segmentation)[0]
+            except IndexError:
+                logging.warning(
+                    f"Could not find object for label {label} in {fused_path.name}. Skipping."
+                )
+                continue
+
+            # Center and crop
+            center_y, center_x = (
+                (slice_y.start + slice_y.stop) // 2,
+                (slice_x.start + slice_x.stop) // 2,
+            )
+            half_size = crop_size // 2
+
+            y_start, y_end = center_y - half_size, center_y + half_size
+            x_start, x_end = center_x - half_size, center_x + half_size
+
+            # Ensure crops are within image bounds
+            y_start, y_end = max(0, y_start), min(gt_image.shape[0], y_end)
+            x_start, x_end = max(0, x_start), min(gt_image.shape[1], x_end)
+
+            gt_crop = gt_image[y_start:y_end, x_start:x_end]
+            fused_crop = (
+                fused_img[y_start:y_end, x_start:x_end] == label
+            ).astype(np.uint8) * 255
+
+            # Pad if crop is smaller than crop_size
+            pad_y = crop_size - gt_image.shape[0]
+            pad_x = crop_size - gt_image.shape[1]
+
+            if pad_y > 0 or pad_x > 0:
+                gt_crop = np.pad(
+                    gt_crop, ((0, pad_y), (0, pad_x)), "constant"
+                )
+                fused_crop = np.pad(
+                    fused_crop, ((0, pad_y), (0, pad_x)), "constant"
+                )
+
+            gt_crop = (gt_crop == label).astype(np.uint8) * 255
+            # contains the rest of the gt segmentations, shown in blue
+            #blue_layer = np.logical_and(gt_crop > 0, gt_crop != row.label).astype(np.uint8) * 255
+            blue_layer = np.zeros((crop_size, crop_size), dtype=np.uint8) # empty blue layer
+
+            # Stack the crops
+            stacked_crop = np.stack([fused_crop, gt_crop, blue_layer], axis=0)
+
+            # Save the stacked image
+            # Include campaign number in cell_id to distinguish between campaigns
+            cell_id = f"c{campaign_number}_t{time_frame}_{label}"
+            new_image_path = base_path / f"{cell_id}.tif"
+            tifffile.imwrite(new_image_path, stacked_crop)
+
+            # Collect metadata including crop coordinates
+            data_list.append(
+                {
+                    "campaign": campaign_number,
+                    "image_id": time_frame,
+                    "label": label,
+                    "crop_size": crop_size,
+                    "image_path": str(new_image_path),
+                }
+            )
+
+    output_df = pd.DataFrame(data_list)
+    output_df.to_parquet(output_parquet_path)
+    # compress images
+    ext.compress_images(results_path, recursive=False)
 
 
 def generate_evaluation(parquet_path: str, split_type: str = "test") -> str:
