@@ -3,8 +3,8 @@ import src.qa.preprocessing as  qa_pp
 import src.data_processing.utils.dataset_dataframe_creation as ddc
 
 
-def compress_images(image_folder):
-    dp_comp.compress_tifs_logic(image_folder, True, False, False)
+def compress_images(image_folder, recursive=True):
+    dp_comp.compress_tifs_logic(image_folder, recursive, False, False)
 
 
 def build_qa_dataset(
