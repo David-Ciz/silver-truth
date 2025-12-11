@@ -23,7 +23,9 @@ def _evaluate_strategy(result):
     df.sort_values(by=["image_path"])
     for index, row in enumerate(df.itertuples()):
         mlflow.log_metric("f1", value=row.f1, step=index) # type: ignore
+        mlflow.log_metric("iou", value=row.iou, step=index) # type: ignore
     mlflow.log_metric("avg_f1", value=df["f1"].mean())
+    mlflow.log_metric("avg_iou", value=df["iou"].mean())
 
 
 def evaluate_strategies(experiment_name, results):
