@@ -60,7 +60,6 @@ def build_databank(
         name,
         qa_dataset_dataframe_path: str, 
         output_path: str,
-        crop_size: int = 64, 
         #apply_blue_layer: bool = True
         ) -> None: 
     """
@@ -74,10 +73,8 @@ def build_databank(
     """
     #TODO: update description
 
-    new_images_folder = "images"
-    composed_output_path = os.path.join(output_path, name)
     # destination path of the created images
-    images_output_path = os.path.join(composed_output_path, new_images_folder)
+    images_output_path = os.path.join(output_path, name)
     # create images path if it doesn't exist
     Path(images_output_path).mkdir(parents=True, exist_ok=True)
 
@@ -89,10 +86,10 @@ def build_databank(
     # get the gt images
     unique_gt_images = df["gt_image"].unique()
     # get crop size
-    qa_crop_size = df.iloc[0]["crop_size"]
-    qa_crop_half_size = qa_crop_size // 2
+    crop_size = df.iloc[0]["crop_size"]
+    qa_crop_half_size = crop_size // 2
     # sets the size of the array that will contain the summed images
-    canvas_size = qa_crop_size * 4
+    canvas_size = crop_size * 4 if crop_size <= 64 else crop_size * 2
     canvas_half_size = canvas_size // 2
 
     # go through the gt images
@@ -125,7 +122,7 @@ def build_databank(
                 start_y = canvas_half_size - qa_crop_half_size + row.original_center_y - qa_crop_original_center_y
                 start_x = canvas_half_size - qa_crop_half_size + row.original_center_x - qa_crop_original_center_x
                 # create an image that is the sum of all segmentations of a label
-                canvas[start_y : start_y + qa_crop_size, start_x : start_x + qa_crop_size] += competitor_qa_image
+                canvas[start_y : start_y + crop_size, start_x : start_x + crop_size] += competitor_qa_image
 
             # normalized competitors sumation
             canvas = (canvas // len(df_same_cell)).astype(np.uint8)
@@ -141,16 +138,32 @@ def build_databank(
             canvas_crop = canvas[obj_min_y : obj_min_y + crop_size, obj_min_x : obj_min_x + crop_size]
             # crop full gt image according to canvas and nem center of segmentation summation
             gt_crop_min_y = qa_crop_original_center_y - canvas_half_size + obj_min_y
+            gt_crop_max_y = gt_crop_min_y + crop_size
             gt_crop_min_x = qa_crop_original_center_x - canvas_half_size + obj_min_x
-            gt_crop = gt_image[gt_crop_min_y : gt_crop_min_y + crop_size, 
-                               gt_crop_min_x : gt_crop_min_x + crop_size]
+            gt_crop_max_x = gt_crop_min_x + crop_size
+
+            if gt_crop_min_y < 0:
+                y_inc = -gt_crop_min_y
+                gt_image = np.vstack((np.zeros((y_inc, gt_image.shape[1])), gt_image))
+                gt_crop_max_y += y_inc
+                gt_crop_min_y = 0
+            if gt_crop_min_x < 0:
+                x_inc = -gt_crop_min_x
+                gt_image = np.hstack((np.zeros((gt_image.shape[0], -gt_crop_min_x)), gt_image))
+                gt_crop_max_x += x_inc
+                gt_crop_min_x = 0
+            if gt_image.shape[0] < gt_crop_max_y:
+                gt_image = np.vstack((gt_image, np.zeros((gt_crop_max_y - gt_image.shape[0], gt_image.shape[1]))))
+            if gt_image.shape[1] < gt_crop_max_x:
+                gt_image = np.hstack((gt_image, np.zeros((gt_image.shape[0], gt_crop_max_x - gt_image.shape[1]))))
+
+            gt_crop = gt_image[gt_crop_min_y : gt_crop_max_y, gt_crop_min_x : gt_crop_max_x]
             gt_crop = (gt_crop == label).astype(np.uint8) * 255
 
             # stack layers
             # apply_blue_layer:
             empty_blue_layer = np.zeros((crop_size, crop_size), dtype=np.uint8)
             stacked_crop = np.stack([canvas_crop, gt_crop, empty_blue_layer], axis=0)
-
 
             # set new dataset image path
             campaign, img_id, __, __ = first_row.cell_id.split("_")
@@ -173,7 +186,7 @@ def build_databank(
     # convert list to dataframe
     output_df = pd.DataFrame(data_list)
     # build output parquet path
-    parquet_output_path = os.path.join(composed_output_path, f"ensemble_{name}.parquet")
+    parquet_output_path = os.path.join(output_path, f"ensemble_{name}.parquet")
     # save to parquet file
     output_df.to_parquet(parquet_output_path)
 

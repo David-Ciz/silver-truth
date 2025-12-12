@@ -175,29 +175,35 @@ def create_qa_dataset(
                         y_start, y_end = center_y - half_size, center_y + half_size
                         x_start, x_end = center_x - half_size, center_x + half_size
 
-                        # Ensure crops are within image bounds
-                        y_start, y_end = max(0, y_start), min(raw_image.shape[0], y_end)
-                        x_start, x_end = max(0, x_start), min(raw_image.shape[1], x_end)
-
+                        if y_start < 0:
+                            y_inc = -y_start
+                            raw_image = np.vstack((np.zeros((y_inc, raw_image.shape[1]) ,dtype=np.uint8), raw_image))
+                            segmentation = np.vstack((np.zeros((y_inc, segmentation.shape[1]), dtype=np.uint8), segmentation))
+                            y_end += y_inc
+                            y_start = 0
+                        if x_start < 0:
+                            x_inc = -x_start
+                            raw_image = np.hstack((np.zeros((raw_image.shape[0], x_inc), dtype=np.uint8), raw_image))
+                            segmentation = np.hstack((np.zeros((segmentation.shape[0], x_inc), dtype=np.uint8), segmentation))
+                            x_end += x_inc
+                            x_start = 0
+                        if raw_image.shape[0] < y_end:
+                            y_inc = y_end - raw_image.shape[0]
+                            raw_image = np.vstack((raw_image, np.zeros((y_inc, raw_image.shape[1]) ,dtype=np.uint8)))
+                            segmentation = np.vstack((segmentation, np.zeros((y_inc, segmentation.shape[1]) ,dtype=np.uint8)))
+                        if raw_image.shape[1] < x_end:
+                            x_inc = x_end - raw_image.shape[1]
+                            raw_image = np.hstack((raw_image, np.zeros((raw_image.shape[0], x_inc) ,dtype=np.uint8)))
+                            segmentation = np.hstack((segmentation, np.zeros((segmentation.shape[0], x_inc) ,dtype=np.uint8)))
+                        
                         raw_crop = raw_image[y_start:y_end, x_start:x_end]
                         seg_crop = (
                             segmentation[y_start:y_end, x_start:x_end] == label
                         ).astype(np.uint8) * 255
 
-                        # Pad if crop is smaller than crop_size
-                        pad_y = crop_size - raw_crop.shape[0]
-                        pad_x = crop_size - raw_crop.shape[1]
-
-                        if pad_y > 0 or pad_x > 0:
-                            raw_crop = np.pad(
-                                raw_crop, ((0, pad_y), (0, pad_x)), "constant"
-                            )
-                            seg_crop = np.pad(
-                                seg_crop, ((0, pad_y), (0, pad_x)), "constant"
-                            )
-
                         # Stack the crops
                         stacked_crop = np.stack([raw_crop, seg_crop], axis=0)
+                        assert(stacked_crop.shape == (2, crop_size, crop_size))
 
                         # Save the stacked image
                         # Include campaign number in cell_id to distinguish between campaigns
