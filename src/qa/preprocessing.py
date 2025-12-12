@@ -174,32 +174,35 @@ def create_qa_dataset(
 
                         y_start, y_end = center_y - half_size, center_y + half_size
                         x_start, x_end = center_x - half_size, center_x + half_size
+                        crop_y_start, crop_y_end = y_start, y_end
+                        crop_x_start, crop_x_end = x_start, x_end
+
+                        raw_temp = raw_image.copy()
+                        seg_temp = segmentation.copy()
 
                         if y_start < 0:
                             y_inc = -y_start
-                            raw_image = np.vstack((np.zeros((y_inc, raw_image.shape[1]) ,dtype=np.uint8), raw_image))
-                            segmentation = np.vstack((np.zeros((y_inc, segmentation.shape[1]), dtype=np.uint8), segmentation))
+                            raw_temp = np.vstack((np.zeros((y_inc, raw_temp.shape[1]) ,dtype=np.uint8), raw_temp))
+                            seg_temp = np.vstack((np.zeros((y_inc, seg_temp.shape[1]), dtype=np.uint8), seg_temp))
                             y_end += y_inc
                             y_start = 0
                         if x_start < 0:
                             x_inc = -x_start
-                            raw_image = np.hstack((np.zeros((raw_image.shape[0], x_inc), dtype=np.uint8), raw_image))
-                            segmentation = np.hstack((np.zeros((segmentation.shape[0], x_inc), dtype=np.uint8), segmentation))
+                            raw_temp = np.hstack((np.zeros((raw_temp.shape[0], x_inc), dtype=np.uint8), raw_temp))
+                            seg_temp = np.hstack((np.zeros((seg_temp.shape[0], x_inc), dtype=np.uint8), seg_temp))
                             x_end += x_inc
                             x_start = 0
                         if raw_image.shape[0] < y_end:
                             y_inc = y_end - raw_image.shape[0]
-                            raw_image = np.vstack((raw_image, np.zeros((y_inc, raw_image.shape[1]) ,dtype=np.uint8)))
-                            segmentation = np.vstack((segmentation, np.zeros((y_inc, segmentation.shape[1]) ,dtype=np.uint8)))
+                            raw_temp = np.vstack((raw_temp, np.zeros((y_inc, raw_temp.shape[1]) ,dtype=np.uint8)))
+                            seg_temp = np.vstack((seg_temp, np.zeros((y_inc, seg_temp.shape[1]) ,dtype=np.uint8)))
                         if raw_image.shape[1] < x_end:
                             x_inc = x_end - raw_image.shape[1]
-                            raw_image = np.hstack((raw_image, np.zeros((raw_image.shape[0], x_inc) ,dtype=np.uint8)))
-                            segmentation = np.hstack((segmentation, np.zeros((segmentation.shape[0], x_inc) ,dtype=np.uint8)))
+                            raw_temp = np.hstack((raw_temp, np.zeros((raw_temp.shape[0], x_inc) ,dtype=np.uint8)))
+                            seg_temp = np.hstack((seg_temp, np.zeros((seg_temp.shape[0], x_inc) ,dtype=np.uint8)))
                         
-                        raw_crop = raw_image[y_start:y_end, x_start:x_end]
-                        seg_crop = (
-                            segmentation[y_start:y_end, x_start:x_end] == label
-                        ).astype(np.uint8) * 255
+                        raw_crop = raw_temp[y_start:y_end, x_start:x_end]
+                        seg_crop = (seg_temp[y_start:y_end, x_start:x_end]==label).astype(np.uint8) * 255
 
                         # Stack the crops
                         stacked_crop = np.stack([raw_crop, seg_crop], axis=0)
@@ -220,14 +223,15 @@ def create_qa_dataset(
                                 "campaign_number": campaign_number,
                                 "competitor": competitor,
                                 "label": label,
-                                "crop_y_start": y_start,
-                                "crop_y_end": y_end,
-                                "crop_x_start": x_start,
-                                "crop_x_end": x_end,
+                                "crop_y_start": crop_y_start,
+                                "crop_y_end": crop_y_end,
+                                "crop_x_start": crop_x_start,
+                                "crop_x_end": crop_x_end,
                                 "original_center_y": center_y,
                                 "original_center_x": center_x,
                                 "crop_size": crop_size,
                                 "original_image_path": str(raw_image_path),
+                                "segmentation_path": segmentation_path_str,
                                 "gt_image": row["gt_image"],
                             }
                         )
@@ -261,6 +265,7 @@ def create_qa_dataset(
                                 "original_center_x": raw_image.shape[1] // 2,
                                 "crop_size": None,  # No cropping applied
                                 "original_image_path": str(raw_image_path),
+                                "segmentation_path": segmentation_path_str,
                                 "gt_image": row["gt_image"],
                             }
                         )
