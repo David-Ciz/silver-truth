@@ -9,6 +9,45 @@ import src.ensemble.external as ext
 from src.ensemble.datasets import Version
 
 
+def build_analysis_databank_full(qa_dataset_dataframe_path: str, output_path: str) -> None:
+    """
+    Creates an image dataset for helping visualizing the differences between GT and proposed segmentations.
+    """
+    # create output path if it doesn't exist
+    Path(output_path).mkdir(parents=True, exist_ok=True)
+    # load the dataframe
+    df = ext.load_parquet(qa_dataset_dataframe_path)
+
+    done_imgs = []
+    
+    for row in tqdm(
+        df.itertuples(), total=len(df), desc="Processing images"
+    ):
+        id = f"{row.campaign_number}_{row.original_image_key}_{row.competitor}"
+        if id in done_imgs:
+            continue
+        done_imgs.append(id)
+
+        # load gt image
+        seg_img = tifffile.imread(row.segmentation_path) # type: ignore
+        gt_image = tifffile.imread(row.gt_image) # type: ignore
+        ori_image = tifffile.imread(row.original_image_path) # type: ignore
+
+        seg_img = (seg_img > 0).astype(np.uint8) * 255
+        gt_image = (gt_image > 0).astype(np.uint8) * 255
+        stacked_crop = np.stack([seg_img, gt_image, ori_image], axis=0)
+
+        # campaign - image id - cell id - competitor
+        campaign, img_id, competitor, _ = Path(row.stacked_path).name.split("_") # type: ignore
+        new_name = f"{campaign}_{img_id}_{competitor}.tif"
+        # Save the image
+        new_img_path = os.path.join(output_path, new_name)
+        # output folder
+        tifffile.imwrite(new_img_path, stacked_crop)
+    
+    # compress images
+    ext.compress_images(output_path)
+
 
 def build_analysis_databank(qa_dataset_dataframe_path: str, output_path: str) -> None:
     """
@@ -23,27 +62,43 @@ def build_analysis_databank(qa_dataset_dataframe_path: str, output_path: str) ->
     for row in tqdm(
         df.itertuples(), total=len(df), desc="Processing images"
     ): 
+        # campaign - image id - cell id - competitor
+        campaign, img_id, competitor, suffix = Path(row.stacked_path).name.split("_") # type: ignore
+        cell_id, __ = suffix.split(".")
+        new_name = f"{campaign}_{img_id}_{cell_id}_{competitor}.tif"
+        new_img_path = os.path.join(output_path, new_name)
+
         # load gt image 
         gt_image = tifffile.imread(row.gt_image) # type: ignore
         combined_qa_image = tifffile.imread(row.stacked_path).astype(np.uint8) # type: ignore
-        #segmented_qa_image = combined_qa_image[1]
         seg_crop = combined_qa_image[1]
 
-        gt_crop = gt_image[row.crop_y_start:row.crop_y_end, 
-                           row.crop_x_start:row.crop_x_end]
+        crop_y_start, crop_y_end = row.crop_y_start, row.crop_y_end
+        crop_x_start, crop_x_end = row.crop_x_start, row.crop_x_end
+
+        if crop_y_start < 0:                                                                 # type: ignore
+            y_inc = -crop_y_start                                                            # type: ignore
+            gt_image = np.vstack((np.zeros((y_inc, gt_image.shape[1])), gt_image))           # type: ignore
+            crop_y_end += y_inc
+            crop_y_start = 0
+        if crop_x_start < 0:                                                                 # type: ignore
+            x_inc = -crop_x_start                                                            # type: ignore
+            gt_image = np.hstack((np.zeros((gt_image.shape[0], x_inc)), gt_image))
+            crop_x_end += x_inc
+            crop_x_start = 0
+        if gt_image.shape[0] < crop_y_end:
+            gt_image = np.vstack((gt_image, np.zeros((crop_y_end - gt_image.shape[0], gt_image.shape[1]))))
+        if gt_image.shape[1] < crop_x_end:                                                   # type: ignore
+            gt_image = np.hstack((gt_image, np.zeros((gt_image.shape[0], crop_x_end - gt_image.shape[1]))))
+
+        gt_crop = gt_image[crop_y_start:crop_y_end, crop_x_start:crop_x_end]
 
         # contains the rest of the gt segmentations, shown in blue
         blue_layer = np.logical_and(gt_crop > 0, gt_crop != row.label).astype(np.uint8) * 255
         gt_crop = (gt_crop == row.label).astype(np.uint8) * 255
         stacked_crop = np.stack([seg_crop, gt_crop, blue_layer], axis=0)
 
-        # campaign - image id - cell id - competitor
-        campaign, img_id, competitor, suffix = Path(row.stacked_path).name.split("_") # type: ignore
-        cell_id, __ = suffix.split(".")
-        new_name = f"{campaign}_{img_id}_{cell_id}_{competitor}.tif"
-        # Save the image
-        new_img_path = os.path.join(output_path, new_name)
-        # output folder
+        # save to output folder
         tifffile.imwrite(new_img_path, stacked_crop)
     
     # compress images
@@ -142,22 +197,24 @@ def build_databank(
             gt_crop_min_x = qa_crop_original_center_x - canvas_half_size + obj_min_x
             gt_crop_max_x = gt_crop_min_x + crop_size
 
+            gt_temp = gt_image.copy()
+
             if gt_crop_min_y < 0:
                 y_inc = -gt_crop_min_y
-                gt_image = np.vstack((np.zeros((y_inc, gt_image.shape[1])), gt_image))
+                gt_temp = np.vstack((np.zeros((y_inc, gt_temp.shape[1])), gt_temp))
                 gt_crop_max_y += y_inc
                 gt_crop_min_y = 0
             if gt_crop_min_x < 0:
                 x_inc = -gt_crop_min_x
-                gt_image = np.hstack((np.zeros((gt_image.shape[0], -gt_crop_min_x)), gt_image))
+                gt_temp = np.hstack((np.zeros((gt_temp.shape[0], x_inc)), gt_temp))
                 gt_crop_max_x += x_inc
                 gt_crop_min_x = 0
             if gt_image.shape[0] < gt_crop_max_y:
-                gt_image = np.vstack((gt_image, np.zeros((gt_crop_max_y - gt_image.shape[0], gt_image.shape[1]))))
+                gt_temp = np.vstack((gt_temp, np.zeros((gt_crop_max_y - gt_temp.shape[0], gt_temp.shape[1]))))
             if gt_image.shape[1] < gt_crop_max_x:
-                gt_image = np.hstack((gt_image, np.zeros((gt_image.shape[0], gt_crop_max_x - gt_image.shape[1]))))
+                gt_temp = np.hstack((gt_temp, np.zeros((gt_temp.shape[0], gt_crop_max_x - gt_temp.shape[1]))))
 
-            gt_crop = gt_image[gt_crop_min_y : gt_crop_max_y, gt_crop_min_x : gt_crop_max_x]
+            gt_crop = gt_temp[gt_crop_min_y : gt_crop_max_y, gt_crop_min_x : gt_crop_max_x]
             gt_crop = (gt_crop == label).astype(np.uint8) * 255
 
             # stack layers
