@@ -6,6 +6,7 @@ import src.ensemble.envs as envs
 import src.ensemble.external as ext
 import src.ensemble.training as training
 from src.ensemble.models import SMP_Model
+import src.qa.preprocessing as  qa_pp
 import src.ensemble.utils as utils
 import segmentation_models_pytorch as smp
 import torch
@@ -17,19 +18,22 @@ logging.basicConfig(level=logging.INFO, format="\n%(asctime)s ### %(levelname)s 
 _logger = logging.getLogger(__name__)
 
 
-def build_ensemble_databanks(datasets: list[str], from_qa: bool):
-    original_dataset = "BF-C2DL-HSC"
-    dataset_dataframe_path = f"data/dataframes/{original_dataset}_dataset_dataframe.parquet"
-    qa_output_path = f"data/ensemble_data/qa/qa_images_{original_dataset}"
-    qa_parquet_path = f"data/ensemble_data/qa/qa_{original_dataset}.parquet"
-
+def build_ensemble_databanks(dataset_name, crop_size=64):
+    dataset_dataframe_path = f"data/dataframes/{dataset_name}_dataset_dataframe.parquet"
+    qa_output_path = f"data/ensemble_data/qa/qa_images_{dataset_name}"
+    qa_parquet_path = f"data/ensemble_data/qa/qa_{dataset_name}.parquet"
+    #"""
     # build required qa dataset
-    ext.build_qa_dataset(dataset_dataframe_path, qa_output_path, qa_parquet_path)
+    qa_pp.create_qa_dataset(dataset_dataframe_path, 
+                            qa_output_path,
+                            qa_parquet_path,  
+                            crop_size=crop_size)
     # compress images to save space
     ext.compress_images(qa_output_path)
+    #"""
     # build ensemble dataset
     ensemble_datasets_path = "data/ensemble_data/datasets"
-    build_databank(original_dataset, qa_parquet_path, ensemble_datasets_path)
+    build_databank(dataset_name, qa_parquet_path, ensemble_datasets_path)
 
 
 def build_databanks(datasets: list[str]):
@@ -141,27 +145,3 @@ def generate_evaluation(model_path: str, dataset_path: str, split_type: str = "t
     
     output_df.to_parquet(output_parquet_path)
     return output_parquet_path
-
-
-
-
-
-
-
-
-def build_required_datasets_DEPRECATED(ensemble_dataset_version=Version.C1):
-    original_dataset = "BF-C2DL-HSC"
-    dataset_dataframe_path = f"data/dataframes/{original_dataset}_dataset_dataframe.parquet"
-    qa_output_path = f"data/ensemble_data/qa/qa_images_{original_dataset}"
-    qa_parquet_path = f"data/ensemble_data/qa/qa_{original_dataset}.parquet"
-
-    # build required qa dataset
-    ext.build_qa_dataset(dataset_dataframe_path, qa_output_path, qa_parquet_path)
-    # compress images to save space
-    ext.compress_images(qa_output_path)
-    # build ensemble dataset
-    ensemble_datasets_path = "data/ensemble_data/datasets"
-    #build_dataset(qa_parquet_path, ensemble_datasets_path, ensemble_dataset_version)
-
-
-
