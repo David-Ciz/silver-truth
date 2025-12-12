@@ -9,11 +9,12 @@ def get_device():
     return torch.device("cuda:0") if torch.cuda.is_available() else torch.device("cpu")
 
 
-def _find_largest_gt_cell_size(dataset_dataframe_path: str) -> int:
+def find_largest_gt_cell_size(dataset_dataframe_path: str) -> tuple[int,str]:
     """
     Finds the largest ground truth segmentation.
     """
     largest_size = 0
+    largest_size_img = ""
 
     # loads the QA dataset
     df = ext.load_parquet(dataset_dataframe_path)
@@ -39,4 +40,5 @@ def _find_largest_gt_cell_size(dataset_dataframe_path: str) -> int:
                                    slice_x.stop - slice_x.start)
                 if largest_size < max_seg_size:
                     largest_size = max_seg_size
-    return largest_size
+                    largest_size_img = gt_image_path
+    return largest_size, largest_size_img
