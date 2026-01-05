@@ -112,11 +112,12 @@ def build_databank_old(qa_dataset_dataframe_path: str, output_path: str, version
 
 
 def build_databank(
-        name,
-        qa_dataset_dataframe_path: str, 
+        name: str,
+        version: Version,
+        qa_dataset_path: str, 
         output_path: str,
         #apply_blue_layer: bool = True
-        ) -> None: 
+        ) -> str: 
     """
     Generate the databank for the different dataset versions.
     
@@ -126,10 +127,12 @@ def build_databank(
     For each gt image, a new image (crop size) is created with the cropped sum image as the 1st layer /
     and the cropped gt image as 2nd layer.
     """
-    #TODO: update description
+    #TODO: update description.
+    #TODO: add support for additional dataset versions.
 
     # destination path of the created images
-    images_output_path = os.path.join(output_path, name)
+    databank_foldername = f"ensemble_{version.name}_{name}"
+    images_output_path = os.path.join(output_path, databank_foldername)
     # create images path if it doesn't exist
     Path(images_output_path).mkdir(parents=True, exist_ok=True)
 
@@ -137,7 +140,7 @@ def build_databank(
     data_list = []
 
     # loads the QA dataset
-    df = ext.load_parquet(qa_dataset_dataframe_path)
+    df = ext.load_parquet(qa_dataset_path)
     # get the gt images
     unique_gt_images = df["gt_image"].unique()
     # get crop size
@@ -243,9 +246,11 @@ def build_databank(
     # convert list to dataframe
     output_df = pd.DataFrame(data_list)
     # build output parquet path
-    parquet_output_path = os.path.join(output_path, f"ensemble_{name}.parquet")
+    parquet_output_path = os.path.join(output_path, f"{databank_foldername}.parquet")
     # save to parquet file
     output_df.to_parquet(parquet_output_path)
 
     # compress images
     ext.compress_images(images_output_path)
+
+    return parquet_output_path

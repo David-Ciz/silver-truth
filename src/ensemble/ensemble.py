@@ -1,7 +1,7 @@
 import logging
 import mlflow
 from src.ensemble.datasets import EnsembleDatasetC1
-from src.ensemble.databanks_builds import build_databank, Version
+from src.ensemble.databanks_builds import build_databank, build_analysis_databank, build_analysis_databank_full, Version
 import src.ensemble.envs as envs
 import src.ensemble.external as ext
 import src.ensemble.training as training
@@ -18,13 +18,16 @@ logging.basicConfig(level=logging.INFO, format="\n%(asctime)s ### %(levelname)s 
 _logger = logging.getLogger(__name__)
 
 
-def build_ensemble_databanks(dataset_name, crop_size=64):
-    dataset_dataframe_path = f"data/dataframes/{dataset_name}_dataset_dataframe.parquet"
-    qa_output_path = f"data/ensemble_data/qa/qa_images_{dataset_name}"
+def build_databanks(original_dataset_path: str, dataset_name: str, dataset_version: Version, crop_size: int) -> tuple[str,str]:
+    """
+    Builds the QA and Ensemble databanks.
+    """
+    #dataset_dataframe_path = f"data/dataframes/{dataset_name}_dataset_dataframe.parquet"
+    qa_output_path = f"data/ensemble_data/qa/qa_{dataset_name}"
     qa_parquet_path = f"data/ensemble_data/qa/qa_{dataset_name}.parquet"
     #"""
     # build required qa dataset
-    qa_pp.create_qa_dataset(dataset_dataframe_path, 
+    qa_pp.create_qa_dataset(original_dataset_path, 
                             qa_output_path,
                             qa_parquet_path,  
                             crop_size=crop_size)
@@ -33,9 +36,24 @@ def build_ensemble_databanks(dataset_name, crop_size=64):
     #"""
     # build ensemble dataset
     ensemble_datasets_path = "data/ensemble_data/datasets"
-    build_databank(dataset_name, qa_parquet_path, ensemble_datasets_path)
+    output_parquet_path = build_databank(dataset_name, dataset_version, qa_parquet_path, ensemble_datasets_path)
+    return output_parquet_path, qa_parquet_path
 
 
+def build_analysis_databanks(dataset_name: str, mode: str) -> None:
+    """
+    Build databanks that allow data visualization.
+    Requires previous call to build_databanks().
+    Parameter <mode> can be 'all', 'crop' or 'full'.
+    """
+    if mode == "all" or mode == "crop":
+        build_analysis_databank(f"data/ensemble_data/qa/qa_{dataset_name}.parquet", f"data/ensemble_data/qa/qa_{dataset_name}_viz")
+    if mode == "all" or mode == "full":
+        build_analysis_databank_full(f"data/ensemble_data/qa/qa_{dataset_name}.parquet", f"data/ensemble_data/qa/qa_{dataset_name}_vizfull")
+
+
+
+"""
 def build_databanks(datasets: list[str]):
     # build origin databanks
         # qa
@@ -44,7 +62,7 @@ def build_databanks(datasets: list[str]):
         # qa
         # non-qa
     pass
-
+"""
 
 
 def _set_mlflow_experiment(name: str) -> None:
