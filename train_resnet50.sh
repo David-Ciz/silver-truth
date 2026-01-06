@@ -27,6 +27,8 @@ set -e  # Exit on any error
 
 # --- Configuration ---
 HOME_DIR="/home/davidciz/silver-truth"
+PROJECT_DIR="/mnt/proj1/eu-25-40/innovaite"
+VENV_DIR="${PROJECT_DIR}/silver-truth-venv"
 SCRATCH_DATA="/scratch/project/eu-25-40/silver-truth-data"
 PARQUET_FILE="${HOME_DIR}/dataframes/BF-C2DL-HSC_QA_crops_64_split70-15-15_seed42.parquet"
 OUTPUT_DIR="${HOME_DIR}/models"
@@ -58,8 +60,8 @@ ml CUDA/12.8.0
 ml Python/3.11.3-GCCcore-12.3.0
 ml libjpeg-turbo/2.1.5.1-GCCcore-12.3.0
 
-# Activate virtual environment
-source ${HOME_DIR}/.venv/bin/activate
+# Activate virtual environment (on project storage to avoid home quota)
+source ${VENV_DIR}/bin/activate
 
 # Create output directories if they don't exist
 mkdir -p ${OUTPUT_DIR}
