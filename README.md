@@ -6,7 +6,7 @@ This repository contains tools for processing, synchronizing, and evaluating cel
 
 1.  Clone the repository:
     ```bash
-    git clone https://github.com/your-username/silver-truth.git
+    git clone https://github.com/David-Ciz/silver-truth
     cd silver-truth
     ```
 
@@ -15,10 +15,6 @@ This repository contains tools for processing, synchronizing, and evaluating cel
    python -m venv .venv
    .venv\Scripts\activate
    pip install -e .[dev]
-   ```
-   Create requirements
-   ```
-   pip freeze > requirements.txt
    ```
 
 ## Workflows

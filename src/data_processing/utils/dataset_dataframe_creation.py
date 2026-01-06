@@ -216,6 +216,9 @@ def save_dataframe_to_parquet_with_metadata(df: pd.DataFrame, output_path: str) 
         df: The pandas DataFrame to save.
         output_path: The file path to store the Parquet file.
     """
+    print(df)
+    if "creation_time" in df.attrs:
+        del df.attrs["creation_time"]
     # Convert DataFrame to a PyArrow table without preserving the index.
     table = pa.Table.from_pandas(df, preserve_index=False)
 
@@ -224,6 +227,7 @@ def save_dataframe_to_parquet_with_metadata(df: pd.DataFrame, output_path: str) 
     metadata = {
         str(key).encode(): str(value).encode() for key, value in df.attrs.items()
     }
+    print(metadata)
 
     # Replace the table's schema metadata with our custom metadata.
     table = table.replace_schema_metadata(metadata)
@@ -262,10 +266,60 @@ def load_dataframe_from_parquet_with_metadata(input_path: str) -> pd.DataFrame:
     return df
 
 
+def _make_paths_relative(df: pd.DataFrame, base_dir: Path) -> pd.DataFrame:
+    """
+    Convert absolute paths in the dataframe to relative paths starting from 'data/'.
+    This makes the parquet files portable between team members.
+
+    Args:
+        df: DataFrame with path columns
+        base_dir: The base directory (synchronized_dataset_dir) used to find the 'data' folder
+
+    Returns:
+        DataFrame with relative paths
+    """
+    # Find the 'data' directory in the path
+    data_dir = None
+    for parent in base_dir.parents:
+        if (parent / "data").exists():
+            data_dir = parent
+            break
+
+    if data_dir is None:
+        # Fallback: just use paths as-is
+        return df
+
+    # Convert all path columns to relative paths
+    path_columns = ["source_image", "gt_image", "tracking_markers"] + [
+        col
+        for col in df.columns
+        if col
+        not in [
+            "composite_key",
+            "campaign_number",
+            "source_image",
+            "gt_image",
+            "tracking_markers",
+        ]
+    ]
+
+    for col in path_columns:
+        if col in df.columns:
+            df[col] = df[col].apply(
+                lambda x: str(Path(x).relative_to(data_dir))
+                if x and Path(x).is_absolute()
+                else x
+            )
+
+    return df
+
+
 def create_dataset_dataframe_logic(
     synchronized_dataset_dir: Path | str, output_path: Path | str
 ) -> None:
-    synchronized_dataset_dir = Path(synchronized_dataset_dir)
+    synchronized_dataset_dir = Path(
+        synchronized_dataset_dir
+    ).resolve()  # Use absolute path for processing
     if output_path is None:
         output_path = f"{synchronized_dataset_dir.name}_dataset_dataframe.parquet"
 
@@ -273,6 +327,12 @@ def create_dataset_dataframe_logic(
         synchronized_dataset_dir
     )
     dataset_dataframe = convert_to_dataframe(dataset_info)
+
+    # Convert paths to relative (starting with data/)
+    dataset_dataframe = _make_paths_relative(
+        dataset_dataframe, synchronized_dataset_dir
+    )
+
     # Store metadata
     dataset_dataframe.attrs["base_directory"] = str(synchronized_dataset_dir)
     dataset_dataframe.attrs["competitor_columns"] = list(competitor_columns)

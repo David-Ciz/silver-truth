@@ -13,6 +13,7 @@ from src.data_processing.compression import compress_tifs_logic
 from src.data_processing.utils.dataset_dataframe_creation import (
     create_dataset_dataframe_logic,
 )
+from src.data_processing.utils.parquet_utils import add_split_type
 
 # Configure logging globally
 logging.basicConfig(
@@ -46,14 +47,23 @@ def verify_dataset_synchronization(
 @click.command()
 @click.argument("label_folder", type=click.Path(exists=True))
 @click.argument("tracking_folder", type=click.Path(exists=True))
-def verify_folder_synchronization(label_folder, tracking_folder):
+@click.option("--debug", is_flag=True, help="Enable debug mode for verbose logging.")
+def verify_folder_synchronization(label_folder, tracking_folder, debug):
+    """
+    This script verifies the synchronization between labels and tracking markers in a folder.
+
+    LABEL_FOLDER: Path to the folder containing label images.
+    TRACKING_FOLDER: Path to the folder containing tracking marker images.
+    """
+    if debug:
+        logging.getLogger().setLevel(logging.DEBUG)
     desynchronized_images = verify_folder_synchronization_logic(
         label_folder, tracking_folder
     )
 
     if desynchronized_images:
         click.echo("The following images are not synchronized:")
-        click.echo(", ".join(desynchronized_images))
+        click.echo(", ".join(map(str, desynchronized_images)))
     else:
         click.echo("All images are synchronized.")
 
@@ -173,6 +183,26 @@ def compress_tifs(directory, non_recursive, dry_run, verbose):
         )
 
 
+@click.command()
+@click.argument("parquet_path", type=click.Path(exists=True, dir_okay=False))
+def add_split_column(parquet_path: str):
+    """
+    Adds a 'split' column to a given parquet file.
+
+    The split is done with a 70-15-15 ratio for train-validation-test sets,
+    using a fixed seed of 42 for reproducibility.
+
+    PARQUET_PATH: Path to the input parquet file.
+    """
+    seed = 42
+    splits = [0.7, 0.15, 0.15]
+    logging.info(
+        f"Adding split column to {parquet_path} with seed {seed} and splits {splits}"
+    )
+    output_path = add_split_type(parquet_path, seed, splits)
+    click.echo(f"Successfully added split column. New file saved at: {output_path}")
+
+
 @click.group()
 def cli():
     pass
@@ -184,6 +214,8 @@ cli.add_command(synchronize_datasets)
 cli.add_command(verify_dataset_synchronization)
 cli.add_command(create_dataset_dataframe)
 cli.add_command(compress_tifs)
+cli.add_command(add_split_column)
+
 
 if __name__ == "__main__":
     cli()

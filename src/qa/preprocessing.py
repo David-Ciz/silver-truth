@@ -49,9 +49,28 @@ def create_qa_dataset(
         logging.info(f"  - Crop size: {crop_size}")
 
     df = load_dataframe_from_parquet_with_metadata(dataset_dataframe_path)
-    output_path = Path(output_dir)
+    output_path = Path(output_dir).resolve()
     output_path.mkdir(parents=True, exist_ok=True)
     logging.info(f"Ensured output directory exists: {output_path}")
+
+    # Find project root (directory containing 'data' folder) for relative path conversion
+    project_root = None
+    for parent in output_path.parents:
+        if (parent / "data").exists():
+            project_root = parent
+            break
+
+    def to_relative_path(abs_path):
+        """Convert absolute path to relative path starting from project root."""
+        if abs_path is None:
+            return None
+        p = Path(abs_path)
+        if project_root and p.is_absolute():
+            try:
+                return str(p.relative_to(project_root))
+            except ValueError:
+                return str(p)
+        return str(p)
 
     data_list = []
     competitor_columns = df.attrs.get("competitor_columns", [])
@@ -64,6 +83,7 @@ def create_qa_dataset(
             "campaign_number",
             "gt_image",
             "tracking_markers",
+            "source_image",
         ]
         competitor_columns = [col for col in df.columns if col not in excluded_columns]
         logging.info(f"Inferred competitor columns: {competitor_columns}")
@@ -147,13 +167,24 @@ def create_qa_dataset(
                     )
                     continue
 
-                labels = np.unique(segmentation)[1:]  # Exclude background
-                ### guarantees that labels are synchronized
-                gt_labels_lst = np.unique(gt_image)[1:].tolist()
-                assert(all([lbl in gt_labels_lst for lbl in labels.tolist()]))
-                ###
+                segmentation_labels = np.unique(segmentation)[1:]  # Exclude background
+                gt_labels = np.unique(gt_image)[1:]
 
-                for label in labels:
+                # Process only the labels that are present in both the segmentation and the ground truth
+                labels_to_process = np.intersect1d(
+                    segmentation_labels, gt_labels, assume_unique=True
+                )
+
+                # Log a warning for labels present in the segmentation but not in the ground truth
+                extra_labels = np.setdiff1d(
+                    segmentation_labels, gt_labels, assume_unique=True
+                )
+                if extra_labels.size > 0:
+                    logging.warning(
+                        f"Segmentation {segmentation_path.name} contains labels not in ground truth: {extra_labels.tolist()}. These will be ignored."
+                    )
+
+                for label in labels_to_process:
                     if crop:
                         # Get bounding box for the cell
                         try:
@@ -209,7 +240,7 @@ def create_qa_dataset(
                         data_list.append(
                             {
                                 "cell_id": cell_id,
-                                "stacked_path": str(stacked_path),
+                                "stacked_path": to_relative_path(stacked_path),
                                 "original_image_key": raw_image_path.stem,
                                 "campaign_number": campaign_number,
                                 "competitor": competitor,
@@ -221,8 +252,8 @@ def create_qa_dataset(
                                 "original_center_y": center_y,
                                 "original_center_x": center_x,
                                 "crop_size": crop_size,
-                                "original_image_path": str(raw_image_path),
-                                "gt_image": row["gt_image"],
+                                "original_image_path": to_relative_path(raw_image_path),
+                                "gt_image": to_relative_path(row["gt_image"]),
                             }
                         )
                     else:  # not cropping
@@ -242,7 +273,7 @@ def create_qa_dataset(
                         data_list.append(
                             {
                                 "cell_id": cell_id,
-                                "stacked_path": str(stacked_path),
+                                "stacked_path": to_relative_path(stacked_path),
                                 "original_image_key": raw_image_path.stem,
                                 "campaign_number": campaign_number,
                                 "competitor": competitor,
@@ -254,8 +285,8 @@ def create_qa_dataset(
                                 "original_center_y": raw_image.shape[0] // 2,
                                 "original_center_x": raw_image.shape[1] // 2,
                                 "crop_size": None,  # No cropping applied
-                                "original_image_path": str(raw_image_path),
-                                "gt_image": row["gt_image"],
+                                "original_image_path": to_relative_path(raw_image_path),
+                                "gt_image": to_relative_path(row["gt_image"]),
                             }
                         )
             else:

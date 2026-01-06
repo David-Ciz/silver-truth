@@ -136,29 +136,71 @@ def get_numeric_part(filename):
 
 
 def verify_folder_synchronization_logic(label_folder, tracking_folder):
+    """
+    Verifies the synchronization between label images and tracking images in their respective folders.
+
+    Args:
+        label_folder (str): Path to the folder containing label images.
+        tracking_folder (str): Path to the folder containing tracking images.
+
+    Returns:
+        list: A list of keys (numeric parts of filenames) for images that are desynchronized.
+    """
+    logging.info(
+        f"Verifying synchronization for label folder: '{label_folder}' and tracking folder: '{tracking_folder}'"
+    )
+
     label_files = {
         get_numeric_part(f): f for f in os.listdir(label_folder) if f.endswith(".tif")
     }
+    logging.info(f"Found {len(label_files)} label files in '{label_folder}'")
+
     tracking_files = {
         get_numeric_part(f): f
         for f in os.listdir(tracking_folder)
         if f.endswith(".tif")
     }
+    logging.info(f"Found {len(tracking_files)} tracking files in '{tracking_folder}'")
 
     common_keys = set(label_files.keys()).intersection(tracking_files.keys())
+    logging.info(f"Found {len(common_keys)} common files to compare.")
+
     desynchronized_images = []
 
-    for key in tqdm.tqdm(common_keys):
+    if not common_keys:
+        logging.warning(
+            "No common files found between the two folders. Skipping verification."
+        )
+        return desynchronized_images
+
+    for key in tqdm.tqdm(sorted(common_keys), desc="Verifying synchronization"):
         label_img_path = os.path.join(label_folder, label_files[key])
         tracking_img_path = os.path.join(tracking_folder, tracking_files[key])
+
+        logging.debug(f"Processing file with key: {key}")
+        logging.debug(f"Label image path: {label_img_path}")
+        logging.debug(f"Tracking image path: {tracking_img_path}")
 
         label_img = tifffile.imread(label_img_path)
         tracking_img = tifffile.imread(tracking_img_path)
 
         is_synchronized = verify_synchronization(label_img, tracking_img)
+        logging.debug(
+            f"File {key} synchronization status: {'OK' if is_synchronized else 'FAILED'}"
+        )
 
         if not is_synchronized:
+            logging.warning(f"Desynchronized image found: {label_files[key]}")
             desynchronized_images.append(key)
+
+    if desynchronized_images:
+        logging.warning(
+            f"Found {len(desynchronized_images)} desynchronized images in '{label_folder}': {desynchronized_images}"
+        )
+    else:
+        logging.info(
+            f"All {len(common_keys)} common images in '{label_folder}' are synchronized."
+        )
 
     return desynchronized_images
 
@@ -167,40 +209,56 @@ def verify_synchronization(label_img, tracking_img):
     """
     This function verifies the synchronization of the labels between two images.
     """
+    logging.debug("Starting synchronization verification for a pair of images.")
     # sanity checks
     if label_img is None or tracking_img is None:
-        logging.warning("One of the images is missing.")
+        logging.warning("One or both images are missing.")
         return False
+
     if label_img.shape != tracking_img.shape:
-        logging.error("The images are not of the same shape.")
+        logging.error(
+            f"Image shapes do not match. Label: {label_img.shape}, Tracking: {tracking_img.shape}"
+        )
         return False
+    logging.debug(f"Image shapes are identical: {label_img.shape}")
 
     tracking_uniques = np.unique(tracking_img)
     label_uniques = np.unique(label_img)
+    logging.debug(f"Found {len(label_uniques)} unique labels in label image.")
+    logging.debug(f"Found {len(tracking_uniques)} unique labels in tracking image.")
 
-    if len(tracking_uniques) == 1:
-        logging.error("The tracking image is empty.")
+    if len(tracking_uniques) == 1 and tracking_uniques[0] == 0:
+        logging.error("The tracking image is empty (only background).")
         return False
 
-    if len(label_uniques) == 1:
-        logging.warning("The label image is empty.")
+    if len(label_uniques) == 1 and label_uniques[0] == 0:
+        logging.warning("The label image is empty (only background).")
 
-    # for label in label_uniques:
-    #     if label not in tracking_uniques:
-    #         logging.error(
-    #             "The label image contains labels that are not contained in tracking image."
-    #         )
-    #         return False
+    # This check can be useful for debugging but might be too strict as a failure condition.
+    # It's possible for a label image to have labels not present in the tracking image
+    # if the tracking is imperfect. We log it as a warning instead.
+    unmatched_labels = set(label_uniques) - set(tracking_uniques)
+    if unmatched_labels:
+        logging.warning(
+            f"Labels in label image not found in tracking image: {unmatched_labels}"
+        )
 
     for label in label_uniques:
-        if label in tracking_uniques and label in label_uniques:
+        if label == 0:  # Skip background
+            continue
+
+        if label in tracking_uniques:
             label_layer = (label_img == label).astype(int)
             tracking_layer = (tracking_img == label).astype(int)
             j_value = jaccard(label_layer.flatten(), tracking_layer.flatten())
+            logging.debug(f"Jaccard index for label {label} is {j_value}.")
             if j_value == 0:
-                logging.error(f"Jaccard index for label {label} is {j_value}.")
+                logging.error(
+                    f"Jaccard index for label {label} is 0, indicating desynchronization."
+                )
                 return False
 
+    logging.debug("Image pair synchronization verified successfully.")
     return True
 
 
@@ -252,9 +310,11 @@ def verify_dataset_synchronization_logic(
             tracking_folder = data["tracking_folder"]
             desynchronized_images = []
             for label_folder in data["segmentations"]:
-                desynchronized_images.append(verify_folder_synchronization_logic(
-                    label_folder, str(tracking_folder))
+                desynchronized_images.append(
+                    verify_folder_synchronization_logic(
+                        label_folder, str(tracking_folder)
                     )
+                )
             if len(desynchronized_images) > 0:
                 desynchronized_subfolders.add(dataset_type)
     return desynchronized_subfolders

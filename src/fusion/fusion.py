@@ -1,8 +1,9 @@
 import os
 import subprocess
 import logging
+import re
 from enum import Enum
-from typing import Optional
+from typing import Dict, Optional, Tuple
 import pandas as pd
 from pathlib import Path
 
@@ -84,120 +85,152 @@ def fuse_segmentations(
             logging.error(f"STDERR:\n{result.stderr}")
         raise RuntimeError("Execution of Fusers (RunFusersCli) Java tool failed.")
     else:
+        logging.error(f"Return Code: {result.returncode}")
+        logging.error(f"STDOUT:\n{result.stdout}")
+        logging.error(f"STDERR:\n{result.stderr}")
         logging.info("Fusers Java process completed successfully.")
 
 
-def add_fused_images_to_dataframe_logic(dataset_name, base_dir):
-    """
-    Process a single dataset to add fused image paths.
+def add_fused_images_to_dataframe_logic(
+    dataset_name: Optional[str] = None,
+    input_parquet_path: Optional[str] = None,
+    fused_results_dir: Optional[str] = None,
+    output_parquet_path: Optional[str] = None,
+    base_dir: Optional[str] = None,
+):
+    """Process a single dataset to add fused image paths."""
 
-    Args:
-        dataset_name: Name of the dataset (e.g., 'Fluo-C3DH-A549')
-        base_dir: Base directory path
-    """
-    # Construct paths
-    parquet_path = (
-        Path(base_dir) / "dataframes" / f"{dataset_name}_dataset_dataframe.parquet"
-    )
-    fused_images_dir = Path(base_dir) / "fused_results"
-    output_dir = Path(base_dir) / "fused_results_parquet"
-    output_parquet_path = (
-        output_dir / f"{dataset_name}_dataset_dataframe_with_fused.parquet"
-    )
+    def _resolve_input_path() -> Path:
+        if input_parquet_path:
+            return Path(input_parquet_path).expanduser().resolve()
+        if base_dir and dataset_name:
+            return (
+                Path(base_dir)
+                / "dataframes"
+                / f"{dataset_name}_dataset_dataframe.parquet"
+            ).resolve()
+        raise ValueError("input_parquet_path or base_dir+dataset_name must be provided")
 
-    # Check if parquet file exists
-    if not parquet_path.exists():
-        print(f"Warning: Parquet file not found: {parquet_path}")
+    def _resolve_output_path(resolved_input: Path) -> Path:
+        if output_parquet_path:
+            return Path(output_parquet_path).expanduser().resolve()
+        if base_dir and dataset_name:
+            return (
+                Path(base_dir)
+                / "fused_results_parquet"
+                / f"{dataset_name}_dataset_dataframe_with_fused.parquet"
+            ).resolve()
+        return resolved_input.with_name(
+            resolved_input.stem.replace("_dataset_dataframe", "_with_fused")
+            + resolved_input.suffix
+        )
+
+    def _resolve_fused_dir() -> Path:
+        if fused_results_dir:
+            return Path(fused_results_dir).expanduser().resolve()
+        if base_dir:
+            return (Path(base_dir) / "fused_results").resolve()
+        raise ValueError("fused_results_dir or base_dir must be provided")
+
+    def _infer_dataset_name(resolved_input: Path) -> str:
+        inferred = resolved_input.stem
+        suffix = "_dataset_dataframe"
+        if inferred.endswith(suffix):
+            inferred = inferred[: -len(suffix)]
+        return inferred
+
+    def _extract_campaign_time(
+        composite_key: str,
+    ) -> Tuple[Optional[str], Optional[int]]:
+        if not composite_key:
+            return None, None
+        stem = Path(composite_key).stem
+        parts = stem.split("_")
+        if len(parts) < 2:
+            return None, None
+        campaign = parts[0]
+        time_part = parts[-1]
+        if not time_part.isdigit():
+            return None, None
+        return campaign, int(time_part)
+
+    def _build_fused_lookup(
+        fused_dir: Path, dataset: str
+    ) -> Dict[Tuple[str, int], Path]:
+        pattern = re.compile(
+            rf"^{re.escape(dataset)}_(?P<campaign>[^_]+)_fused_(?P<time>\d+)\.tif$"
+        )
+        lookup: Dict[Tuple[str, int], Path] = {}
+        for path in fused_dir.glob(f"{dataset}_*_fused_*.tif"):
+            match = pattern.match(path.name)
+            if not match:
+                continue
+            key = (match.group("campaign"), int(match.group("time")))
+            if key in lookup:
+                logging.warning(
+                    "Duplicate fused image detected for %s campaign %s time %s; keeping first",
+                    dataset,
+                    key[0],
+                    key[1],
+                )
+                continue
+            lookup[key] = path
+        return lookup
+
+    input_path = _resolve_input_path()
+    if not dataset_name:
+        dataset_name = _infer_dataset_name(input_path)
+    fused_dir = _resolve_fused_dir()
+    output_path = _resolve_output_path(input_path)
+
+    if not input_path.exists():
+        print(f"Warning: Parquet file not found: {input_path}")
         return False
+    if not fused_dir.exists():
+        print(f"Warning: Fused results directory not found: {fused_dir}")
+        return False
+    output_path.parent.mkdir(parents=True, exist_ok=True)
 
-    # Create output directory if it doesn't exist
-    output_dir.mkdir(parents=True, exist_ok=True)
-
-    # Load dataframe
     print(f"Processing dataset: {dataset_name}")
-    df = pd.read_parquet(parquet_path)
+    df = pd.read_parquet(input_path).copy()
+    fused_lookup = _build_fused_lookup(fused_dir, dataset_name)
+    if not fused_lookup:
+        print(f"No fused images found for dataset '{dataset_name}' in {fused_dir}")
 
-    # Create a new column for fused images, initialized to None
-    df["fused_images"] = None
+    def _lookup_path(composite_key: str) -> Optional[str]:
+        campaign, time_idx = _extract_campaign_time(composite_key)
+        if campaign is None or time_idx is None:
+            return None
+        path = fused_lookup.get((campaign, time_idx))
+        return str(path) if path else None
 
-    # Get a set of existing fused image filenames for efficient lookup
-    existing_fused_images = {
-        p.name for p in Path(fused_images_dir).glob("*_fused_*.tif")
-    }
+    # TODO: rewrite this abomination
+    fused_col_name = fused_dir.name
+    df[fused_col_name] = df["composite_key"].astype(str).map(_lookup_path)
 
-    # Get unique campaign numbers from the dataset
-    campaign_numbers = df["campaign_number"].unique()
-    print(f"Found campaigns: {campaign_numbers}")
+    campaign_numbers = df.get("campaign_number")
+    if campaign_numbers is not None:
+        unique_campaigns = sorted(df["campaign_number"].dropna().unique())
+    else:
+        unique_campaigns = []
 
-    # Process each campaign
-    for campaign in campaign_numbers:
-        # Filter for current campaign rows and sort by composite_key to match fusion order
-        df_campaign = df[df["campaign_number"] == campaign].copy()
-        df_campaign = df_campaign.sort_values("composite_key").reset_index(drop=True)
-
-        # Map fused images based on composite_key TTT/TTTT pattern
-        fused_image_mapping = {}
-        for index, row in df_campaign.iterrows():
-            # Extract the time point number from composite_key (e.g., "01_0005.tif" -> "005")
-            composite_key = row["composite_key"]
-            if "_" in composite_key:
-                time_part = composite_key.split("_")[1].replace(".tif", "")
-                # Convert to integer and determine the correct format based on existing files
-                time_num = int(time_part)
-
-                # Try TTT format first (3 digits) as it's more common
-                fused_filename_ttt = (
-                    f"{dataset_name}_{campaign}_fused_{time_num:03d}.tif"
-                )
-                # Also try TTTT format (4 digits) as fallback
-                fused_filename_tttt = (
-                    f"{dataset_name}_{campaign}_fused_{time_num:04d}.tif"
-                )
-
-                if fused_filename_ttt in existing_fused_images:
-                    fused_filename = fused_filename_ttt
-                elif fused_filename_tttt in existing_fused_images:
-                    fused_filename = fused_filename_tttt
-                else:
-                    continue  # No matching fused file found
-            else:
-                # Fallback to sequential index if composite_key format is unexpected
-                fused_filename = f"{dataset_name}_{campaign}_fused_{index:03d}.tif"
-                if fused_filename not in existing_fused_images:
-                    fused_filename = f"{dataset_name}_{campaign}_fused_{index:04d}.tif"
-                if fused_filename not in existing_fused_images:
-                    continue
-
-            if fused_filename in existing_fused_images:
-                fused_image_mapping[row["composite_key"]] = str(
-                    Path(fused_images_dir) / fused_filename
-                )
-
-        # Apply the mapping to the DataFrame
-        df.loc[df["campaign_number"] == campaign, "fused_images"] = df_campaign[
-            "composite_key"
-        ].map(fused_image_mapping)
-
-        print(f"Campaign {campaign}: {len(fused_image_mapping)} fused images mapped")
-
-    # Save the modified DataFrame
-    df.to_parquet(output_parquet_path, index=False)
-
-    print(f"Modified dataframe saved to: {output_parquet_path}")
-
-    # Show summary for each campaign
-    for campaign in campaign_numbers:
-        campaign_data = df[df["campaign_number"] == campaign][
-            ["composite_key", "fused_images"]
-        ]
-        mapped_count = campaign_data["fused_images"].notna().sum()
-        total_count = len(campaign_data)
+    for campaign in unique_campaigns:
+        mask = df["campaign_number"] == campaign
+        mapped_count = df.loc[mask, fused_col_name].notna().sum()
+        total_count = mask.sum()
         print(
             f"Campaign {campaign}: {mapped_count}/{total_count} images have fused counterparts"
         )
-        if mapped_count > 0:
-            print(campaign_data[campaign_data["fused_images"].notna()].head())
+        if mapped_count:
+            print(
+                df.loc[
+                    mask & df[fused_col_name].notna(),
+                    ["composite_key", fused_col_name],
+                ].head()
+            )
 
+    df.to_parquet(output_path, index=False)
+    print(f"Modified dataframe saved to: {output_path}")
     return True
 
 
@@ -224,7 +257,18 @@ def process_all_datasets_logic(base_dir):
         dataset_name = parquet_file.name.replace("_dataset_dataframe.parquet", "")
         print(f"\n{'='*50}")
 
-        if add_fused_images_to_dataframe_logic(dataset_name, base_dir):
+        output_parquet = (
+            Path(base_dir)
+            / "fused_results_parquet"
+            / f"{dataset_name}_dataset_dataframe_with_fused.parquet"
+        )
+        fused_dir = Path(base_dir) / "fused_results"
+        if add_fused_images_to_dataframe_logic(
+            dataset_name=dataset_name,
+            input_parquet_path=str(parquet_file),
+            fused_results_dir=str(fused_dir),
+            output_parquet_path=str(output_parquet),
+        ):
             success_count += 1
         else:
             print(f"Failed to process: {dataset_name}")

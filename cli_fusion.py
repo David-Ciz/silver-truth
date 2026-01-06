@@ -203,30 +203,63 @@ def generate_jobfiles(
 
 
 @cli.command()
+@click.option("--dataset", type=str, help="Dataset name to help infer defaults")
 @click.option(
-    "--dataset", type=str, help="Process specific dataset (e.g., 'Fluo-C3DH-A549')"
+    "--input-parquet",
+    type=click.Path(exists=True, dir_okay=False, resolve_path=True),
+    help="Explicit path to the dataset parquet file",
+)
+@click.option(
+    "--fused-results-dir",
+    type=click.Path(exists=True, file_okay=False, resolve_path=True),
+    help="Directory containing fused TIFF outputs",
+)
+@click.option(
+    "--output-parquet",
+    type=click.Path(dir_okay=False, resolve_path=True),
+    help="Destination parquet path; defaults alongside input",
 )
 @click.option(
     "--base-dir",
-    type=str,
-    default=r"C:\Users\wei0068\Desktop\Cell_Tracking\silver-truth",
-    help="Base directory path",
+    type=click.Path(file_okay=False, resolve_path=True),
+    default=None,
+    help="Legacy base directory containing dataframes/ and fused_results/",
 )
-@click.option("--all", is_flag=True, help="Process all datasets")
-def add_fused_images(dataset, base_dir, all):
-    """Add fused image paths to dataset dataframes"""
-    if dataset:
-        # Process specific dataset
-        success = add_fused_images_to_dataframe_logic(dataset, base_dir)
-        if not success:
+@click.option(
+    "--process-all", is_flag=True, help="Process every dataset under base-dir"
+)
+def add_fused_images(
+    dataset,
+    input_parquet,
+    fused_results_dir,
+    output_parquet,
+    base_dir,
+    process_all,
+):
+    """Add fused image paths to dataset dataframes."""
+    if process_all:
+        if not base_dir:
+            click.echo("--process-all requires --base-dir to locate datasets", err=True)
             exit(1)
-    elif all:
-        # Process all datasets
         process_all_datasets_logic(base_dir)
-    else:
-        # If no arguments provided, process all datasets
-        click.echo("No specific dataset provided, processing all datasets...")
-        process_all_datasets_logic(base_dir)
+        return
+
+    if not dataset and not input_parquet:
+        click.echo(
+            "Provide at least --dataset or --input-parquet so the dataframe can be located",
+            err=True,
+        )
+        exit(1)
+
+    success = add_fused_images_to_dataframe_logic(
+        dataset_name=dataset,
+        input_parquet_path=input_parquet,
+        fused_results_dir=fused_results_dir,
+        output_parquet_path=output_parquet,
+        base_dir=base_dir,
+    )
+    if not success:
+        exit(1)
 
 
 if __name__ == "__main__":
