@@ -69,15 +69,26 @@ mkdir -p ${HOME_DIR}/logs
 cd ${HOME_DIR}
 
 # --- Data Setup ---
-# Step 1: Ensure DVC data is available (symlinked from project storage)
+# Data is managed by DVC with local cache at /mnt/proj1/eu-25-40/innovaite/dvc_store
+# We use 'dvc checkout' to create symlinks from the local cache (no network needed)
 echo "Checking DVC data in repo..."
-if [ ! -d "${HOME_DIR}/data/qa_data/BF-C2DL-HSC_crops_64" ]; then
-    echo "Pulling data from DVC..."
-    dvc pull data/qa_data/BF-C2DL-HSC_crops_64.dvc
+DATA_SRC="${HOME_DIR}/data/qa_data/BF-C2DL-HSC_crops_64"
+
+if [ ! -d "${DATA_SRC}" ]; then
+    echo "Checking out data from DVC local cache..."
+    dvc checkout data/qa_data/BF-C2DL-HSC_crops_64.dvc
 fi
 
+# Verify checkout worked
+if [ ! -d "${DATA_SRC}" ]; then
+    echo "ERROR: Data directory not found after checkout: ${DATA_SRC}"
+    echo "Try running 'dvc checkout data/qa_data/BF-C2DL-HSC_crops_64.dvc' manually on login node."
+    exit 1
+fi
+
+echo "Data source: $(ls -1 ${DATA_SRC} | wc -l) files"
+
 # Step 2: Copy to scratch for fast I/O (only if not already there)
-DATA_SRC="${HOME_DIR}/data/qa_data/BF-C2DL-HSC_crops_64"
 DATA_SCRATCH="${SCRATCH_DATA}/data/qa_data/BF-C2DL-HSC_crops_64"
 
 if [ ! -d "${DATA_SCRATCH}" ]; then
