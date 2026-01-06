@@ -36,6 +36,10 @@ RESULTS_DIR="${HOME_DIR}/results"
 BATCH_SIZE=32
 LEARNING_RATE=1e-4
 NUM_EPOCHS=50
+WEIGHT_DECAY=1e-4
+DROPOUT_RATE=0.3
+PATIENCE=10
+AUGMENT=true  # set to false to disable augmentation
 
 # --- Setup ---
 echo "=== Job started at $(date) ==="
@@ -93,7 +97,18 @@ echo "Data root (scratch): ${SCRATCH_DATA}"
 echo "Batch size: ${BATCH_SIZE}"
 echo "Learning rate: ${LEARNING_RATE}"
 echo "Epochs: ${NUM_EPOCHS}"
+echo "Weight decay: ${WEIGHT_DECAY}"
+echo "Dropout rate: ${DROPOUT_RATE}"
+echo "Early stopping patience: ${PATIENCE}"
+echo "Data augmentation: ${AUGMENT}"
 echo ""
+
+# Build augmentation flag
+if [ "${AUGMENT}" = true ]; then
+    AUGMENT_FLAG="--augment"
+else
+    AUGMENT_FLAG="--no-augment"
+fi
 
 # Use --data-root to point to scratch where data was copied
 python resnet50.py train \
@@ -103,7 +118,11 @@ python resnet50.py train \
     --output-excel "${RESULTS_DIR}/results_resnet50_${SLURM_JOB_ID}.xlsx" \
     --batch-size ${BATCH_SIZE} \
     --learning-rate ${LEARNING_RATE} \
-    --num-epochs ${NUM_EPOCHS}
+    --num-epochs ${NUM_EPOCHS} \
+    --weight-decay ${WEIGHT_DECAY} \
+    --dropout-rate ${DROPOUT_RATE} \
+    --patience ${PATIENCE} \
+    ${AUGMENT_FLAG}
 
 echo ""
 echo "=== Job completed at $(date) ==="
