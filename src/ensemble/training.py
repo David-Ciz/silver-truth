@@ -12,11 +12,11 @@ import mlflow
 import matplotlib.pyplot as plt
 from src.ensemble.datasets import EnsembleDatasetC1
 from src.ensemble.models_loss_type import LossType
-from ensemble.model_ae32 import Autoencoder32
-from ensemble.model_ae64 import Autoencoder64
-from ensemble.model_vae32 import VariationalAutoencoder32
-from ensemble.model_spae32 import SparseAutoencoder32
-from ensemble.models import SMP_Model, ModelType
+from src.ensemble.model_ae32 import Autoencoder32
+from src.ensemble.model_ae64 import Autoencoder64
+from src.ensemble.model_vae32 import VariationalAutoencoder32
+from src.ensemble.model_spae32 import SparseAutoencoder32
+from src.ensemble.models import SMP_Model, ModelType
 import src.ensemble.utils as utils
 import albumentations as A
 
@@ -254,10 +254,10 @@ def run(run_params: dict, parquet_path: str, rand_seed: int=42) -> None:
     #train_set.dataset = EnsembleDatasetC1(parquet_path, None)
     
     # dataloaders
-    batch_size = 20
-    train_loader = data.DataLoader(train_set, batch_size=batch_size, shuffle=True, drop_last=True, pin_memory=True, num_workers=4)
-    val_loader = data.DataLoader(val_set, batch_size=batch_size, shuffle=False, drop_last=False, num_workers=4)
-    test_loader = data.DataLoader(test_set, batch_size=batch_size, shuffle=False, drop_last=False, num_workers=4)
+    batch_size = 7
+    train_loader = data.DataLoader(train_set, batch_size=batch_size, shuffle=True, drop_last=True, pin_memory=True)
+    val_loader = data.DataLoader(val_set, batch_size=batch_size, shuffle=False, drop_last=False)
+    test_loader = data.DataLoader(test_set, batch_size=batch_size, shuffle=False, drop_last=False)
 
     # DEBUG only
     #_visualize_dataset(_get_eval_sets(val_set))

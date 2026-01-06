@@ -3,8 +3,8 @@ import subprocess
 import logging
 from enum import Enum
 from typing import Optional
-from ensemble.datasets import EnsembleDatasetC1
-from ensemble.ensemble import _get_eval_sets
+from src.ensemble.datasets import EnsembleDatasetC1
+from src.ensemble.ensemble import _get_eval_sets
 import tifffile
 from tqdm import tqdm
 import src.ensemble.external as ext

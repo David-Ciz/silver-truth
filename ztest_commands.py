@@ -1,15 +1,15 @@
 
-from data_processing.compression import compress_tifs_logic
-import fusion.fusion as fusion
+from src.data_processing.compression import compress_tifs_logic
+import src.fusion.fusion as fusion
 #from src.data_processing.label_synchronizer import verify_dataset_synchronization_logic
 from src.ensemble.datasets import benchmark_EnsembleDataset, Version
 import src.ensemble.external as ext
 import src.ensemble.ensemble as ensemble
 import src.ensemble.utils as utils
 import os
-from data_processing.utils.parquet_utils import add_split_type, same_splits
-from ensemble.models import ModelType
-from evaluation.final_evaluation import evaluate_strategies
+from src.data_processing.utils.parquet_utils import add_split_type, same_splits
+from src.ensemble.models import ModelType
+from src.evaluation.final_evaluation import evaluate_strategies
 #import src.qa.preprocessing as  qa_pp
 from src.qa.preprocessing import create_qa_dataset
 
@@ -43,7 +43,7 @@ ds_ensemble_split = add_split_type(ensemble_parquet_path, ds_create_opt["split_s
 same_splits_result = same_splits(ds_qa_split, ds_ensemble_split)
 print("Same splits: ",same_splits_result)
 assert(same_splits_result)
-"""
+#"""
 ds_ensemble_split = f"data/ensemble_data/datasets/ensemble_{ds_create_opt["version"].name}_{ds_create_opt["name"]}_split{ds_create_opt["split_seed"]}.parquet"
 
 # train models
