@@ -9,6 +9,26 @@ import tifffile
 import numpy as np
 from pathlib import Path
 import random
+import mlflow
+import mlflow.pytorch
+
+from src.metrics.qa_model_evaluation import (
+    calculate_regression_metrics,
+    calculate_tolerance_accuracy,
+)
+
+
+def set_seed(seed: int):
+    """Set random seeds for reproducibility."""
+    random.seed(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed(seed)
+        torch.cuda.manual_seed_all(seed)
+    # For deterministic behavior (may slow down training)
+    torch.backends.cudnn.deterministic = True
+    torch.backends.cudnn.benchmark = False
 
 
 class JaccardDataset(Dataset):
@@ -124,7 +144,7 @@ def get_transform():
     return lambda x: tensor_normalize(x, mean=[0.5, 0.5], std=[0.5, 0.5])
 
 
-def train_epoch(model, dataloader, criterion, optimizer, device):
+def train_epoch(model, dataloader, criterion, optimizer, device, max_grad_norm=1.0):
     """Train the model for one epoch."""
     model.train()
     running_loss = 0.0
@@ -136,6 +156,11 @@ def train_epoch(model, dataloader, criterion, optimizer, device):
         outputs = model(images)
         loss = criterion(outputs.squeeze(), targets)
         loss.backward()
+
+        # Gradient clipping to prevent exploding gradients
+        if max_grad_norm > 0:
+            torch.nn.utils.clip_grad_norm_(model.parameters(), max_grad_norm)
+
         optimizer.step()
 
         running_loss += loss.item() * images.size(0)
@@ -313,6 +338,34 @@ def cli():
 @click.option(
     "--augment/--no-augment", default=True, help="Enable/disable data augmentation."
 )
+@click.option("--seed", type=int, default=42, help="Random seed for reproducibility.")
+@click.option(
+    "--num-workers", type=int, default=4, help="Number of DataLoader workers."
+)
+@click.option(
+    "--grad-clip",
+    type=float,
+    default=1.0,
+    help="Gradient clipping max norm (0 to disable).",
+)
+@click.option(
+    "--mlflow-tracking-uri",
+    type=str,
+    default=None,
+    help="MLflow tracking URI (default: ./mlruns).",
+)
+@click.option(
+    "--mlflow-experiment",
+    type=str,
+    default="resnet50-jaccard",
+    help="MLflow experiment name.",
+)
+@click.option(
+    "--mlflow-run-name",
+    type=str,
+    default=None,
+    help="MLflow run name (default: auto-generated).",
+)
 def train(
     parquet_file,
     data_root,
@@ -325,10 +378,25 @@ def train(
     dropout_rate,
     patience,
     augment,
+    seed,
+    num_workers,
+    grad_clip,
+    mlflow_tracking_uri,
+    mlflow_experiment,
+    mlflow_run_name,
 ):
     """Train the ResNet50 model for Jaccard index prediction."""
+    # Set seed for reproducibility
+    set_seed(seed)
+    print(f"Random seed: {seed}")
+
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"Using device: {device}")
+
+    # Setup MLflow
+    if mlflow_tracking_uri:
+        mlflow.set_tracking_uri(mlflow_tracking_uri)
+    mlflow.set_experiment(mlflow_experiment)
 
     # Training dataset with augmentation
     train_dataset = JaccardDataset(
@@ -348,10 +416,22 @@ def train(
 
     # DataLoaders
     train_data = Subset(train_dataset, train_indices)
-    train_loader = DataLoader(train_data, batch_size=batch_size, shuffle=True)
+    train_loader = DataLoader(
+        train_data,
+        batch_size=batch_size,
+        shuffle=True,
+        num_workers=num_workers,
+        pin_memory=True if device.type == "cuda" else False,
+    )
 
     val_data = Subset(eval_dataset, val_indices)
-    val_loader = DataLoader(val_data, batch_size=batch_size, shuffle=False)
+    val_loader = DataLoader(
+        val_data,
+        batch_size=batch_size,
+        shuffle=False,
+        num_workers=num_workers,
+        pin_memory=True if device.type == "cuda" else False,
+    )
 
     # Model, criterion, optimizer
     model = JaccardResNet(dropout_rate=dropout_rate).to(device)
@@ -368,76 +448,134 @@ def train(
     best_model_state = None
     epochs_without_improvement = 0
     last_lr = learning_rate
+    final_epoch = 0
 
-    # Training loop
-    print(f"\nStarting training for {num_epochs} epochs...")
-    print(
-        f"Weight decay: {weight_decay}, Dropout: {dropout_rate}, Early stopping patience: {patience}"
-    )
-
-    for epoch in range(num_epochs):
-        train_loss = train_epoch(model, train_loader, criterion, optimizer, device)
-        val_loss = validate_epoch(model, val_loader, criterion, device)
-
-        # Update scheduler
-        scheduler.step(val_loss)
-        current_lr = optimizer.param_groups[0]["lr"]
-
-        print(
-            f"Epoch {epoch+1}/{num_epochs}, Train Loss: {train_loss:.4f}, Val Loss: {val_loss:.4f}, LR: {current_lr:.2e}"
+    # Start MLflow run
+    with mlflow.start_run(run_name=mlflow_run_name):
+        # Log hyperparameters
+        mlflow.log_params(
+            {
+                "batch_size": batch_size,
+                "learning_rate": learning_rate,
+                "num_epochs": num_epochs,
+                "weight_decay": weight_decay,
+                "dropout_rate": dropout_rate,
+                "patience": patience,
+                "augment": augment,
+                "seed": seed,
+                "num_workers": num_workers,
+                "grad_clip": grad_clip,
+                "train_samples": len(train_indices),
+                "val_samples": len(val_indices),
+                "test_samples": len(test_indices),
+                "parquet_file": str(parquet_file),
+                "device": str(device),
+            }
         )
 
-        # Log if LR changed
-        if current_lr != last_lr:
-            print(f"  -> Learning rate reduced to {current_lr:.2e}")
-            last_lr = current_lr
+        # Training loop
+        print(f"\nStarting training for {num_epochs} epochs...")
+        print(
+            f"Weight decay: {weight_decay}, Dropout: {dropout_rate}, Early stopping patience: {patience}"
+        )
 
-        # Early stopping check
-        if val_loss < best_val_loss:
-            best_val_loss = val_loss
-            best_model_state = model.state_dict().copy()
-            epochs_without_improvement = 0
-            print("  -> New best validation loss!")
-        else:
-            epochs_without_improvement += 1
+        for epoch in range(num_epochs):
+            train_loss = train_epoch(
+                model, train_loader, criterion, optimizer, device, grad_clip
+            )
+            val_loss = validate_epoch(model, val_loader, criterion, device)
 
-        if patience > 0 and epochs_without_improvement >= patience:
-            print(f"\nEarly stopping triggered after {epoch+1} epochs")
-            break
+            # Update scheduler
+            scheduler.step(val_loss)
+            current_lr = optimizer.param_groups[0]["lr"]
 
-    # Load best model state
-    if best_model_state is not None:
-        model.load_state_dict(best_model_state)
-        print(f"Restored best model with validation loss: {best_val_loss:.4f}")
+            # Log metrics to MLflow
+            mlflow.log_metrics(
+                {
+                    "train_loss": train_loss,
+                    "val_loss": val_loss,
+                    "learning_rate": current_lr,
+                },
+                step=epoch,
+            )
 
-    # Save model
-    metadata = {
-        "parquet_file": str(parquet_file),
-        "batch_size": batch_size,
-        "learning_rate": learning_rate,
-        "num_epochs": num_epochs,
-        "weight_decay": weight_decay,
-        "dropout_rate": dropout_rate,
-        "augmentation": augment,
-        "best_val_loss": best_val_loss,
-        "train_samples": len(train_indices),
-        "val_samples": len(val_indices),
-        "test_samples": len(test_indices),
-    }
-    save_model(model, output_model, metadata)
+            print(
+                f"Epoch {epoch+1}/{num_epochs}, Train Loss: {train_loss:.4f}, Val Loss: {val_loss:.4f}, LR: {current_lr:.2e}"
+            )
 
-    # Run evaluation and save results
-    print("\nRunning evaluation on all splits...")
-    _run_evaluation(
-        model,
-        eval_dataset,
-        train_indices,
-        val_indices,
-        test_indices,
-        batch_size,
-        device,
-        output_excel,
-    )
+            # Log if LR changed
+            if current_lr != last_lr:
+                print(f"  -> Learning rate reduced to {current_lr:.2e}")
+                last_lr = current_lr
+
+            # Early stopping check
+            if val_loss < best_val_loss:
+                best_val_loss = val_loss
+                best_model_state = model.state_dict().copy()
+                epochs_without_improvement = 0
+                print("  -> New best validation loss!")
+            else:
+                epochs_without_improvement += 1
+
+            final_epoch = epoch + 1
+
+            if patience > 0 and epochs_without_improvement >= patience:
+                print(f"\nEarly stopping triggered after {epoch+1} epochs")
+                break
+
+        # Load best model state
+        if best_model_state is not None:
+            model.load_state_dict(best_model_state)
+            print(f"Restored best model with validation loss: {best_val_loss:.4f}")
+
+        # Log final metrics
+        mlflow.log_metrics(
+            {
+                "best_val_loss": best_val_loss,
+                "final_epoch": final_epoch,
+            }
+        )
+
+        # Save model
+        metadata = {
+            "parquet_file": str(parquet_file),
+            "batch_size": batch_size,
+            "learning_rate": learning_rate,
+            "num_epochs": num_epochs,
+            "weight_decay": weight_decay,
+            "dropout_rate": dropout_rate,
+            "augmentation": augment,
+            "best_val_loss": best_val_loss,
+            "train_samples": len(train_indices),
+            "val_samples": len(val_indices),
+            "test_samples": len(test_indices),
+        }
+        save_model(model, output_model, metadata)
+
+        # Log model artifact to MLflow
+        mlflow.log_artifact(output_model)
+
+        # Run evaluation and save results
+        print("\nRunning evaluation on all splits...")
+        eval_metrics = _run_evaluation(
+            model,
+            eval_dataset,
+            train_indices,
+            val_indices,
+            test_indices,
+            batch_size,
+            device,
+            output_excel,
+        )
+
+        # Log evaluation metrics
+        if eval_metrics:
+            mlflow.log_metrics(eval_metrics)
+
+        # Log results excel as artifact
+        mlflow.log_artifact(output_excel)
+
+        print(f"\nMLflow run ID: {mlflow.active_run().info.run_id}")
 
 
 @cli.command()
@@ -547,16 +685,42 @@ def _run_evaluation(
     # Save results
     save_results_to_excel(train_results, val_results, test_results, output_excel)
 
-    # Print summary statistics
+    # Calculate comprehensive metrics for MLflow
+    metrics = {}
     print("\n=== Evaluation Summary ===")
     for name, df in [
-        ("Train", train_results),
-        ("Validation", val_results),
-        ("Test", test_results),
+        ("train", train_results),
+        ("val", val_results),
+        ("test", test_results),
     ]:
         if not df.empty:
-            mae = np.mean(np.abs(df["Jaccard index"] - df["Predicted Jaccard index"]))
-            print(f"{name}: {len(df)} samples, MAE: {mae:.4f}")
+            y_true = df["Jaccard index"].values
+            y_pred = df["Predicted Jaccard index"].values
+
+            # Get comprehensive metrics
+            regression_metrics = calculate_regression_metrics(y_true, y_pred)
+            tolerance_metrics = calculate_tolerance_accuracy(y_true, y_pred)
+
+            # Add to metrics dict with split prefix
+            for key, value in regression_metrics.items():
+                if isinstance(value, (int, float)):
+                    metrics[f"{name}_{key}"] = value
+            for key, value in tolerance_metrics.items():
+                metrics[f"{name}_{key}"] = value
+
+            # Print summary
+            print(f"{name.capitalize()}: {len(df)} samples")
+            print(
+                f"  R²: {regression_metrics.get('r2_score', 0):.4f}, "
+                f"MAE: {regression_metrics.get('mae', 0):.4f}, "
+                f"RMSE: {regression_metrics.get('rmse', 0):.4f}"
+            )
+            print(
+                f"  Pearson: {regression_metrics.get('pearson_correlation', 0):.4f}, "
+                f"Spearman: {regression_metrics.get('spearman_correlation', 0):.4f}"
+            )
+
+    return metrics
 
 
 if __name__ == "__main__":

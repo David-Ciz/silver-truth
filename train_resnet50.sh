@@ -40,6 +40,13 @@ WEIGHT_DECAY=1e-4
 DROPOUT_RATE=0.3
 PATIENCE=10
 AUGMENT=true  # set to false to disable augmentation
+SEED=42
+NUM_WORKERS=4
+GRAD_CLIP=1.0
+
+# MLflow configuration
+MLFLOW_EXPERIMENT="resnet50-jaccard"
+MLFLOW_RUN_NAME="job_${SLURM_JOB_ID}"
 
 # --- Setup ---
 echo "=== Job started at $(date) ==="
@@ -101,6 +108,11 @@ echo "Weight decay: ${WEIGHT_DECAY}"
 echo "Dropout rate: ${DROPOUT_RATE}"
 echo "Early stopping patience: ${PATIENCE}"
 echo "Data augmentation: ${AUGMENT}"
+echo "Random seed: ${SEED}"
+echo "Num workers: ${NUM_WORKERS}"
+echo "Gradient clipping: ${GRAD_CLIP}"
+echo "MLflow experiment: ${MLFLOW_EXPERIMENT}"
+echo "MLflow run name: ${MLFLOW_RUN_NAME}"
 echo ""
 
 # Build augmentation flag
@@ -122,7 +134,12 @@ python resnet50.py train \
     --weight-decay ${WEIGHT_DECAY} \
     --dropout-rate ${DROPOUT_RATE} \
     --patience ${PATIENCE} \
-    ${AUGMENT_FLAG}
+    ${AUGMENT_FLAG} \
+    --seed ${SEED} \
+    --num-workers ${NUM_WORKERS} \
+    --grad-clip ${GRAD_CLIP} \
+    --mlflow-experiment "${MLFLOW_EXPERIMENT}" \
+    --mlflow-run-name "${MLFLOW_RUN_NAME}"
 
 echo ""
 echo "=== Job completed at $(date) ==="

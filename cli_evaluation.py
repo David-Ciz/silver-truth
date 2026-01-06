@@ -3,6 +3,8 @@ from pathlib import Path
 from typing import Optional
 import logging
 
+import mlflow
+
 from src.evaluation.evaluation_logic import evaluate_competitor_logic
 from src.evaluation.stacked_jaccard_logic import calculate_evaluation_metrics
 from src.metrics.qa_model_evaluation import (
@@ -89,10 +91,31 @@ def calculate_evaluation_metrics_cli(parquet_path: Path):
     is_flag=True,
     help="Disable plot generation",
 )
+@click.option(
+    "--mlflow-run-id",
+    type=str,
+    default=None,
+    help="MLflow run ID to log metrics to an existing run",
+)
+@click.option(
+    "--mlflow-experiment",
+    type=str,
+    default=None,
+    help="MLflow experiment name (creates new run if --mlflow-run-id not provided)",
+)
+@click.option(
+    "--mlflow-run-name",
+    type=str,
+    default=None,
+    help="MLflow run name for new runs",
+)
 def evaluate_qa_model(
     excel_path: Path,
     output_dir: Optional[Path] = None,
     no_plots: bool = False,
+    mlflow_run_id: Optional[str] = None,
+    mlflow_experiment: Optional[str] = None,
+    mlflow_run_name: Optional[str] = None,
 ):
     """
     Evaluate QA model predictions from an Excel file.
@@ -102,13 +125,80 @@ def evaluate_qa_model(
 
     Calculates R², MAE, RMSE, tolerance-based accuracy, and generates plots.
 
+    Optionally logs metrics to MLflow (either to an existing run or a new one).
+
     NOTE: This evaluates the QA MODEL predictions, not the final ensemble results.
     """
-    evaluate_qa_model_from_excel(
+    results = evaluate_qa_model_from_excel(
         excel_path=excel_path,
         output_dir=output_dir,
         generate_plots=not no_plots,
     )
+
+    # Log to MLflow if requested
+    if mlflow_run_id or mlflow_experiment:
+        _log_qa_metrics_to_mlflow(
+            results=results,
+            excel_path=excel_path,
+            output_dir=output_dir,
+            mlflow_run_id=mlflow_run_id,
+            mlflow_experiment=mlflow_experiment,
+            mlflow_run_name=mlflow_run_name,
+        )
+
+
+def _log_qa_metrics_to_mlflow(
+    results: dict,
+    excel_path: Path,
+    output_dir: Optional[Path],
+    mlflow_run_id: Optional[str],
+    mlflow_experiment: Optional[str],
+    mlflow_run_name: Optional[str],
+):
+    """Log QA evaluation metrics to MLflow."""
+
+    def log_metrics_for_split(split_results: dict, split_name: str):
+        """Flatten and log metrics for a single split."""
+        metrics = {}
+        for key, value in split_results.items():
+            if isinstance(value, (int, float)) and key != "split":
+                # Prefix with split name for clarity
+                metric_name = f"{split_name}_{key}"
+                metrics[metric_name] = value
+        if metrics:
+            mlflow.log_metrics(metrics)
+
+    if mlflow_run_id:
+        # Log to existing run
+        with mlflow.start_run(run_id=mlflow_run_id):
+            logging.info(f"Logging QA metrics to existing MLflow run: {mlflow_run_id}")
+            for split_name, split_results in results.items():
+                log_metrics_for_split(split_results, split_name)
+
+            # Log artifacts
+            mlflow.log_artifact(str(excel_path))
+            if output_dir and output_dir.exists():
+                mlflow.log_artifacts(str(output_dir), artifact_path="evaluation")
+    else:
+        # Create new run
+        if mlflow_experiment:
+            mlflow.set_experiment(mlflow_experiment)
+
+        with mlflow.start_run(run_name=mlflow_run_name):
+            logging.info(f"Created new MLflow run: {mlflow.active_run().info.run_id}")
+
+            # Log the excel path as a parameter
+            mlflow.log_param("excel_path", str(excel_path))
+
+            for split_name, split_results in results.items():
+                log_metrics_for_split(split_results, split_name)
+
+            # Log artifacts
+            mlflow.log_artifact(str(excel_path))
+            if output_dir and output_dir.exists():
+                mlflow.log_artifacts(str(output_dir), artifact_path="evaluation")
+
+            logging.info(f"MLflow run ID: {mlflow.active_run().info.run_id}")
 
 
 @click.command()
