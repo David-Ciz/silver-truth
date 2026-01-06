@@ -51,12 +51,15 @@ echo ""
 
 # Request interactive job with srun
 # Using srun instead of salloc to directly run the commands
+# NOTE: --ntasks=1 is critical - we only want ONE process running the training
+#       --cpus-per-task=64 gives that one process access to all CPU cores
 srun --job-name=resnet50_interactive \
      --account=eu-25-40 \
      --partition=qgpu \
      --nodes=1 \
      --gpus=1 \
-     --ntasks-per-node=64 \
+     --ntasks=1 \
+     --cpus-per-task=64 \
      --time=4:00:00 \
      --pty bash -c "
 set -e
@@ -70,6 +73,7 @@ ml Python/3.11.3-GCCcore-12.3.0
 ml libjpeg-turbo/2.1.5.1-GCCcore-12.3.0
 
 # Activate virtual environment
+echo 'Activating venv: ${VENV_DIR}'
 source ${VENV_DIR}/bin/activate
 
 # Create output directories

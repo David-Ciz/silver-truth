@@ -4,7 +4,7 @@
 #SBATCH --partition qgpu
 #SBATCH --nodes 1
 #SBATCH --gpus 1
-#SBATCH --ntasks-per-node 64
+#SBATCH --ntasks-per-node 1
 #SBATCH --time 4:00:00
 #SBATCH --output=logs/resnet50_%j.out
 #SBATCH --error=logs/resnet50_%j.err
