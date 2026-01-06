@@ -1,6 +1,6 @@
 #!/bin/bash
 #SBATCH --job-name resnet50_jaccard
-#SBATCH --account EU-25-40
+#SBATCH --account eu-25-40
 #SBATCH --partition qgpu
 #SBATCH --nodes 1
 #SBATCH --gpus 1
@@ -18,16 +18,16 @@
 #
 # Data Strategy:
 # - Code lives in: /home/davidciz/silver-truth (git repo)
-# - Data copied to: /scratch/project/<project>/silver-truth-data (shared scratch)
-# - The data is copied ONCE and reused across jobs (scratch is persistent)
-# - Model outputs saved back to home directory
+# - Data managed by DVC, cached at: /mnt/proj1/... (project storage - slow)
+# - For training: copy data to /scratch/... (fast local SSD)
+# - Scratch data persists between jobs, so only copy once
 # =============================================================================
 
 set -e  # Exit on any error
 
 # --- Configuration ---
 HOME_DIR="/home/davidciz/silver-truth"
-SCRATCH_DATA="/scratch/project/open-25-40/silver-truth-data"
+SCRATCH_DATA="/scratch/project/eu-25-40/silver-truth-data"
 PARQUET_FILE="${HOME_DIR}/dataframes/BF-C2DL-HSC_QA_crops_64_split70-15-15_seed42.parquet"
 OUTPUT_DIR="${HOME_DIR}/models"
 RESULTS_DIR="${HOME_DIR}/results"
@@ -55,32 +55,47 @@ mkdir -p ${OUTPUT_DIR}
 mkdir -p ${RESULTS_DIR}
 mkdir -p ${HOME_DIR}/logs
 
-# --- Data Setup (One-time copy to shared scratch) ---
-# Check if data already exists on scratch
-DATA_SOURCE="${HOME_DIR}/data/qa_data/BF-C2DL-HSC_crops_64"
-DATA_DEST="${SCRATCH_DATA}/data/qa_data/BF-C2DL-HSC_crops_64"
+cd ${HOME_DIR}
 
-if [ ! -d "${DATA_DEST}" ]; then
-    echo "Copying data to scratch (first time setup)..."
+# --- Data Setup ---
+# Step 1: Ensure DVC data is available (symlinked from project storage)
+echo "Checking DVC data in repo..."
+if [ ! -d "${HOME_DIR}/data/qa_data/BF-C2DL-HSC_crops_64" ]; then
+    echo "Pulling data from DVC..."
+    dvc pull data/qa_data/BF-C2DL-HSC_crops_64.dvc
+fi
+
+# Step 2: Copy to scratch for fast I/O (only if not already there)
+DATA_SRC="${HOME_DIR}/data/qa_data/BF-C2DL-HSC_crops_64"
+DATA_SCRATCH="${SCRATCH_DATA}/data/qa_data/BF-C2DL-HSC_crops_64"
+
+if [ ! -d "${DATA_SCRATCH}" ]; then
+    echo "Copying data to scratch for fast I/O..."
     mkdir -p "${SCRATCH_DATA}/data/qa_data"
-    cp -r "${DATA_SOURCE}" "${DATA_DEST}"
-    echo "Data copy complete: $(ls -1 ${DATA_DEST} | wc -l) files"
+    # Use cp -L to follow symlinks and copy actual files
+    cp -rL "${DATA_SRC}" "${DATA_SCRATCH}"
+    echo "Copy complete: $(ls -1 ${DATA_SCRATCH} | wc -l) files"
 else
-    echo "Data already exists on scratch: $(ls -1 ${DATA_DEST} | wc -l) files"
+    echo "Data already on scratch: $(ls -1 ${DATA_SCRATCH} | wc -l) files"
+fi
+
+# Verify data is accessible
+if [ ! -d "${DATA_SCRATCH}" ]; then
+    echo "ERROR: Data directory not found on scratch!"
+    exit 1
 fi
 
 # --- Training ---
 echo ""
 echo "=== Starting Training ==="
 echo "Parquet file: ${PARQUET_FILE}"
-echo "Data root: ${SCRATCH_DATA}"
+echo "Data root (scratch): ${SCRATCH_DATA}"
 echo "Batch size: ${BATCH_SIZE}"
 echo "Learning rate: ${LEARNING_RATE}"
 echo "Epochs: ${NUM_EPOCHS}"
 echo ""
 
-cd ${HOME_DIR}
-
+# Use --data-root to point to scratch where data was copied
 python resnet50.py train \
     --parquet-file "${PARQUET_FILE}" \
     --data-root "${SCRATCH_DATA}" \
@@ -94,4 +109,3 @@ echo ""
 echo "=== Job completed at $(date) ==="
 echo "Model saved to: ${OUTPUT_DIR}/resnet50_jaccard_${SLURM_JOB_ID}.pt"
 echo "Results saved to: ${RESULTS_DIR}/results_resnet50_${SLURM_JOB_ID}.xlsx"
-
