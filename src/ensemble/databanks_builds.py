@@ -105,12 +105,6 @@ def build_analysis_databank(qa_dataset_dataframe_path: str, output_path: str) ->
     ext.compress_images(output_path)
 
 
-def build_databank_old(qa_dataset_dataframe_path: str, output_path: str, version: Version):
-    #if version == Version.C1:
-    #_build_databank(qa_dataset_dataframe_path, output_path)
-    pass
-
-
 def build_databank(
         name: str,
         version: Version,

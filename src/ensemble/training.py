@@ -113,6 +113,7 @@ def _get_stacked_images(dataset, num):
 
 
 def _train_model(
+        databank_name,
         run_params,
         train_dataset, 
         val_dataset, 
@@ -156,7 +157,7 @@ def _train_model(
         max_epochs=max_epochs,
         callbacks=[
             ModelCheckpoint(
-                filename= f"{model_type.name}",
+                filename= f"{databank_name}_{model_type.name}",
                 dirpath = _checkpoint_path,
                 monitor="val_loss",
                 mode="min",
@@ -182,6 +183,7 @@ def _train_model(
 
 def _visualize_reconstructions(model, train_set):
     train_imgs, gt_images = train_set[0], train_set[1]
+    model.to(utils.get_device()) # bypass LevelTrigger issue
     # Reconstruct images
     model.eval()
     with torch.no_grad():
@@ -215,7 +217,7 @@ def _visualize_dataset(subset):
     plt.waitforbuttonpress(0)
 
 
-def run(run_params: dict, parquet_path: str, rand_seed: int=42) -> None:
+def run(databank_name: str, run_params: dict, parquet_path: str, rand_seed: int=42) -> None:
     """
     Run a training session.
     With "remote", there's no visual feedback, such as image reconstructions.
@@ -255,7 +257,7 @@ def run(run_params: dict, parquet_path: str, rand_seed: int=42) -> None:
     
     # dataloaders
     batch_size = 7
-    train_loader = data.DataLoader(train_set, batch_size=batch_size, shuffle=True, drop_last=True, pin_memory=True)
+    train_loader = data.DataLoader(train_set, batch_size=batch_size, shuffle=True, drop_last=True)
     val_loader = data.DataLoader(val_set, batch_size=batch_size, shuffle=False, drop_last=False)
     test_loader = data.DataLoader(test_set, batch_size=batch_size, shuffle=False, drop_last=False)
 
@@ -276,6 +278,7 @@ def run(run_params: dict, parquet_path: str, rand_seed: int=42) -> None:
 
     # train model
     model, result = _train_model(
+        databank_name,
         run_params,
         train_set,
         val_set,
@@ -285,5 +288,5 @@ def run(run_params: dict, parquet_path: str, rand_seed: int=42) -> None:
     )
 
     # DEBUG only
-    #_visualize_reconstructions(model, _get_stacked_images(val_set, 16))
+    _visualize_reconstructions(model, _get_stacked_images(val_set, 16))
     print("Done.")

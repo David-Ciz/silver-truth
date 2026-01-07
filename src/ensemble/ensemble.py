@@ -1,7 +1,8 @@
 import logging
 import mlflow
 from src.ensemble.datasets import EnsembleDatasetC1
-from src.ensemble.databanks_builds import build_databank, build_analysis_databank, build_analysis_databank_full, Version
+from src.ensemble.databanks_builds import Version
+import src.ensemble.databanks_builds as db_builds
 import src.ensemble.envs as envs
 import src.ensemble.external as ext
 import src.ensemble.training as training
@@ -18,38 +19,26 @@ logging.basicConfig(level=logging.INFO, format="\n%(asctime)s ### %(levelname)s 
 _logger = logging.getLogger(__name__)
 
 
-def build_databanks(original_dataset_path: str, dataset_name: str, dataset_version: Version, crop_size: int) -> tuple[str,str]:
+def build_databank(qa_parquet_path: str, dataset_name: str, dataset_version: Version, crop_size: int) -> str:
     """
     Builds the QA and Ensemble databanks.
     """
-    #dataset_dataframe_path = f"data/dataframes/{dataset_name}_dataset_dataframe.parquet"
-    qa_output_path = f"data/ensemble_data/qa/qa_{dataset_name}"
-    qa_parquet_path = f"data/ensemble_data/qa/qa_{dataset_name}.parquet"
-    #"""
-    # build required qa dataset
-    qa_pp.create_qa_dataset(original_dataset_path, 
-                            qa_output_path,
-                            qa_parquet_path,  
-                            crop_size=crop_size)
-    # compress images to save space
-    ext.compress_images(qa_output_path)
-    #"""
     # build ensemble dataset
     ensemble_datasets_path = "data/ensemble_data/datasets"
-    output_parquet_path = build_databank(dataset_name, dataset_version, qa_parquet_path, ensemble_datasets_path)
-    return output_parquet_path, qa_parquet_path
+    output_parquet_path = db_builds.build_databank(dataset_name, dataset_version, qa_parquet_path, ensemble_datasets_path)
+    return output_parquet_path
 
 
-def build_analysis_databanks(dataset_name: str, mode: str) -> None:
+def build_analysis_databanks(qa_parquet_path: str, dataset_name: str, mode: str) -> None:
     """
     Build databanks that allow data visualization.
     Requires previous call to build_databanks().
     Parameter <mode> can be 'all', 'crop' or 'full'.
     """
     if mode == "all" or mode == "crop":
-        build_analysis_databank(f"data/ensemble_data/qa/qa_{dataset_name}.parquet", f"data/ensemble_data/qa/qa_{dataset_name}_viz")
+        db_builds.build_analysis_databank(qa_parquet_path, f"data/ensemble_data/qa/qa_{dataset_name}_viz")
     if mode == "all" or mode == "full":
-        build_analysis_databank_full(f"data/ensemble_data/qa/qa_{dataset_name}.parquet", f"data/ensemble_data/qa/qa_{dataset_name}_vizfull")
+        db_builds.build_analysis_databank_full(qa_parquet_path, f"data/ensemble_data/qa/qa_{dataset_name}_vizfull")
 
 
 
@@ -75,7 +64,7 @@ def _set_mlflow_experiment(name: str) -> None:
         mlflow.set_experiment(name)
 
 
-def run_experiment(name: str, parquet_file: str, run_sequence: list[dict]):
+def run_experiment(name: str, databank_name: str, parquet_file: str, run_sequence: list[dict]):
     "Entry point for new Ensemble experiment."
 
     _set_mlflow_experiment(name)
@@ -89,7 +78,7 @@ def run_experiment(name: str, parquet_file: str, run_sequence: list[dict]):
             with mlflow.start_run() as mlflow_run:
                 run_id = mlflow_run.info.run_id
                 _logger.info(f"MLflow experiment \"{name}\": a run started with ID \"{run_id}\".")
-                training.run(run_params, parquet_file)
+                training.run(databank_name, run_params, parquet_file)
         except Exception as ex:
                 print(f"Error during Ensemble experiment: {ex}")
                 mlflow.set_tag("status", "failed")
