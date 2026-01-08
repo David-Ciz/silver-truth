@@ -118,8 +118,8 @@ def generate_evaluation(model_path: str, databank_path: str, split_type: str = "
     model = SMP_Model.load_from_checkpoint(model_path, device=utils.get_device(), weights_only=False)
 
     model_dir = os.path.dirname(model_path)
-    model_name = os.path.basename(model_path).split(".ckpt")
-    dataset_name = os.path.basename(databank_path).split(".parquet")
+    model_name = os.path.basename(model_path).split(".ckpt")[0]
+    dataset_name = os.path.basename(databank_path).split(".parquet")[0]
     output_parquet_path = os.path.join(model_dir, f"{dataset_name}_{model_name}_set-{split_type}.parquet")
 
     # load dataset
