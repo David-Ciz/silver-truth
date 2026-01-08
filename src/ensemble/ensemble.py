@@ -13,6 +13,8 @@ from src.data_processing.utils.parquet_utils import same_splits
 import segmentation_models_pytorch as smp
 import torch
 import pandas as pd
+import os
+from enum import Enum
 
 
 # Basic Logging Setup
@@ -25,8 +27,7 @@ def build_databank(build_opt: dict, qa_parquet_path: str) -> str:
     Builds the Ensemble databank.
     """
     # build ensemble dataset
-    ensemble_datasets_path = "data/ensemble_data/datasets"
-    ensemble_parquet_path = db_builds.build_databank(build_opt, qa_parquet_path, ensemble_datasets_path)
+    ensemble_parquet_path = db_builds.build_databank(build_opt, qa_parquet_path, utils.DATABANKS_DIR)
 
     # confirm that the splits are the same
     same_splits_result = same_splits(qa_parquet_path, ensemble_parquet_path)
@@ -105,18 +106,25 @@ def _get_eval_sets(dataset):
     return torch.stack(imgs, dim=0), torch.stack(gts, dim=0)
 
 
-def generate_evaluation(model_path: str, dataset_path: str, split_type: str = "test") -> str:
+def generate_evaluation(model_path: str, databank_path: str, split_type: str = "test") -> str:
     """
-    Generate a parquet file with the evaluation of the given model checkpoint against the test set of the given dataset.
+    Generate a parquet file with the evaluation of the given model checkpoint against the given set of a databank.
+    If split_type is "all", it creates a copy of the parquet file with the metrics added.
     """
     
     # load model
     #TODO: what about if it's other models
-    model = SMP_Model.load_from_checkpoint(model_path, device=utils.get_device())
+    #torch.serialization.add_safe_globals([ModelType])
+    model = SMP_Model.load_from_checkpoint(model_path, device=utils.get_device(), weights_only=False)
+
+    model_dir = os.path.dirname(model_path)
+    model_name = os.path.basename(model_path).split(".ckpt")
+    dataset_name = os.path.basename(databank_path).split(".parquet")
+    output_parquet_path = os.path.join(model_dir, f"{dataset_name}_{model_name}_set-{split_type}.parquet")
 
     # load dataset
     #TODO: what if it's other dataset?
-    dataset = EnsembleDatasetC1(dataset_path, split_type)
+    dataset = EnsembleDatasetC1(databank_path, split_type)
     input_set, target_set = _get_eval_sets(dataset)
     input_set = input_set.to(model.device)
     target_set = target_set.to(model.device)
@@ -136,26 +144,27 @@ def generate_evaluation(model_path: str, dataset_path: str, split_type: str = "t
     # create dataframe
     data_list = []
     # load dataframe
-    df = ext.load_parquet(dataset_path)
-    df = df[df["split"]==split_type]
-    
-    for index, row in enumerate(df.itertuples()):
-        data_list.append(
-        {
-            "image_path": row.image_path,
-            "tp": tp[index].item(),
-            "fp": fp[index].item(),
-            "fn": fn[index].item(),
-            "tn": tn[index].item(),
-            "iou": iou[index].item(),
-            "f1": f1[index].item(),
-        })
-    output_df = pd.DataFrame(data_list)
+    df = ext.load_parquet(databank_path)
+    if split_type != "all":
+        df = df[df["split"]==split_type]
+        for index, row in enumerate(df.itertuples()):
+            data_list.append(
+            {
+                "image_path": row.image_path,
+                "tp": tp[index].item(),
+                "fp": fp[index].item(),
+                "fn": fn[index].item(),
+                "tn": tn[index].item(),
+                "iou": iou[index].item(),
+                "f1": f1[index].item(),
+            })
+        output_df = pd.DataFrame(data_list)
+        # save results        
+        output_df.to_parquet(output_parquet_path)
+        
+    else: # add metric to a copy of the input parquet file
+        df[model_name+"_iou"] = iou.numpy()
+        df[model_name+"_f1"] = f1.numpy()
+        df.to_parquet(output_parquet_path)
 
-    # save results
-    model_reference = model_path.split("/")[-1]
-    dataset_reference = dataset_path.split("/")[-1][len("ensemble_"):-len(".parquet")]
-    output_parquet_path = f"{model_path[:-len(model_reference)]}eval_{model_reference[:-len(".ckpt")]}_{dataset_reference}_{split_type}set" + ".parquet"
-    
-    output_df.to_parquet(output_parquet_path)
     return output_parquet_path
