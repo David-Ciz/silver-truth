@@ -210,6 +210,7 @@ def create_qa_dataset(
 
                         # Save the stacked image
                         # Include campaign number in cell_id to distinguish between campaigns
+                        #TODO: cell_id = f"c{campaign_number}_{raw_image_path.stem}_{label}_{competitor}"
                         cell_id = f"c{campaign_number}_{raw_image_path.stem}_{competitor}_{label}"
                         stacked_path = output_path / f"{cell_id}.tif"
                         tifffile.imwrite(stacked_path, stacked_crop)

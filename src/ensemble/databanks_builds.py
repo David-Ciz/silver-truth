@@ -8,11 +8,14 @@ from scipy.ndimage import find_objects
 from src.ensemble import utils
 import src.ensemble.external as ext
 from src.ensemble.datasets import Version
+import src.data_processing.utils.parquet_utils as p_utils
 
 ORIGINAL_DATASETS = {
     "BF-C2DL-HSC": "ds1",
     "BF-C2DL-MuSC": "ds2",
  }
+
+SPLIT_COL = p_utils.SPLITS_COLUMN
 
 
 def build_analysis_databank_full(qa_dataset_path: str, output_path: str) -> None:
@@ -130,7 +133,7 @@ def build_databank(
     #TODO: add support for additional dataset versions.
 
     # destination path of the created images
-    qa_name = f"{build_opt["qa"]}--{int(build_opt["qa_threshold"]*100)}" if build_opt["qa"] else "QA--"
+    qa_name = f"{build_opt["qa"]}-{int(build_opt["qa_threshold"]*100)}" if build_opt["qa"] else "QA--"
     databank_foldername = f"{build_opt["version"].name}_{ORIGINAL_DATASETS[build_opt["name"]]}-{utils.get_splits_name(build_opt)}_{qa_name}"
     images_output_path = os.path.join(output_path, databank_foldername)
     # create images path if it doesn't exist
@@ -141,6 +144,7 @@ def build_databank(
 
     # loads the QA dataset
     df = ext.load_parquet(qa_dataset_path)
+
     # get the gt images
     unique_gt_images = df["gt_image"].unique()
     # get crop size
@@ -169,8 +173,17 @@ def build_databank(
             canvas = np.zeros((canvas_size, canvas_size), dtype=np.int32)
             # select first row
             first_row = df_same_cell.iloc[0]
+            # confirm that all cells have the same split type
+            assert((df_same_cell.split.values == first_row.split).all())
+
             # gets the original center that is used to center and overlap the competitors segmentations
             qa_crop_original_center_y, qa_crop_original_center_x = first_row["original_center_y"], first_row["original_center_x"]
+
+            # filter segmentations according to QA
+            if build_opt["qa"] is not None:
+                df_same_cell = df_same_cell[df_same_cell[build_opt["qa"]] > build_opt["qa_threshold"]]
+                if len(df_same_cell) == 0:
+                    df_same_cell = df_same_cell.iloc[df_same_cell[build_opt["qa"]].idxmax()]
 
             # go through the competitors segmentations and add them to canvas
             for row in df_same_cell.itertuples():
@@ -240,6 +253,10 @@ def build_databank(
                     "label": label,
                     "crop_size": crop_size,
                     "image_path": new_image_path,
+                    "gt_image": gt_image_path,
+                    SPLIT_COL: first_row[SPLIT_COL],
+                    "qa_jaccard_avg": df_same_cell[build_opt["qa"]].mean() if build_opt["qa"] else 0,
+                    "qa_jaccard_min": df_same_cell[build_opt["qa"]].min() if build_opt["qa"] else 0,
                 }
             )
 

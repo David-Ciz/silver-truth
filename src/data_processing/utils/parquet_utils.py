@@ -65,20 +65,15 @@ def add_split_type(parquet_path: str, build_opt: dict) -> str:
 def _get_uniques(parquet_path) -> np.ndarray:
     # load dataframe
     df = ddc.load_dataframe_from_parquet_with_metadata(parquet_path)
-    is_ensemple = not set(CELL_ID_COLUMNS).issubset(df.columns)
-    if is_ensemple:
-        return df[SPLITS_COLUMN].to_numpy()
-    else:
-        uniques_col = ",".join(CELL_ID_COLUMNS)
-        df[uniques_col] = df[CELL_ID_COLUMNS[0]] + df[CELL_ID_COLUMNS[1]].astype(str)
-        a = df[[uniques_col, SPLITS_COLUMN]].drop_duplicates()
-        return df[[uniques_col, SPLITS_COLUMN]].drop_duplicates()[SPLITS_COLUMN].to_numpy()
+    uniques_col = ",".join(CELL_ID_COLUMNS)
+    df[uniques_col] = df[CELL_ID_COLUMNS[0]] + df[CELL_ID_COLUMNS[1]].apply(lambda x: "%04d" % (x))
+    uniques = df[[uniques_col, SPLITS_COLUMN]].drop_duplicates().sort_values(by=uniques_col)
+    return uniques[SPLITS_COLUMN].to_numpy()
 
 
 def same_splits(parquet1_path: str, parquet2_path: str) -> bool:
     """
     Check if the 2 parquets have the same splits.
-    Assumes the files are in the same order.
     """
     uniques1 =_get_uniques(parquet1_path)
     uniques2 =_get_uniques(parquet2_path)
