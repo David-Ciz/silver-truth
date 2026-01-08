@@ -4,6 +4,13 @@ from scipy.ndimage import find_objects
 import src.ensemble.external as ext
 import torch
 
+ORIGINAL_DATASETS = {
+    "BF-C2DL-HSC": "ds1",
+    "BF-C2DL-MuSC": "ds2",
+ }
+
+DATABANKS_DIR = "data/ensemble_data/databanks"
+
 
 def get_device():
     return torch.device("cuda:0") if torch.cuda.is_available() else torch.device("cpu")
@@ -42,6 +49,14 @@ def find_largest_gt_cell_size(dataset_dataframe_path: str) -> tuple[int,str]:
                     largest_size = max_seg_size
                     largest_size_img = gt_image_path
     return largest_size, largest_size_img
+
+
+def get_databank_name(build_opt: dict) -> str:
+    """
+    Returns the databank name according to a build options dictionary.
+    """
+    qa_name = f"{build_opt["qa"]}-{int(build_opt["qa_threshold"]*100)}" if build_opt["qa"] else "QA--"
+    return f"{build_opt["version"].name}_{ORIGINAL_DATASETS[build_opt["name"]]}-{get_splits_name(build_opt)}_{qa_name}"
 
 
 def get_splits_name(build_opt: dict) -> str:
