@@ -10,11 +10,6 @@ import src.ensemble.external as ext
 from src.ensemble.datasets import Version
 import src.data_processing.utils.parquet_utils as p_utils
 
-ORIGINAL_DATASETS = {
-    "BF-C2DL-HSC": "ds1",
-    "BF-C2DL-MuSC": "ds2",
- }
-
 SPLIT_COL = p_utils.SPLITS_COLUMN
 
 
@@ -133,8 +128,7 @@ def build_databank(
     #TODO: add support for additional dataset versions.
 
     # destination path of the created images
-    qa_name = f"{build_opt["qa"]}-{int(build_opt["qa_threshold"]*100)}" if build_opt["qa"] else "QA--"
-    databank_foldername = f"{build_opt["version"].name}_{ORIGINAL_DATASETS[build_opt["name"]]}-{utils.get_splits_name(build_opt)}_{qa_name}"
+    databank_foldername = utils.get_databank_name(build_opt)
     images_output_path = os.path.join(output_path, databank_foldername)
     # create images path if it doesn't exist
     Path(images_output_path).mkdir(parents=True, exist_ok=True)
