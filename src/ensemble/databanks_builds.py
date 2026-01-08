@@ -154,6 +154,9 @@ def build_databank(
     canvas_size = crop_size * 4 if crop_size <= 64 else crop_size * 2
     canvas_half_size = canvas_size // 2
 
+    print(f"\n{build_opt}")
+    num_removed_segs = 0
+
     # go through the gt images
     for gt_image_path in tqdm(
         unique_gt_images, total=len(unique_gt_images), desc="Iterating over gt"
@@ -179,12 +182,17 @@ def build_databank(
             # gets the original center that is used to center and overlap the competitors segmentations
             qa_crop_original_center_y, qa_crop_original_center_x = first_row["original_center_y"], first_row["original_center_x"]
 
+            num_segs = len(df_same_cell)
             # filter segmentations according to QA
             if build_opt["qa"] is not None:
-                df_same_cell = df_same_cell[df_same_cell[build_opt["qa"]] > build_opt["qa_threshold"]]
-                if len(df_same_cell) == 0:
-                    df_same_cell = df_same_cell.iloc[df_same_cell[build_opt["qa"]].idxmax()]
+                df_same_cell_thresh = df_same_cell[df_same_cell[build_opt["qa"]] > build_opt["qa_threshold"]]
+                if len(df_same_cell_thresh) > 0:
+                    df_same_cell = df_same_cell_thresh
+                else:
+                    max_ite = df_same_cell[build_opt["qa"]].values.argmax()
+                    df_same_cell = df_same_cell.iloc[max_ite:max_ite+1]
 
+            num_removed_segs += num_segs - len(df_same_cell)
             # go through the competitors segmentations and add them to canvas
             for row in df_same_cell.itertuples():
                 # load competitor segmentation from qa
@@ -259,6 +267,8 @@ def build_databank(
                     "qa_jaccard_min": df_same_cell[build_opt["qa"]].min() if build_opt["qa"] else 0,
                 }
             )
+
+    print(f"Number of removed segmentations: {num_removed_segs} ({((num_removed_segs/len(df))*100):.2f}%)")
 
     # convert list to dataframe
     output_df = pd.DataFrame(data_list)
