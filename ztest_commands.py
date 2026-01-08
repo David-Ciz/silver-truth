@@ -59,7 +59,6 @@ def build_qa_databank(build_opt, original_dataset_dir="data/dataframes", qa_parq
 
 
 def build_ensemble_databanks(build_opt_list, qa_parquet_dir="data/ensemble_data/qa"):
-
     ##### 5) build Ensemble databanks
     ensemble_databanks = []
     for build_opt in build_opt_list:
@@ -69,27 +68,26 @@ def build_ensemble_databanks(build_opt_list, qa_parquet_dir="data/ensemble_data/
     return ensemble_databanks
 
 
-def train_networks(ensemble_databanks):
+def train_model(ensemble_databank_path):
     ##### 6) train models
     ds_ensemble_split = f"data/ensemble_data/datasets/ensemble_{ds_create_opt["version"].name}_{ds_create_opt["name"]}_split{ds_create_opt["split_seed"]}.parquet"
 
     # train models
     experiment_name = f"{ds_create_opt["name"]}_exp1"
-    databank_reference = os.path.basename(ds_ensemble_split)[len("ensemble_"):-len(".parquet")]
+    databank_name = os.path.basename(ds_ensemble_split)[len("ensemble_"):-len(".parquet")]
     train_parquet_path = f"{os.path.join(os.getcwd(), ds_ensemble_split)}"
     run_sequence = [
         {"model_type": ModelType.Unet, "max_epochs": 2, "databank": None}, 
         #{"model_type": ModelType.UnetPlusPlus, "max_epochs": 100, "qa": None}
     ]
-    ensemble.run_experiment(experiment_name, databank_reference, train_parquet_path, run_sequence)
+    ensemble.run_experiment(experiment_name, databank_name, train_parquet_path, run_sequence)
 
 
-def evaluate_networks():
-    results_example = [#{"strategy": "Unet_BF-C2DL-HSC_split42_testset", "file": "data/ensemble_data/results/checkpoints/eval_Unet_BF-C2DL-HSC_split42_testset.parquet"},
-                   {"strategy": "UnetPlusPlus_BF-C2DL-HSC_split42_testset", "file": "data/ensemble_data/results/checkpoints/eval_UnetPlusPlus_BF-C2DL-HSC_split42_testset.parquet"}
-                   ]
-    evaluate_strategies("evaluation_test1", results_example)
-
+def evaluate_models(models_paths, build_opt_list):
+    for model_path in models_paths:
+        for build_opt in build_opt_list:
+            databanks_path = os.path.join( utils.DATABANKS_DIR,f"{utils.get_databank_name(build_opt)}.parquet")
+            ensemble.generate_evaluation(model_path, databanks_path)
 
 
 build_opt_list = [
@@ -103,17 +101,21 @@ build_opt_list = [
     {"name": "BF-C2DL-HSC", "version": Version.C1, "crop_size": 64, "split_seed": 42, "split_sets": [0.7,0.15,0.15], "qa": "QA-b1", "qa_threshold": 0.80},
     {"name": "BF-C2DL-HSC", "version": Version.C1, "crop_size": 64, "split_seed": 42, "split_sets": [0.7,0.15,0.15], "qa": "QA-b1", "qa_threshold": 0.85},
     {"name": "BF-C2DL-HSC", "version": Version.C1, "crop_size": 64, "split_seed": 42, "split_sets": [0.7,0.15,0.15], "qa": "QA-b1", "qa_threshold": 0.90},
-    {"name": "BF-C2DL-MuSC", "version": Version.C1, "crop_size": 512, "split_seed": 42, "split_sets": [0.7,0.15,0.15], "qa": None},
+    #{"name": "BF-C2DL-MuSC", "version": Version.C1, "crop_size": 512, "split_seed": 42, "split_sets": [0.7,0.15,0.15], "qa": None},
 ]
 
-qa_parquet_path = build_qa_databank(build_opt_list[0])
+#qa_parquet_path = build_qa_databank(build_opt_list[0])
 ## OPTIONAL: build analysis databanks in order to better visualize the data
-ensemble.build_analysis_databanks(build_opt_list[0]["name"], qa_parquet_path, 'all')
-ensemble_databanks = build_ensemble_databanks(build_opt_list)
+#ensemble.build_analysis_databanks(build_opt_list[0]["name"], qa_parquet_path, 'all')
+#ensemble_databanks = build_ensemble_databanks(build_opt_list)
 
+#train_model()
 
-#train_networks()
-#evaluate_networks()
+models_paths = [
+    "data/ensemble_data/results/checkpoints/C1_ds1-42-7015_QA--/M1--.ckpt",
+    "data/ensemble_data/results/checkpoints/C1_ds1-42-7015_QA--/M2--.ckpt"
+]
+evaluate_models(models_paths, build_opt_list)
 
 a = 0
 
