@@ -36,7 +36,7 @@ def build_databank(build_opt: dict, qa_parquet_path: str) -> str:
     return ensemble_parquet_path
 
 
-def build_analysis_databanks(qa_parquet_path: str, dataset_name: str, mode: str) -> None:
+def build_analysis_databanks(dataset_name: str, qa_parquet_path: str, mode: str) -> None:
     """
     Build databanks that allow data visualization.
     Requires previous call to build_databanks().

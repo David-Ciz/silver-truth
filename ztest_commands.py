@@ -19,11 +19,11 @@ import src.qa.preprocessing as  qa_pp
 
 # ----- Workflow ----- #
 
-def build_qa_databank(build_opt):
+def build_qa_databank(build_opt, original_dataset_dir="data/dataframes", qa_parquet_dir="data/ensemble_data/qa"):
     ##### 1) generate QA parquet
-    original_dataset_path = f"data/dataframes/{build_opt["name"]}_dataset_dataframe.parquet"
-    qa_output_path = f"data/ensemble_data/qa/qa_{build_opt["name"]}"
-    qa_parquet_path = f"data/ensemble_data/qa/qa_{build_opt["name"]}.parquet"
+    original_dataset_path = os.path.join(original_dataset_dir, f"{build_opt["name"]}_dataset_dataframe.parquet")
+    qa_output_path = os.path.join(qa_parquet_dir, f"qa_{build_opt["name"]}")
+    qa_parquet_path = os.path.join(qa_parquet_dir, f"qa_{build_opt["name"]}.parquet")
 
     # build required QA databanks
     qa_pp.create_qa_dataset(
@@ -51,14 +51,14 @@ def build_qa_databank(build_opt):
 
     ##### 4) integrate results into a parquet
     qa_results_list = [
-        excel2csv(f"data/ensemble_data/qa/{build_opt["name"]}_QA-a1.xlsx"),
-        f"data/ensemble_data/qa/{build_opt["name"]}_QA-b1.parquet"
+        excel2csv(os.path.join(qa_parquet_dir, f"{build_opt["name"]}_QA-a1.xlsx")),
+        os.path.join(qa_parquet_dir, f"{build_opt["name"]}_QA-b1.parquet")
         ]
     new_parquet_path = integrate_results(ds_qa_split, qa_results_list)
     return new_parquet_path
 
 
-def build_ensemble_databanks(build_opt_list, qa_parquet_dir="data/ensemble_data/qa/"):
+def build_ensemble_databanks(build_opt_list, qa_parquet_dir="data/ensemble_data/qa"):
 
     ##### 5) build Ensemble databanks
     ensemble_databanks = []
@@ -107,8 +107,8 @@ build_opt_list = [
 ]
 
 qa_parquet_path = build_qa_databank(build_opt_list[0])
-# OPTIONAL: build analysis databanks in order to better visualize the data
-ensemble.build_analysis_databanks(qa_parquet_path, build_opt_list[0]["name"], 'all')
+## OPTIONAL: build analysis databanks in order to better visualize the data
+ensemble.build_analysis_databanks(build_opt_list[0]["name"], qa_parquet_path, 'all')
 ensemble_databanks = build_ensemble_databanks(build_opt_list)
 
 
