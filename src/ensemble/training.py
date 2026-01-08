@@ -157,8 +157,8 @@ def _train_model(
         max_epochs=max_epochs,
         callbacks=[
             ModelCheckpoint(
-                filename= f"{databank_name}_{model_type.name}",
-                dirpath = _checkpoint_path,
+                filename= f"M{model_type.value}-{databank_name.split("QA-")[1]}",
+                dirpath = f"{_checkpoint_path}/{databank_name}",
                 monitor="val_loss",
                 mode="min",
                 save_top_k=1,
