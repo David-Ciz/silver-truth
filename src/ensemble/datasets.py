@@ -51,8 +51,9 @@ class EnsembleDatasetC1(Dataset):
         
         # fill tensors with actual data
         for index, row in enumerate(df.itertuples()):
-            if row.split != split:
-                continue
+            if row.split != "all":
+                if row.split != split:
+                    continue
             # load the image
             composed_image = tifffile.imread(row.image_path) # type: ignore
             # split the composed image
