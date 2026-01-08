@@ -3,6 +3,7 @@ import numpy as np
 import tifffile
 import random
 import src.data_processing.utils.dataset_dataframe_creation as ddc
+from src.ensemble import utils
 
 # Constants
 SPLITS_COLUMN = "split" # column containing "train", "validation" or "test"
@@ -10,18 +11,17 @@ CELL_ID_COLUMNS = ["gt_image", "label",] # columns that uniquely indentify a cel
 COMMON_COLUMN = "crop_size" # column common to both QA and Ensemble parquets
 
 
-def add_split_type(parquet_path: str, seed: int, set_splits: list[float]) -> str:
+def add_split_type(parquet_path: str, build_opt: dict) -> str:
     """
     Create a parquet with an added column of random train/validation/test splits, with the given seed.
     Returns the path to the newly created file.
     """
-
     # must sum to 1
-    assert (math.fsum(set_splits) == 1.0)
+    assert (math.fsum(build_opt["split_sets"]) == 1.0)
     # must have 3 floats for train/val/test
-    assert (len(set_splits) == 3)
+    assert (len(build_opt["split_sets"]) == 3)
 
-    train_percent, val_percent, test_percent = set_splits
+    train_percent, val_percent, test_percent = build_opt["split_sets"]
     
     # load dataframe
     df = ddc.load_dataframe_from_parquet_with_metadata(parquet_path)
@@ -41,7 +41,7 @@ def add_split_type(parquet_path: str, seed: int, set_splits: list[float]) -> str
     # split values
     splits = (["train"] * train_count) + (["validation"] * val_count) + (["test"] * test_count)
     # suffle
-    random.Random(seed).shuffle(splits)
+    random.Random(build_opt["split_seed"]).shuffle(splits)
 
     if is_ensemple:
         df[SPLITS_COLUMN] = splits
@@ -54,8 +54,7 @@ def add_split_type(parquet_path: str, seed: int, set_splits: list[float]) -> str
         df.drop(columns=[uniques_col])
 
     # save parquet
-    #parquet_suffix = f"_split{int(train_percent*100)}-{int(val_percent*100)}-{int(test_percent*100)}_seed{seed}"
-    parquet_suffix = f"_split{seed}"
+    parquet_suffix = "_split" + utils.get_splits_name(build_opt)
     filetype_pos = parquet_path.rfind(".")
     assert(filetype_pos >= 0) # the '.' char must exist in the filename
     output_parquet_path = parquet_path[:filetype_pos] + parquet_suffix + parquet_path[filetype_pos:]

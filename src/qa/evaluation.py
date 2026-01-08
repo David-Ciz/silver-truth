@@ -327,7 +327,14 @@ def integrate_results(qa_dataframe_path, qa_results_list):
     df_qa.sort_values(by="cell_id", inplace=True)
 
     for results_path in qa_results_list:
-        df_res = pd.read_csv(results_path)
+        ext = os.path.splitext(results_path)[1]
+        if ext == ".csv":
+            df_res = pd.read_csv(results_path)
+        elif ext == ".parquet":
+            df_res = ddc.load_dataframe_from_parquet_with_metadata(results_path)
+        else:
+            raise Exception("Error: File type not supported.")
+        
         df_res.sort_values(by="cell_id", inplace=True)
         # check if all entries match
         assert((df_qa["cell_id"].values == df_res["cell_id"].values).all())
@@ -335,7 +342,12 @@ def integrate_results(qa_dataframe_path, qa_results_list):
         assert((df_qa[p_utils.SPLITS_COLUMN].values == df_res[p_utils.SPLITS_COLUMN].values).all())
         col_prefix = "QA-"
         col_name = col_prefix + os.path.splitext(results_path)[0].split(col_prefix)[1]
-        df_qa[col_name] = df_res["Predicted Jaccard index"]
+        #TODO: Just use qa_jaccard
+        if ext == ".csv":
+            df_qa[col_name] = df_res["Predicted Jaccard index"]
+        else:
+            df_qa[col_name] = df_res["predicted_jaccard"]
+
     new_parquet_path = os.path.splitext(qa_dataframe_path)[0] + "_res.parquet"
     df_qa.to_parquet(new_parquet_path)
     return new_parquet_path

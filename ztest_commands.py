@@ -19,21 +19,18 @@ import src.qa.preprocessing as  qa_pp
 
 # ----- Workflow ----- #
 
-#ds_create_opt = {"name": "BF-C2DL-HSC", "version": Version.C1, "crop_size": 64, "split_seed": 42, "split_sets": [0.7,0.15,0.15]}
-ds_create_opt = {"name": "BF-C2DL-MuSC", "version": Version.C1, "crop_size": 512, "split_seed": 42, "split_sets": [0.7,0.15,0.15]}
-
-def build_databanks():
+def build_qa_databank(build_opt):
     ##### 1) generate QA parquet
-    original_dataset_path = f"data/dataframes/{ds_create_opt["name"]}_dataset_dataframe.parquet"
-    qa_output_path = f"data/ensemble_data/qa/qa_{ds_create_opt["name"]}"
-    qa_parquet_path = f"data/ensemble_data/qa/qa_{ds_create_opt["name"]}.parquet"
+    original_dataset_path = f"data/dataframes/{build_opt["name"]}_dataset_dataframe.parquet"
+    qa_output_path = f"data/ensemble_data/qa/qa_{build_opt["name"]}"
+    qa_parquet_path = f"data/ensemble_data/qa/qa_{build_opt["name"]}.parquet"
 
     # build required QA databanks
     qa_pp.create_qa_dataset(
             original_dataset_path,
             qa_output_path,
             qa_parquet_path,  
-            crop_size=ds_create_opt["crop_size"]
+            crop_size=build_opt["crop_size"]
         )
     # compress images to save space
     ext.compress_images(qa_output_path)
@@ -42,42 +39,37 @@ def build_databanks():
     # find largest cell in order to know the crop_size.
     # if bigger than crop size, recall ensemble.build_databanks() with appropriate crop size.
     max_size, image_path = utils.find_largest_gt_cell_size(qa_parquet_path)
-    print(f"\nDataset {ds_create_opt["name"]}, max cell size: {max_size} px. Path: {image_path}\n")
+    print(f"\nDataset {build_opt["name"]}, max cell size: {max_size} px. Path: {image_path}\n")
 
 
     ##### 2) add splits to QA parquet
-    ds_qa_split = add_split_type(qa_parquet_path, ds_create_opt["split_seed"], ds_create_opt["split_sets"])
+    ds_qa_split = add_split_type(qa_parquet_path, build_opt)
 
 
     ##### 3) get results from QA
 
 
     ##### 4) integrate results into a parquet
-    qa_results_list = [f"data/ensemble_data/qa/{ds_create_opt["name"]}_QA-a1.xlsx"]
-    qa_results_csv_list = []
-    for qa_results in qa_results_list:
-        qa_results_csv_list.append(excel2csv(qa_results))
-    qa_res_parquet_path = integrate_results(ds_qa_split, qa_results_csv_list)
+    qa_results_list = [
+        excel2csv(f"data/ensemble_data/qa/{build_opt["name"]}_QA-a1.xlsx"),
+        f"data/ensemble_data/qa/{build_opt["name"]}_QA-b1.parquet"
+        ]
+    new_parquet_path = integrate_results(ds_qa_split, qa_results_list)
+    return new_parquet_path
 
+
+def build_ensemble_databanks(build_opt_list, qa_parquet_dir="data/ensemble_data/qa/"):
 
     ##### 5) build Ensemble databanks
-    ensemble_parquet_path = ensemble.build_databank(
-                                        qa_res_parquet_path, 
-                                        ds_create_opt["name"], 
-                                        ds_create_opt["version"], 
-                                        ds_create_opt["crop_size"]
-                                    )
-
-    # confirm that the splits are the same
-    same_splits_result = same_splits(qa_res_parquet_path, ensemble_parquet_path)
-    print("Same splits: ",same_splits_result)
-    assert(same_splits_result)
-
-    # OPTIONAL: build analysis databanks in order to better visualize the data
-    ensemble.build_analysis_databanks(qa_res_parquet_path, ds_create_opt["name"], 'all')
+    ensemble_databanks = []
+    for build_opt in build_opt_list:
+        qa_parquet_path = os.path.join(qa_parquet_dir, f"qa_{build_opt["name"]}_split{utils.get_splits_name(build_opt)}_res.parquet")
+        ensemble_databanks.append(ensemble.build_databank(build_opt, qa_parquet_path))
+ 
+    return ensemble_databanks
 
 
-def train_networks():
+def train_networks(ensemble_databanks):
     ##### 6) train models
     ds_ensemble_split = f"data/ensemble_data/datasets/ensemble_{ds_create_opt["version"].name}_{ds_create_opt["name"]}_split{ds_create_opt["split_seed"]}.parquet"
 
@@ -86,7 +78,7 @@ def train_networks():
     databank_reference = os.path.basename(ds_ensemble_split)[len("ensemble_"):-len(".parquet")]
     train_parquet_path = f"{os.path.join(os.getcwd(), ds_ensemble_split)}"
     run_sequence = [
-        {"model_type": ModelType.Unet, "max_epochs": 2, "qa": None, "qa_threshold": 0.7, "databank": None}, 
+        {"model_type": ModelType.Unet, "max_epochs": 2, "databank": None}, 
         #{"model_type": ModelType.UnetPlusPlus, "max_epochs": 100, "qa": None}
     ]
     ensemble.run_experiment(experiment_name, databank_reference, train_parquet_path, run_sequence)
@@ -100,8 +92,26 @@ def evaluate_networks():
 
 
 
+build_opt_list = [
+    {"name": "BF-C2DL-HSC", "version": Version.C1, "crop_size": 64, "split_seed": 42, "split_sets": [0.7,0.15,0.15], "qa": None},
+    {"name": "BF-C2DL-HSC", "version": Version.C1, "crop_size": 64, "split_seed": 42, "split_sets": [0.7,0.15,0.15], "qa": "QA-b1", "qa_threshold": 0.50},
+    {"name": "BF-C2DL-HSC", "version": Version.C1, "crop_size": 64, "split_seed": 42, "split_sets": [0.7,0.15,0.15], "qa": "QA-b1", "qa_threshold": 0.55},
+    {"name": "BF-C2DL-HSC", "version": Version.C1, "crop_size": 64, "split_seed": 42, "split_sets": [0.7,0.15,0.15], "qa": "QA-b1", "qa_threshold": 0.60},
+    {"name": "BF-C2DL-HSC", "version": Version.C1, "crop_size": 64, "split_seed": 42, "split_sets": [0.7,0.15,0.15], "qa": "QA-b1", "qa_threshold": 0.65},
+    {"name": "BF-C2DL-HSC", "version": Version.C1, "crop_size": 64, "split_seed": 42, "split_sets": [0.7,0.15,0.15], "qa": "QA-b1", "qa_threshold": 0.70},
+    {"name": "BF-C2DL-HSC", "version": Version.C1, "crop_size": 64, "split_seed": 42, "split_sets": [0.7,0.15,0.15], "qa": "QA-b1", "qa_threshold": 0.75},
+    {"name": "BF-C2DL-HSC", "version": Version.C1, "crop_size": 64, "split_seed": 42, "split_sets": [0.7,0.15,0.15], "qa": "QA-b1", "qa_threshold": 0.80},
+    {"name": "BF-C2DL-HSC", "version": Version.C1, "crop_size": 64, "split_seed": 42, "split_sets": [0.7,0.15,0.15], "qa": "QA-b1", "qa_threshold": 0.85},
+    {"name": "BF-C2DL-HSC", "version": Version.C1, "crop_size": 64, "split_seed": 42, "split_sets": [0.7,0.15,0.15], "qa": "QA-b1", "qa_threshold": 0.90},
+    {"name": "BF-C2DL-MuSC", "version": Version.C1, "crop_size": 512, "split_seed": 42, "split_sets": [0.7,0.15,0.15], "qa": None},
+]
 
-build_databanks()
+qa_parquet_path = build_qa_databank(build_opt_list[0])
+# OPTIONAL: build analysis databanks in order to better visualize the data
+ensemble.build_analysis_databanks(qa_parquet_path, build_opt_list[0]["name"], 'all')
+ensemble_databanks = build_ensemble_databanks(build_opt_list)
+
+
 #train_networks()
 #evaluate_networks()
 
@@ -216,4 +226,4 @@ results_example = [#{"strategy": "Unet_BF-C2DL-HSC_split42_testset", "file": "da
                    ]
 
 results_example = [{"strategy": "majority_flat_BF-C2DL-HSC_split42_testset", "file": "data/fused/eval_BF-C2DL-HSC_majority_flat_split42_testset.parquet"}]
-evaluate_strategies("evaluation_test1", results_example)
+#evaluate_strategies("evaluation_test1", results_example)

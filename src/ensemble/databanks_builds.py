@@ -5,18 +5,24 @@ from tqdm import tqdm
 import pandas as pd
 import numpy as np
 from scipy.ndimage import find_objects
+from src.ensemble import utils
 import src.ensemble.external as ext
 from src.ensemble.datasets import Version
 
+ORIGINAL_DATASETS = {
+    "BF-C2DL-HSC": "ds1",
+    "BF-C2DL-MuSC": "ds2",
+ }
 
-def build_analysis_databank_full(qa_dataset_dataframe_path: str, output_path: str) -> None:
+
+def build_analysis_databank_full(qa_dataset_path: str, output_path: str) -> None:
     """
     Creates an image dataset for helping visualizing the differences between GT and proposed segmentations.
     """
     # create output path if it doesn't exist
     Path(output_path).mkdir(parents=True, exist_ok=True)
     # load the dataframe
-    df = ext.load_parquet(qa_dataset_dataframe_path)
+    df = ext.load_parquet(qa_dataset_path)
 
     done_imgs = []
     
@@ -49,7 +55,7 @@ def build_analysis_databank_full(qa_dataset_dataframe_path: str, output_path: st
     ext.compress_images(output_path)
 
 
-def build_analysis_databank(qa_dataset_dataframe_path: str, output_path: str) -> None:
+def build_analysis_databank(qa_dataset_path: str, output_path: str) -> None:
     """
     Creates an image dataset for helping visualizing the differences between GT and proposed segmentations.
     Should use cropped output of create_qa_dataset (in order to get the center of the cell).
@@ -57,7 +63,7 @@ def build_analysis_databank(qa_dataset_dataframe_path: str, output_path: str) ->
     # create output path if it doesn't exist
     Path(output_path).mkdir(parents=True, exist_ok=True)
     # load the dataframe
-    df = ext.load_parquet(qa_dataset_dataframe_path)
+    df = ext.load_parquet(qa_dataset_path)
     
     for row in tqdm(
         df.itertuples(), total=len(df), desc="Processing images"
@@ -106,8 +112,7 @@ def build_analysis_databank(qa_dataset_dataframe_path: str, output_path: str) ->
 
 
 def build_databank(
-        name: str,
-        version: Version,
+        build_opt: dict,
         qa_dataset_path: str, 
         output_path: str,
         #apply_blue_layer: bool = True
@@ -125,7 +130,8 @@ def build_databank(
     #TODO: add support for additional dataset versions.
 
     # destination path of the created images
-    databank_foldername = f"ensemble_{version.name}_{name}"
+    qa_name = f"{build_opt["qa"]}--{int(build_opt["qa_threshold"]*100)}" if build_opt["qa"] else "QA--"
+    databank_foldername = f"{build_opt["version"].name}_{ORIGINAL_DATASETS[build_opt["name"]]}-{utils.get_splits_name(build_opt)}_{qa_name}"
     images_output_path = os.path.join(output_path, databank_foldername)
     # create images path if it doesn't exist
     Path(images_output_path).mkdir(parents=True, exist_ok=True)

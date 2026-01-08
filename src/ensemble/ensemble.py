@@ -9,6 +9,7 @@ import src.ensemble.training as training
 from src.ensemble.models import SMP_Model
 import src.qa.preprocessing as  qa_pp
 import src.ensemble.utils as utils
+from src.data_processing.utils.parquet_utils import same_splits
 import segmentation_models_pytorch as smp
 import torch
 import pandas as pd
@@ -19,14 +20,20 @@ logging.basicConfig(level=logging.INFO, format="\n%(asctime)s ### %(levelname)s 
 _logger = logging.getLogger(__name__)
 
 
-def build_databank(qa_parquet_path: str, dataset_name: str, dataset_version: Version, crop_size: int) -> str:
+def build_databank(build_opt: dict, qa_parquet_path: str) -> str:
     """
-    Builds the QA and Ensemble databanks.
+    Builds the Ensemble databank.
     """
     # build ensemble dataset
     ensemble_datasets_path = "data/ensemble_data/datasets"
-    output_parquet_path = db_builds.build_databank(dataset_name, dataset_version, qa_parquet_path, ensemble_datasets_path)
-    return output_parquet_path
+    ensemble_parquet_path = db_builds.build_databank(build_opt, qa_parquet_path, ensemble_datasets_path)
+
+    # confirm that the splits are the same
+    same_splits_result = same_splits(qa_parquet_path, ensemble_parquet_path)
+    print("Same splits: ",same_splits_result)
+    assert(same_splits_result)
+
+    return ensemble_parquet_path
 
 
 def build_analysis_databanks(qa_parquet_path: str, dataset_name: str, mode: str) -> None:

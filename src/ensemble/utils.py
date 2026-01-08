@@ -42,3 +42,10 @@ def find_largest_gt_cell_size(dataset_dataframe_path: str) -> tuple[int,str]:
                     largest_size = max_seg_size
                     largest_size_img = gt_image_path
     return largest_size, largest_size_img
+
+
+def get_splits_name(build_opt: dict) -> str:
+    """
+    Constructs the folder name part of the split databank build definition.
+    """
+    return f"{build_opt["split_seed"]}-{int(build_opt["split_sets"][0]*100)}{int(build_opt["split_sets"][1]*100)}"
