@@ -51,7 +51,7 @@ class EnsembleDatasetC1(Dataset):
         
         # fill tensors with actual data
         for index, row in enumerate(df.itertuples()):
-            if row.split != "all":
+            if split != "all":
                 if row.split != split:
                     continue
             # load the image
