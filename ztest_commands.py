@@ -44,19 +44,32 @@ def build_qa_databank(build_opt, original_dataset_dir="data/dataframes", qa_parq
 
     ##### 2) add splits to QA parquet
     ds_qa_split = add_split_type(qa_parquet_path, build_opt)
+    return ds_qa_split
 
 
-    ##### 3) get results from QA
-
-
+def integrate_qa_results(build_opt_list, qa_parquet_dir="data/ensemble_data/qa"):
     ##### 4) integrate results into a parquet
-    qa_results_list = [
-        excel2csv(os.path.join(qa_parquet_dir, f"{build_opt["name"]}_QA-a1.xlsx")),
-        os.path.join(qa_parquet_dir, f"{build_opt["name"]}_QA-b1.parquet")
-        ]
-    new_parquet_path = integrate_results(ds_qa_split, qa_results_list)
-    return new_parquet_path
+    #qa_results_list = [
+    #    excel2csv(os.path.join(qa_parquet_dir, f"{build_opt["name"]}_QA-a1.xlsx")),
+    #    os.path.join(qa_parquet_dir, f"{build_opt["name"]}_QA-b1.parquet")
+    #]
+    qa_results_dict = {}
+    for build_opt in build_opt_list:
+        if build_opt["qa"] is not None:
+            key = os.path.join(qa_parquet_dir, f"qa_{build_opt["name"]}_split{utils.get_splits_name(build_opt)}.parquet")
+            value = os.path.join(qa_parquet_dir, f"{build_opt["name"]}_{build_opt["qa"]}.xlsx")
+            if key in qa_results_dict:
+                if value not in qa_results_dict[key]:
+                    qa_results_dict[key].append(value)
+            else:
+                qa_results_dict[key] = [value]
 
+    for qa_split in qa_results_dict:
+        converted_qa_results = []
+        for qa_results in qa_results_dict[qa_split]:
+            converted_qa_results.append(excel2csv(qa_results))
+        integrate_results(qa_split, converted_qa_results)
+                      
 
 def build_ensemble_databanks(build_opt_list, qa_parquet_dir="data/ensemble_data/qa"):
     ##### 5) build Ensemble databanks
@@ -70,7 +83,7 @@ def build_ensemble_databanks(build_opt_list, qa_parquet_dir="data/ensemble_data/
 
 def train_model(ensemble_databank_path):
     ##### 6) train models
-    ds_ensemble_split = f"data/ensemble_data/datasets/ensemble_{ds_create_opt["version"].name}_{ds_create_opt["name"]}_split{ds_create_opt["split_seed"]}.parquet"
+    ds_ensemble_split = f"data/ensemble_data/databanks/ensemble_{ds_create_opt["version"].name}_{ds_create_opt["name"]}_split{ds_create_opt["split_seed"]}.parquet"
 
     # train models
     experiment_name = f"{ds_create_opt["name"]}_exp1"
@@ -86,28 +99,34 @@ def train_model(ensemble_databank_path):
 def evaluate_models(models_paths, build_opt_list):
     for model_path in models_paths:
         for build_opt in build_opt_list:
-            databanks_path = os.path.join( utils.DATABANKS_DIR,f"{utils.get_databank_name(build_opt)}.parquet")
-            ensemble.generate_evaluation(model_path, databanks_path)
+            databanks_path = os.path.join(utils.DATABANKS_DIR,f"{utils.get_databank_name(build_opt)}.parquet")
+            ensemble.generate_evaluation(model_path, databanks_path, "all")
 
 
 build_opt_list = [
     {"name": "BF-C2DL-HSC", "version": Version.C1, "crop_size": 64, "split_seed": 42, "split_sets": [0.7,0.15,0.15], "qa": None},
-    {"name": "BF-C2DL-HSC", "version": Version.C1, "crop_size": 64, "split_seed": 42, "split_sets": [0.7,0.15,0.15], "qa": "QA-b1", "qa_threshold": 0.50},
-    {"name": "BF-C2DL-HSC", "version": Version.C1, "crop_size": 64, "split_seed": 42, "split_sets": [0.7,0.15,0.15], "qa": "QA-b1", "qa_threshold": 0.55},
-    {"name": "BF-C2DL-HSC", "version": Version.C1, "crop_size": 64, "split_seed": 42, "split_sets": [0.7,0.15,0.15], "qa": "QA-b1", "qa_threshold": 0.60},
-    {"name": "BF-C2DL-HSC", "version": Version.C1, "crop_size": 64, "split_seed": 42, "split_sets": [0.7,0.15,0.15], "qa": "QA-b1", "qa_threshold": 0.65},
-    {"name": "BF-C2DL-HSC", "version": Version.C1, "crop_size": 64, "split_seed": 42, "split_sets": [0.7,0.15,0.15], "qa": "QA-b1", "qa_threshold": 0.70},
-    {"name": "BF-C2DL-HSC", "version": Version.C1, "crop_size": 64, "split_seed": 42, "split_sets": [0.7,0.15,0.15], "qa": "QA-b1", "qa_threshold": 0.75},
-    {"name": "BF-C2DL-HSC", "version": Version.C1, "crop_size": 64, "split_seed": 42, "split_sets": [0.7,0.15,0.15], "qa": "QA-b1", "qa_threshold": 0.80},
-    {"name": "BF-C2DL-HSC", "version": Version.C1, "crop_size": 64, "split_seed": 42, "split_sets": [0.7,0.15,0.15], "qa": "QA-b1", "qa_threshold": 0.85},
-    {"name": "BF-C2DL-HSC", "version": Version.C1, "crop_size": 64, "split_seed": 42, "split_sets": [0.7,0.15,0.15], "qa": "QA-b1", "qa_threshold": 0.90},
+    {"name": "BF-C2DL-HSC", "version": Version.C1, "crop_size": 64, "split_seed": 42, "split_sets": [0.7,0.15,0.15], "qa": "QA-eb7-1", "qa_threshold": 0.50},
+    {"name": "BF-C2DL-HSC", "version": Version.C1, "crop_size": 64, "split_seed": 42, "split_sets": [0.7,0.15,0.15], "qa": "QA-eb7-1", "qa_threshold": 0.55},
+    {"name": "BF-C2DL-HSC", "version": Version.C1, "crop_size": 64, "split_seed": 42, "split_sets": [0.7,0.15,0.15], "qa": "QA-eb7-1", "qa_threshold": 0.60},
+    {"name": "BF-C2DL-HSC", "version": Version.C1, "crop_size": 64, "split_seed": 42, "split_sets": [0.7,0.15,0.15], "qa": "QA-eb7-1", "qa_threshold": 0.65},
+    {"name": "BF-C2DL-HSC", "version": Version.C1, "crop_size": 64, "split_seed": 42, "split_sets": [0.7,0.15,0.15], "qa": "QA-eb7-1", "qa_threshold": 0.70},
+    {"name": "BF-C2DL-HSC", "version": Version.C1, "crop_size": 64, "split_seed": 42, "split_sets": [0.7,0.15,0.15], "qa": "QA-eb7-1", "qa_threshold": 0.75},
+    {"name": "BF-C2DL-HSC", "version": Version.C1, "crop_size": 64, "split_seed": 42, "split_sets": [0.7,0.15,0.15], "qa": "QA-eb7-1", "qa_threshold": 0.80},
+    {"name": "BF-C2DL-HSC", "version": Version.C1, "crop_size": 64, "split_seed": 42, "split_sets": [0.7,0.15,0.15], "qa": "QA-eb7-1", "qa_threshold": 0.85},
+    {"name": "BF-C2DL-HSC", "version": Version.C1, "crop_size": 64, "split_seed": 42, "split_sets": [0.7,0.15,0.15], "qa": "QA-eb7-1", "qa_threshold": 0.90},
     #{"name": "BF-C2DL-MuSC", "version": Version.C1, "crop_size": 512, "split_seed": 42, "split_sets": [0.7,0.15,0.15], "qa": None},
 ]
 
 #qa_parquet_path = build_qa_databank(build_opt_list[0])
+
+##### 3) get results from QA
+
+##### 4)
+integrate_qa_results(build_opt_list)
+
 ## OPTIONAL: build analysis databanks in order to better visualize the data
 #ensemble.build_analysis_databanks(build_opt_list[0]["name"], qa_parquet_path, 'all')
-#ensemble_databanks = build_ensemble_databanks(build_opt_list)
+ensemble_databanks = build_ensemble_databanks(build_opt_list)
 
 #train_model()
 

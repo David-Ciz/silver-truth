@@ -259,6 +259,8 @@ def excel2csv(filepath):
 
     # Concatenate all sheets
     df = pd.concat(df_sheets)
+    #TODO: should be done at the source
+    df.rename(columns={"Predicted Jaccard index": "qa_jaccard"}, inplace=True)
     # sort by cell_id
     df.sort_values(by="cell_id", inplace=True)
     new_filepath = os.path.splitext(filepath)[0] + ".csv"
