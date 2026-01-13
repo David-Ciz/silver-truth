@@ -1,9 +1,7 @@
 # Register the models
 import os
 import torch
-import torch.nn.functional as F
 import torch.utils.data as data
-from torch.utils.data.dataset import Subset
 import torchvision
 from torchmetrics.classification import BinaryJaccardIndex, BinaryF1Score
 import pytorch_lightning as pl
@@ -12,17 +10,13 @@ import mlflow
 import matplotlib.pyplot as plt
 from silver_truth.ensemble.datasets import EnsembleDatasetC1
 from silver_truth.ensemble.models_loss_type import LossType
-from silver_truth.ensemble.model_ae32 import Autoencoder32
-from silver_truth.ensemble.model_ae64 import Autoencoder64
-from silver_truth.ensemble.model_vae32 import VariationalAutoencoder32
-from silver_truth.ensemble.model_spae32 import SparseAutoencoder32
-from silver_truth.ensemble.models import SMP_Model, ModelType
+from silver_truth.ensemble.models import SMP_Model
 import silver_truth.ensemble.utils as utils
 import albumentations as A
 
-#TODO: create config pipepline: 
+# TODO: create config pipepline:
 # config dictionary should be provided
-#checkpoint_path = "data/ensemble_data/results/checkpoints222/"
+# checkpoint_path = "data/ensemble_data/results/checkpoints222/"
 _checkpoint_path = None
 
 """
@@ -40,6 +34,7 @@ def get_model(model: str, parameters: dict):
 
 """"""
 
+
 def _evaluate_model(model, input_set, target_set):
     jaccard = BinaryJaccardIndex().to(model.device)
     f1_score = BinaryF1Score().to(model.device)
@@ -51,7 +46,7 @@ def _evaluate_model(model, input_set, target_set):
             reconst_imgs, mean, logvar = model.forward_full(input_set)
             # calculate model's loss
             loss = model.get_loss(reconst_imgs, target_set, mean, logvar)
-        
+
         elif model.loss_type == LossType.MSE_KL:
             reconst_imgs, x_enc = model.forward_full(input_set)
             # calculate model's loss
@@ -62,9 +57,9 @@ def _evaluate_model(model, input_set, target_set):
             # calculate model's loss
             loss = model.get_loss(reconst_imgs, target_set)
 
-        #tp, fp, fn, tn = smp.metrics.get_stats(reconst_imgs, target_set, mode='binary', threshold=0.5)
-        #iou = smp.metrics.iou_score(tp, fp, fn, tn, reduction="micro")
-        #f1 = smp.metrics.f1_score(tp, fp, fn, tn, reduction="micro")
+        # tp, fp, fn, tn = smp.metrics.get_stats(reconst_imgs, target_set, mode='binary', threshold=0.5)
+        # iou = smp.metrics.iou_score(tp, fp, fn, tn, reduction="micro")
+        # f1 = smp.metrics.f1_score(tp, fp, fn, tn, reduction="micro")
 
         # calculate IoU
         iou = jaccard(reconst_imgs, target_set)
@@ -83,15 +78,19 @@ class EvaluationCallback(Callback):
 
     def on_train_epoch_end(self, trainer, pl_module):
         if trainer.current_epoch % self.every_n_epochs == 0:
-            val_loss, val_f1, val_iou = _evaluate_model(pl_module, self.val_inputs, self.val_targets)
-            mlflow.log_metric("val_loss", value=val_loss, step=trainer.current_epoch+1)
-            mlflow.log_metric("val_f1", value=val_f1, step=trainer.current_epoch+1)
-            mlflow.log_metric("val_iou", value=val_iou, step=trainer.current_epoch+1)
+            val_loss, val_f1, val_iou = _evaluate_model(
+                pl_module, self.val_inputs, self.val_targets
+            )
+            mlflow.log_metric(
+                "val_loss", value=val_loss, step=trainer.current_epoch + 1
+            )
+            mlflow.log_metric("val_f1", value=val_f1, step=trainer.current_epoch + 1)
+            mlflow.log_metric("val_iou", value=val_iou, step=trainer.current_epoch + 1)
             print(f"val_loss: {val_loss}, val_f1: {val_f1}, val_iou: {val_iou}")
 
 
 def _get_eval_sets(dataset):
-    imgs, gts = [],[]
+    imgs, gts = [], []
     for i in range(len(dataset)):
         img, gt = dataset[i]
         imgs.append(img)
@@ -100,7 +99,7 @@ def _get_eval_sets(dataset):
 
 
 def _get_stacked_images(dataset, num):
-    imgs, gts = [],[]
+    imgs, gts = [], []
     for i in range(num):
         img, gt = dataset[i]
         imgs.append(img)
@@ -109,14 +108,13 @@ def _get_stacked_images(dataset, num):
 
 
 def _train_model(
-        run_params,
-        train_dataset, 
-        val_dataset, 
-        train_loader, 
-        val_loader, 
-        test_loader,
-    ):
-    
+    run_params,
+    train_dataset,
+    val_dataset,
+    train_loader,
+    val_loader,
+    test_loader,
+):
     device = utils.get_device()
     print("Device:", device)
 
@@ -132,20 +130,23 @@ def _train_model(
     """
 
     # TODO: following models not working
-    #model_type = ModelType.PAN
-    #model_type = ModelType.DPT
+    # model_type = ModelType.PAN
+    # model_type = ModelType.DPT
 
     model_type = run_params["model_type"]
     max_epochs = run_params["max_epochs"]
     model_pl = SMP_Model(model_type, device)
-    
+
     mlflow.log_param("model_type", model_type)
     mlflow.log_param("model", model_pl.model)
     mlflow.log_param("loss_type", model_pl.loss_type)
 
     # Create a PyTorch Lightning trainer with the generation callback
     trainer = pl.Trainer(
-        default_root_dir=os.path.join(os.getcwd(), f'data/ensemble_data/results/checkpoints/model_{model_pl.loss_type.name}'),
+        default_root_dir=os.path.join(
+            os.getcwd(),
+            f"data/ensemble_data/results/checkpoints/model_{model_pl.loss_type.name}",
+        ),
         deterministic=True,
         accelerator="auto",
         devices="auto",
@@ -156,13 +157,14 @@ def _train_model(
                 monitor="val_loss",
                 mode="min",
                 save_top_k=1,
-                save_weights_only=True),
-            #LearningRateMonitor("epoch"),
+                save_weights_only=True,
+            ),
+            # LearningRateMonitor("epoch"),
             EvaluationCallback(
                 _get_eval_sets(train_dataset),
                 _get_eval_sets(val_dataset),
             ),
-            EarlyStopping(monitor="val_loss",  patience=10)
+            EarlyStopping(monitor="val_loss", patience=10),
         ],
     )
 
@@ -185,10 +187,12 @@ def _visualize_reconstructions(model, train_set):
 
     # Plotting
     imgs = torch.stack([gt_images, reconst_imgs], dim=1).flatten(0, 1)
-    grid = torchvision.utils.make_grid(imgs, nrow=8, normalize=True, value_range=(-1, 1))
+    grid = torchvision.utils.make_grid(
+        imgs, nrow=8, normalize=True, value_range=(-1, 1)
+    )
     grid = grid.permute(1, 2, 0)
     plt.figure(figsize=(18, 13))
-    plt.title(f"Reconstructions. Let's go!")
+    plt.title("Reconstructions. Let's go!")
     plt.imshow(grid)
     plt.axis("off")
     plt.show()
@@ -200,17 +204,19 @@ def _visualize_dataset(subset):
 
     # Plotting
     imgs = torch.stack([input_imgs, gt_images], dim=1).flatten(0, 1)
-    grid = torchvision.utils.make_grid(imgs, nrow=8, normalize=True, value_range=(-1, 1))
+    grid = torchvision.utils.make_grid(
+        imgs, nrow=8, normalize=True, value_range=(-1, 1)
+    )
     grid = grid.permute(1, 2, 0)
     plt.figure(figsize=(18, 13))
-    plt.title(f"Check dataset.")
+    plt.title("Check dataset.")
     plt.imshow(grid)
     plt.axis("off")
     plt.show()
     plt.waitforbuttonpress(0)
 
 
-def run(run_params: dict, parquet_path: str, rand_seed: int=42) -> None:
+def run(run_params: dict, parquet_path: str, rand_seed: int = 42) -> None:
     """
     Run a training session.
     With "remote", there's no visual feedback, such as image reconstructions.
@@ -221,64 +227,77 @@ def run(run_params: dict, parquet_path: str, rand_seed: int=42) -> None:
     torch.backends.cudnn.deterministic = True
     torch.backends.cudnn.benchmark = False
 
-    #device = torch.device("cuda:0") if torch.cuda.is_available() else torch.device("cpu")
-    #print("Device:", device)
+    # device = torch.device("cuda:0") if torch.cuda.is_available() else torch.device("cpu")
+    # print("Device:", device)
     """"""
 
-    latent_dim = None#32
+    latent_dim = None  # 32
 
-    transform = A.Compose([
-        A.HorizontalFlip(),
-        #A.Rotate(p=1.0),
-        A.RandomRotate90(),
-        A.ToTensorV2()
-    ], seed=rand_seed)
+    transform = A.Compose(
+        [
+            A.HorizontalFlip(),
+            # A.Rotate(p=1.0),
+            A.RandomRotate90(),
+            A.ToTensorV2(),
+        ],
+        seed=rand_seed,
+    )
 
     mlflow.log_param("dataset_transform", transform)
 
     # get dataset
-    #ensemble_dataset = EnsembleDatasetC1(parquet_path, transform)
+    # ensemble_dataset = EnsembleDatasetC1(parquet_path, transform)
     train_set = EnsembleDatasetC1(parquet_path, "train", transform)
     val_set = EnsembleDatasetC1(parquet_path, "validation")
     test_set = EnsembleDatasetC1(parquet_path, "test")
     # split dataset
-    #dataset_split = [0.7, 0.15, 0.15]
-    #train_set, val_set, test_set = torch.utils.data.random_split(ensemble_dataset, dataset_split)
+    # dataset_split = [0.7, 0.15, 0.15]
+    # train_set, val_set, test_set = torch.utils.data.random_split(ensemble_dataset, dataset_split)
 
-    #TODO: note: use this to see the difference in learning with and without data augmentation
-    #train_set.dataset = EnsembleDatasetC1(parquet_path, None)
-    
+    # TODO: note: use this to see the difference in learning with and without data augmentation
+    # train_set.dataset = EnsembleDatasetC1(parquet_path, None)
+
     # dataloaders
     batch_size = 20
-    train_loader = data.DataLoader(train_set, batch_size=batch_size, shuffle=True, drop_last=True, pin_memory=True, num_workers=4)
-    val_loader = data.DataLoader(val_set, batch_size=batch_size, shuffle=False, drop_last=False, num_workers=4)
-    test_loader = data.DataLoader(test_set, batch_size=batch_size, shuffle=False, drop_last=False, num_workers=4)
+    train_loader = data.DataLoader(
+        train_set,
+        batch_size=batch_size,
+        shuffle=True,
+        drop_last=True,
+        pin_memory=True,
+        num_workers=4,
+    )
+    val_loader = data.DataLoader(
+        val_set, batch_size=batch_size, shuffle=False, drop_last=False, num_workers=4
+    )
+    test_loader = data.DataLoader(
+        test_set, batch_size=batch_size, shuffle=False, drop_last=False, num_workers=4
+    )
 
     # DEBUG only
-    #_visualize_dataset(_get_eval_sets(val_set))
+    # _visualize_dataset(_get_eval_sets(val_set))
 
     # log parameters
     params = {
         "rand_seed": rand_seed,
-        #"dataset_split": dataset_split,
+        # "dataset_split": dataset_split,
         "latent_dim": latent_dim,
         "parquet_path": parquet_path,
-        #"ensemble_dataset": ensemble_dataset,
+        # "ensemble_dataset": ensemble_dataset,
         "batch_size": batch_size,
     }
     mlflow.log_params(params)
-
 
     # train model
     model, result = _train_model(
         run_params,
         train_set,
         val_set,
-        train_loader, 
+        train_loader,
         val_loader,
         test_loader,
     )
 
     # DEBUG only
-    #_visualize_reconstructions(model, _get_stacked_images(val_set, 16))
+    # _visualize_reconstructions(model, _get_stacked_images(val_set, 16))
     print("Done.")

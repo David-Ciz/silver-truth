@@ -11,25 +11,31 @@ logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
 
 
 @click.command()
-@click.option(
-    "--name", required=True, help="The name of the Ensemble experiment."
-)
-#@click.option(
+@click.option("--name", required=True, help="The name of the Ensemble experiment.")
+# @click.option(
 #    "--model", required=True, help="The A.I. model that replaces fusion."
-#)
+# )
 @click.option(
-    "--parquet_file", required=True, help="The path of the Ensemble databank parquet file."
+    "--parquet_file",
+    required=True,
+    help="The path of the Ensemble databank parquet file.",
 )
-def ensemble_experiment(name: str, parquet_file: str,):
+def ensemble_experiment(
+    name: str,
+    parquet_file: str,
+):
     """Runs an Ensemble experiment via command-line interface."""
     try:
-        ensemble.run_experiment(name, parquet_file, [{"model_type": ModelType.UnetPlusPlus, "max_epochs": 100}])
+        ensemble.run_experiment(
+            name,
+            parquet_file,
+            [{"model_type": ModelType.UnetPlusPlus, "max_epochs": 100}],
+        )
     except Exception as e:
         click.echo(
             click.style(f"An unexpected error occurred: {e}", fg="red", bold=True)
         )
         exit(1)
-
 
 
 @click.group()

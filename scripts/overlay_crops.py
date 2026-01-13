@@ -9,11 +9,26 @@ from tifffile import imread
 
 # Fixed palette (tab20-ish) to avoid extra deps; values in 0-255 RGB
 PALETTE: List[Tuple[int, int, int]] = [
-    (31, 119, 180), (255, 127, 14), (44, 160, 44), (214, 39, 40),
-    (148, 103, 189), (140, 86, 75), (227, 119, 194), (127, 127, 127),
-    (188, 189, 34), (23, 190, 207), (174, 199, 232), (255, 187, 120),
-    (152, 223, 138), (255, 152, 150), (197, 176, 213), (196, 156, 148),
-    (247, 182, 210), (199, 199, 199), (219, 219, 141), (158, 218, 229),
+    (31, 119, 180),
+    (255, 127, 14),
+    (44, 160, 44),
+    (214, 39, 40),
+    (148, 103, 189),
+    (140, 86, 75),
+    (227, 119, 194),
+    (127, 127, 127),
+    (188, 189, 34),
+    (23, 190, 207),
+    (174, 199, 232),
+    (255, 187, 120),
+    (152, 223, 138),
+    (255, 152, 150),
+    (197, 176, 213),
+    (196, 156, 148),
+    (247, 182, 210),
+    (199, 199, 199),
+    (219, 219, 141),
+    (158, 218, 229),
 ]
 
 FILENAME_RE = re.compile(r"^(c\d+_t\d+)_([^_]+)_([0-9]+)\.tif$", re.IGNORECASE)
@@ -34,7 +49,9 @@ def load_mask(path: Path) -> np.ndarray:
     if arr.ndim != 3:
         raise ValueError(f"Expected 3D array (C,H,W) in {path}, got shape {arr.shape}")
     if arr.shape[0] < 2:
-        raise ValueError(f"Expected at least 2 channels in {path}, got shape {arr.shape}")
+        raise ValueError(
+            f"Expected at least 2 channels in {path}, got shape {arr.shape}"
+        )
     mask = arr[1]
     return mask
 
@@ -158,7 +175,9 @@ def gather_masks(input_dir: Path) -> Dict[Tuple[str, str], Dict[str, np.ndarray]
     return groups
 
 
-def save_overlay(output_dir: Path, scene_time: str, cell_id: str, overlay: np.ndarray, suffix: str) -> Path:
+def save_overlay(
+    output_dir: Path, scene_time: str, cell_id: str, overlay: np.ndarray, suffix: str
+) -> Path:
     output_dir.mkdir(parents=True, exist_ok=True)
     out_path = output_dir / f"{scene_time}_{cell_id}_overlay{suffix}.png"
     from tifffile import imwrite
@@ -217,10 +236,18 @@ def parse_color_override(values: List[str] | None) -> Dict[str, Tuple[int, int, 
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Overlay competitor segmentations for each cell crop")
-    parser.add_argument("input_dir", type=Path, help="Directory with crop TIFFs (channel-first, segmentation in channel 1)")
+    parser = argparse.ArgumentParser(
+        description="Overlay competitor segmentations for each cell crop"
+    )
+    parser.add_argument(
+        "input_dir",
+        type=Path,
+        help="Directory with crop TIFFs (channel-first, segmentation in channel 1)",
+    )
     parser.add_argument("output_dir", type=Path, help="Where to write overlay PNGs")
-    parser.add_argument("--alpha", type=float, default=0.8, help="Per-mask opacity (0-1). Default: 0.8")
+    parser.add_argument(
+        "--alpha", type=float, default=0.8, help="Per-mask opacity (0-1). Default: 0.8"
+    )
     parser.add_argument(
         "--background",
         type=str,
@@ -238,8 +265,15 @@ def main() -> None:
         default="fill,fill_outline,outline,stacked",
         help="Comma-separated variants: fill, fill_outline, outline, stacked",
     )
-    parser.add_argument("--scene", type=str, default=None, help="Optional scene_time filter (e.g., c01_t0126)")
-    parser.add_argument("--cell", type=str, default=None, help="Optional cell_id filter (e.g., 1)")
+    parser.add_argument(
+        "--scene",
+        type=str,
+        default=None,
+        help="Optional scene_time filter (e.g., c01_t0126)",
+    )
+    parser.add_argument(
+        "--cell", type=str, default=None, help="Optional cell_id filter (e.g., 1)"
+    )
     parser.add_argument(
         "--order",
         type=str,
@@ -251,7 +285,9 @@ def main() -> None:
     background = tuple(int(p) for p in args.background.split(","))
     color_overrides = parse_color_override(args.color)
     variants = [v.strip() for v in args.variants.split(",") if v.strip()]
-    order = [v.strip() for v in args.order.split(",") if v.strip()] if args.order else None
+    order = (
+        [v.strip() for v in args.order.split(",") if v.strip()] if args.order else None
+    )
 
     run(
         args.input_dir,
@@ -268,4 +304,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-

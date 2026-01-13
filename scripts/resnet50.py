@@ -350,7 +350,9 @@ def compute_sample_weights(dataset, indices, num_bins=10):
         bin_end = bins[i + 1]
         count = bin_counts[i]
         weight = bin_weights[i]
-        print(f"  [{bin_start:.1f}-{bin_end:.1f}]: {count:4d} samples, weight={weight:.3f}")
+        print(
+            f"  [{bin_start:.1f}-{bin_end:.1f}]: {count:4d} samples, weight={weight:.3f}"
+        )
 
     return sample_weights.tolist()
 
@@ -500,11 +502,11 @@ def train(
     # Setup weighted sampling if enabled
     if weighted_sampling:
         print("Weighted sampling: enabled")
-        sample_weights = compute_sample_weights(train_dataset, train_indices, num_bins=10)
+        sample_weights = compute_sample_weights(
+            train_dataset, train_indices, num_bins=10
+        )
         sampler = WeightedRandomSampler(
-            weights=sample_weights,
-            num_samples=len(train_indices),
-            replacement=True
+            weights=sample_weights, num_samples=len(train_indices), replacement=True
         )
         train_loader = DataLoader(
             train_data,
@@ -601,12 +603,14 @@ def train(
             )
 
             # Update epoch progress bar with current metrics
-            epoch_pbar.set_postfix({
-                "train_loss": f"{train_loss:.4f}",
-                "val_loss": f"{val_loss:.4f}",
-                "best_val": f"{best_val_loss:.4f}",
-                "lr": f"{current_lr:.1e}"
-            })
+            epoch_pbar.set_postfix(
+                {
+                    "train_loss": f"{train_loss:.4f}",
+                    "val_loss": f"{val_loss:.4f}",
+                    "best_val": f"{best_val_loss:.4f}",
+                    "lr": f"{current_lr:.1e}",
+                }
+            )
 
             # Log if LR changed
             if current_lr != last_lr:
@@ -618,7 +622,9 @@ def train(
                 best_val_loss = val_loss
                 best_model_state = model.state_dict().copy()
                 epochs_without_improvement = 0
-                tqdm.write(f"  Epoch {epoch+1}: New best validation loss! ({val_loss:.4f})")
+                tqdm.write(
+                    f"  Epoch {epoch+1}: New best validation loss! ({val_loss:.4f})"
+                )
             else:
                 epochs_without_improvement += 1
 

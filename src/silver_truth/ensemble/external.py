@@ -1,5 +1,5 @@
 import silver_truth.data_processing.compression as dp_comp
-import silver_truth.qa.preprocessing as  qa_pp
+import silver_truth.qa.preprocessing as qa_pp
 import silver_truth.data_processing.utils.dataset_dataframe_creation as ddc
 
 
@@ -12,11 +12,9 @@ def build_qa_dataset(
     output_dir: str,
     output_parquet_path: str,
 ):
-    qa_pp.create_qa_dataset(dataset_dataframe_path, 
-                            output_dir,
-                            output_parquet_path, 
-                            crop=True, 
-                            crop_size=64)
+    qa_pp.create_qa_dataset(
+        dataset_dataframe_path, output_dir, output_parquet_path, crop=True, crop_size=64
+    )
 
 
 def load_parquet(input_path: str):

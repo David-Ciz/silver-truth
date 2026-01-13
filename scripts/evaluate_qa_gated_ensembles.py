@@ -126,7 +126,9 @@ def evaluate_individual_competitors(fused_split_path: Path) -> pd.DataFrame:
     return pd.DataFrame(results)
 
 
-def format_results_table(df: pd.DataFrame, value_cols: list[str], group_col: str) -> None:
+def format_results_table(
+    df: pd.DataFrame, value_cols: list[str], group_col: str
+) -> None:
     """Print a formatted results table."""
     splits_order = ["train", "validation", "test", "all"]
 
@@ -188,7 +190,9 @@ def main():
 
     # Save results to CSV
     qa_results.to_csv(project_root / "qa_ensemble_evaluation_results.csv", index=False)
-    competitor_results.to_csv(project_root / "competitor_evaluation_results.csv", index=False)
+    competitor_results.to_csv(
+        project_root / "competitor_evaluation_results.csv", index=False
+    )
 
     print("\n\nResults saved to:")
     print("  - qa_ensemble_evaluation_results.csv")
@@ -199,8 +203,12 @@ def main():
     print("SUMMARY: TEST SET COMPARISON")
     print("=" * 80)
 
-    qa_test = qa_results[qa_results["split"] == "test"].sort_values("iou_mean", ascending=False)
-    comp_test = competitor_results[competitor_results["split"] == "test"].sort_values("jaccard_mean", ascending=False)
+    qa_test = qa_results[qa_results["split"] == "test"].sort_values(
+        "iou_mean", ascending=False
+    )
+    comp_test = competitor_results[competitor_results["split"] == "test"].sort_values(
+        "jaccard_mean", ascending=False
+    )
 
     if not qa_test.empty:
         best_qa = qa_test.iloc[0]
@@ -212,10 +220,11 @@ def main():
     if not comp_test.empty:
         best_comp = comp_test.iloc[0]
         print(f"\nBest Competitor: {best_comp['competitor']}")
-        print(f"  Jaccard: {best_comp['jaccard_mean']:.4f} (±{best_comp['jaccard_std']:.4f})")
+        print(
+            f"  Jaccard: {best_comp['jaccard_mean']:.4f} (±{best_comp['jaccard_std']:.4f})"
+        )
         print(f"  F1:      {best_comp['f1_mean']:.4f} (±{best_comp['f1_std']:.4f})")
 
 
 if __name__ == "__main__":
     main()
-

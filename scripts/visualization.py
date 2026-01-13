@@ -53,14 +53,43 @@ def _get_str(row: pd.Series, col: str | None) -> str | None:
 
 
 @click.command(context_settings=dict(help_option_names=["-h", "--help"]))
-@click.option("--parquet", required=True, type=click.Path(exists=True, dir_okay=False), help="Path to Parquet file")
-@click.option("--filter-only-gt", default=True, show_default=True, help="Create dataset only from rows with GT mask")
-@click.option("--dataset-name", default="seg-compare", show_default=True, help="FiftyOne dataset name")
-@click.option("--overwrite", is_flag=True, help="Delete existing dataset with same name before import")
-@click.option("--image-col", default=None, help="Optional column with base image filepath")
-@click.option("--gt-col", required=True, default="gt_image", help="Column with GT mask path")
-@click.option("--pred-cols", default=None, help="Comma-separated columns with competitor mask paths")
-@click.option("--limit", type=int, default=None, help="Optionally limit number of rows imported")
+@click.option(
+    "--parquet",
+    required=True,
+    type=click.Path(exists=True, dir_okay=False),
+    help="Path to Parquet file",
+)
+@click.option(
+    "--filter-only-gt",
+    default=True,
+    show_default=True,
+    help="Create dataset only from rows with GT mask",
+)
+@click.option(
+    "--dataset-name",
+    default="seg-compare",
+    show_default=True,
+    help="FiftyOne dataset name",
+)
+@click.option(
+    "--overwrite",
+    is_flag=True,
+    help="Delete existing dataset with same name before import",
+)
+@click.option(
+    "--image-col", default=None, help="Optional column with base image filepath"
+)
+@click.option(
+    "--gt-col", required=True, default="gt_image", help="Column with GT mask path"
+)
+@click.option(
+    "--pred-cols",
+    default=None,
+    help="Comma-separated columns with competitor mask paths",
+)
+@click.option(
+    "--limit", type=int, default=None, help="Optionally limit number of rows imported"
+)
 @click.option("--launch", is_flag=True, help="Launch the FiftyOne App after import")
 def main(
     parquet: str,
@@ -81,13 +110,16 @@ def main(
     if filter_only_gt:
         df = df[df[gt_col].notna()]
 
-
     pred_cols_list = _split_cols(pred_cols)
 
     # Prepare dataset
     if overwrite and dataset_name in fo.list_datasets():
         fo.delete_dataset(dataset_name)
-    dataset = fo.Dataset(dataset_name) if dataset_name not in fo.list_datasets() else fo.load_dataset(dataset_name)
+    dataset = (
+        fo.Dataset(dataset_name)
+        if dataset_name not in fo.list_datasets()
+        else fo.load_dataset(dataset_name)
+    )
 
     samples: list[fo.Sample] = []
 
@@ -131,7 +163,9 @@ def main(
 
     if launch:
         try:
-            session = fo.launch_app(dataset,)
+            session = fo.launch_app(
+                dataset,
+            )
             click.echo(f"FiftyOne App URL: {session.url}")
             # Keep the process alive until the app/session is closed
             session.wait()

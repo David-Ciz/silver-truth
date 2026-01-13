@@ -13,7 +13,13 @@ from torchmetrics.classification import BinaryJaccardIndex
 
 
 class Encoder32(nn.Module):
-    def __init__(self, num_input_channels: int, base_channel_size: int, latent_dim: int, act_fn: Callable = nn.GELU):
+    def __init__(
+        self,
+        num_input_channels: int,
+        base_channel_size: int,
+        latent_dim: int,
+        act_fn: Callable = nn.GELU,
+    ):
         """Encoder.
 
         Args:
@@ -25,17 +31,27 @@ class Encoder32(nn.Module):
         """
         super().__init__()
         c_hid = base_channel_size
-        self.transform = transforms.Compose([transforms.Resize((32, 32)),])
+        self.transform = transforms.Compose(
+            [
+                transforms.Resize((32, 32)),
+            ]
+        )
         self.net = nn.Sequential(
-            nn.Conv2d(num_input_channels, c_hid, kernel_size=3, padding=1, stride=2),  # 32x32 => 16x16
+            nn.Conv2d(
+                num_input_channels, c_hid, kernel_size=3, padding=1, stride=2
+            ),  # 32x32 => 16x16
             act_fn(),
             nn.Conv2d(c_hid, c_hid, kernel_size=3, padding=1),
             act_fn(),
-            nn.Conv2d(c_hid, 2 * c_hid, kernel_size=3, padding=1, stride=2),  # 16x16 => 8x8
+            nn.Conv2d(
+                c_hid, 2 * c_hid, kernel_size=3, padding=1, stride=2
+            ),  # 16x16 => 8x8
             act_fn(),
             nn.Conv2d(2 * c_hid, 2 * c_hid, kernel_size=3, padding=1),
             act_fn(),
-            nn.Conv2d(2 * c_hid, 2 * c_hid, kernel_size=3, padding=1, stride=2),  # 8x8 => 4x4
+            nn.Conv2d(
+                2 * c_hid, 2 * c_hid, kernel_size=3, padding=1, stride=2
+            ),  # 8x8 => 4x4
             nn.Sigmoid(),
             nn.Flatten(),  # Image grid to single feature vector
             nn.Linear(2 * 16 * c_hid, latent_dim),
@@ -47,7 +63,13 @@ class Encoder32(nn.Module):
 
 
 class Decoder32(nn.Module):
-    def __init__(self, base_channel_size: int, latent_dim: int, last_act_fn: Callable, act_fn: Callable = nn.GELU):
+    def __init__(
+        self,
+        base_channel_size: int,
+        latent_dim: int,
+        last_act_fn: Callable,
+        act_fn: Callable = nn.GELU,
+    ):
         """Decoder.
 
         Args:
@@ -58,21 +80,39 @@ class Decoder32(nn.Module):
 
         """
         super().__init__()
-        self.transform = transforms.Compose([transforms.Resize((64, 64)),])
-        num_outputs = 1 # the output is a single "grayscale" image
+        self.transform = transforms.Compose(
+            [
+                transforms.Resize((64, 64)),
+            ]
+        )
+        num_outputs = 1  # the output is a single "grayscale" image
         c_hid = base_channel_size
 
-        self.linear = nn.Sequential(nn.Linear(latent_dim, 2 * 16 * c_hid), act_fn(),)
+        self.linear = nn.Sequential(
+            nn.Linear(latent_dim, 2 * 16 * c_hid),
+            act_fn(),
+        )
         self.net = nn.Sequential(
-            nn.ConvTranspose2d(2 * c_hid, 2 * c_hid, kernel_size=3, output_padding=1, padding=1, stride=2),  # 4x4 => 8x8
+            nn.ConvTranspose2d(
+                2 * c_hid,
+                2 * c_hid,
+                kernel_size=3,
+                output_padding=1,
+                padding=1,
+                stride=2,
+            ),  # 4x4 => 8x8
             act_fn(),
             nn.Conv2d(2 * c_hid, 2 * c_hid, kernel_size=3, padding=1),
             act_fn(),
-            nn.ConvTranspose2d(2 * c_hid, c_hid, kernel_size=3, output_padding=1, padding=1, stride=2),  # 8x8 => 16x16
+            nn.ConvTranspose2d(
+                2 * c_hid, c_hid, kernel_size=3, output_padding=1, padding=1, stride=2
+            ),  # 8x8 => 16x16
             act_fn(),
             nn.Conv2d(c_hid, c_hid, kernel_size=3, padding=1),
             act_fn(),
-            nn.ConvTranspose2d(c_hid, num_outputs, kernel_size=3, output_padding=1, padding=1, stride=2),  # 16x16 => 32x32
+            nn.ConvTranspose2d(
+                c_hid, num_outputs, kernel_size=3, output_padding=1, padding=1, stride=2
+            ),  # 16x16 => 32x32
             last_act_fn(),  # Tanh() for MSE, Sigmoid() for BCE
         )
 
@@ -121,7 +161,7 @@ class SparseAutoencoder32(pl.LightningModule):
             # filter out values below high_pass_filter threshold
             x = self.level_trigger(x)
         return x
-    
+
     def forward_full(self, x):
         x_enc = self.encoder(x)
         x_hat = self.decoder(x_enc)
@@ -136,12 +176,14 @@ class SparseAutoencoder32(pl.LightningModule):
         return self.get_loss(x_hat, y, x_enc)
 
     def sparsity_penalty(self, encoded):
-        #rho_hat = torch.mean(encoded, dim=0)
+        # rho_hat = torch.mean(encoded, dim=0)
         rho_hat = encoded.sum(dim=[0, 1]).mean(dim=[0])
         rho = self.sparsity_target
         epsilon = 1e-8
         rho_hat = torch.clamp(rho_hat, min=epsilon, max=1 - epsilon)
-        kl_divergence = rho * torch.log(rho / rho_hat) + (1 - rho) * torch.log((1 - rho) / (1 - rho_hat))
+        kl_divergence = rho * torch.log(rho / rho_hat) + (1 - rho) * torch.log(
+            (1 - rho) / (1 - rho_hat)
+        )
         sparsity_penalty = torch.sum(kl_divergence)
         return self.sparsity_lambda * sparsity_penalty
 
@@ -149,13 +191,14 @@ class SparseAutoencoder32(pl.LightningModule):
     Create a custom loss that combine mean squared error (MSE) loss 
     for reconstruction with the sparsity penalty.
     """
+
     def get_loss(self, x, y, x_enc):
         loss = F.mse_loss(x, y, reduction="none")
         loss = loss.sum(dim=[1, 2, 3]).mean(dim=[0])
         sparsity_loss = self.sparsity_penalty(x_enc)
         return loss + sparsity_loss
-    
-    #TODO: experiment with a more complex loss
+
+    # TODO: experiment with a more complex loss
     # -> Remove if it doesn't improve learning
     def get_loss_with_jaccard(self, x, y, x_enc):
         loss = self.get_loss(x, y, x_enc)
@@ -163,14 +206,18 @@ class SparseAutoencoder32(pl.LightningModule):
         iou = self.jaccard(self.level_trigger(x), y)
         iou_loss = loss * (1 - iou)
         return loss + iou_loss
- 
+
     def configure_optimizers(self):
         optimizer = optim.Adam(self.parameters(), lr=1e-3)
         # Using a scheduler is optional but can be helpful.
         # The scheduler reduces the LR if the validation performance hasn't improved for the last N epochs
-        scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode="min", factor=0.2, patience=20, min_lr=5e-5)
-        #return {"optimizer": optimizer, "lr_scheduler": scheduler, "monitor": "val_loss"}
-        return OptimizerLRSchedulerConfig({"optimizer": optimizer, "lr_scheduler": scheduler, "monitor": "val_loss"})
+        scheduler = optim.lr_scheduler.ReduceLROnPlateau(
+            optimizer, mode="min", factor=0.2, patience=20, min_lr=5e-5
+        )
+        # return {"optimizer": optimizer, "lr_scheduler": scheduler, "monitor": "val_loss"}
+        return OptimizerLRSchedulerConfig(
+            {"optimizer": optimizer, "lr_scheduler": scheduler, "monitor": "val_loss"}
+        )
 
     def training_step(self, batch, batch_idx):
         loss = self._get_reconstruction_loss(batch)
