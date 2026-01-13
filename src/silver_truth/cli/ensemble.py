@@ -1,7 +1,7 @@
 import click
 import logging
-import silver_truth.ensemble.ensemble as ensemble
-from silver_truth.ensemble.models import ModelType
+import src.ensemble.ensemble as ensemble
+from src.ensemble.models import ModelType
 
 # from pathlib import Path
 
@@ -28,6 +28,7 @@ def ensemble_experiment(
     try:
         ensemble.run_experiment(
             name,
+            name,  # databank_name
             parquet_file,
             [{"model_type": ModelType.UnetPlusPlus, "max_epochs": 100}],
         )

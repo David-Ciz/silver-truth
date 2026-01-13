@@ -4,9 +4,10 @@ from tqdm import tqdm
 from enum import Enum
 import torch
 from torch.utils.data import Dataset
-import silver_truth.ensemble.external as ext
+import src.ensemble.external as ext
 import albumentations as A
 import numpy as np
+import time
 # from PIL import Image
 
 
@@ -50,8 +51,9 @@ class EnsembleDatasetC1(Dataset):
 
         # fill tensors with actual data
         for index, row in enumerate(df.itertuples()):
-            if row.split != split:
-                continue
+            if split != "all":
+                if row.split != split:
+                    continue
             # load the image
             composed_image = tifffile.imread(row.image_path)  # type: ignore
             # split the composed image
@@ -121,9 +123,6 @@ class EnsembleDatasetC2(Dataset):
 
     def __getitem__(self, index):
         return (self.data[index], self.gts[index])
-
-
-import time
 
 
 def benchmark_EnsembleDataset(path, epochs=1000):

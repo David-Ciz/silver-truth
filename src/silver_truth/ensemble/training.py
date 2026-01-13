@@ -8,16 +8,16 @@ import pytorch_lightning as pl
 from pytorch_lightning.callbacks import Callback, EarlyStopping, ModelCheckpoint
 import mlflow
 import matplotlib.pyplot as plt
-from silver_truth.ensemble.datasets import EnsembleDatasetC1
-from silver_truth.ensemble.models_loss_type import LossType
-from silver_truth.ensemble.models import SMP_Model
-import silver_truth.ensemble.utils as utils
+from src.ensemble.datasets import EnsembleDatasetC1
+from src.ensemble.models_loss_type import LossType
+from src.ensemble.models import SMP_Model
+import src.ensemble.utils as utils
 import albumentations as A
 
 # TODO: create config pipepline:
 # config dictionary should be provided
-# checkpoint_path = "data/ensemble_data/results/checkpoints222/"
-_checkpoint_path = None
+_checkpoint_path = "data/ensemble_data/results/checkpoints"
+
 
 """
 def get_model(model: str, parameters: dict):
@@ -75,12 +75,16 @@ class EvaluationCallback(Callback):
         self.train_inputs, self.train_targets = train_set[0], train_set[1]
         self.val_inputs, self.val_targets = val_set[0], val_set[1]
         self.every_n_epochs = every_n_epochs
+        self.best_f1 = 0
 
     def on_train_epoch_end(self, trainer, pl_module):
         if trainer.current_epoch % self.every_n_epochs == 0:
             val_loss, val_f1, val_iou = _evaluate_model(
                 pl_module, self.val_inputs, self.val_targets
             )
+            if self.best_f1 < val_f1:
+                self.best_f1 = val_f1
+                mlflow.log_metric("best_val_f1", value=self.best_f1)
             mlflow.log_metric(
                 "val_loss", value=val_loss, step=trainer.current_epoch + 1
             )
@@ -108,6 +112,7 @@ def _get_stacked_images(dataset, num):
 
 
 def _train_model(
+    databank_name,
     run_params,
     train_dataset,
     val_dataset,
@@ -142,18 +147,24 @@ def _train_model(
     mlflow.log_param("loss_type", model_pl.loss_type)
 
     # Create a PyTorch Lightning trainer with the generation callback
+    # Build safe filename for checkpoint to avoid nested quotes in f-string
+    try:
+        databank_suffix = databank_name.split("QA-")[1]
+    except Exception:
+        databank_suffix = databank_name
+
+    checkpoint_filename = f"M{model_type.value}-{databank_suffix}"
+
     trainer = pl.Trainer(
-        default_root_dir=os.path.join(
-            os.getcwd(),
-            f"data/ensemble_data/results/checkpoints/model_{model_pl.loss_type.name}",
-        ),
+        default_root_dir=os.path.join(os.getcwd(), _checkpoint_path),
         deterministic=True,
         accelerator="auto",
         devices="auto",
         max_epochs=max_epochs,
         callbacks=[
             ModelCheckpoint(
-                dirpath=_checkpoint_path,
+                filename=checkpoint_filename,
+                dirpath=f"{_checkpoint_path}/{databank_name}",
                 monitor="val_loss",
                 mode="min",
                 save_top_k=1,
@@ -179,6 +190,7 @@ def _train_model(
 
 def _visualize_reconstructions(model, train_set):
     train_imgs, gt_images = train_set[0], train_set[1]
+    model.to(utils.get_device())  # bypass LevelTrigger issue
     # Reconstruct images
     model.eval()
     with torch.no_grad():
@@ -216,7 +228,9 @@ def _visualize_dataset(subset):
     plt.waitforbuttonpress(0)
 
 
-def run(run_params: dict, parquet_path: str, rand_seed: int = 42) -> None:
+def run(
+    databank_name: str, run_params: dict, parquet_path: str, rand_seed: int = 42
+) -> None:
     """
     Run a training session.
     With "remote", there's no visual feedback, such as image reconstructions.
@@ -258,20 +272,15 @@ def run(run_params: dict, parquet_path: str, rand_seed: int = 42) -> None:
     # train_set.dataset = EnsembleDatasetC1(parquet_path, None)
 
     # dataloaders
-    batch_size = 20
+    batch_size = 7
     train_loader = data.DataLoader(
-        train_set,
-        batch_size=batch_size,
-        shuffle=True,
-        drop_last=True,
-        pin_memory=True,
-        num_workers=4,
+        train_set, batch_size=batch_size, shuffle=True, drop_last=True
     )
     val_loader = data.DataLoader(
-        val_set, batch_size=batch_size, shuffle=False, drop_last=False, num_workers=4
+        val_set, batch_size=batch_size, shuffle=False, drop_last=False
     )
     test_loader = data.DataLoader(
-        test_set, batch_size=batch_size, shuffle=False, drop_last=False, num_workers=4
+        test_set, batch_size=batch_size, shuffle=False, drop_last=False
     )
 
     # DEBUG only
@@ -290,6 +299,7 @@ def run(run_params: dict, parquet_path: str, rand_seed: int = 42) -> None:
 
     # train model
     model, result = _train_model(
+        databank_name,
         run_params,
         train_set,
         val_set,
@@ -299,5 +309,5 @@ def run(run_params: dict, parquet_path: str, rand_seed: int = 42) -> None:
     )
 
     # DEBUG only
-    # _visualize_reconstructions(model, _get_stacked_images(val_set, 16))
+    _visualize_reconstructions(model, _get_stacked_images(val_set, 16))
     print("Done.")

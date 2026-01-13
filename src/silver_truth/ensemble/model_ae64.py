@@ -6,8 +6,8 @@ from torch.nn import functional as F
 import pytorch_lightning as pl
 from pytorch_lightning.utilities.types import OptimizerLRSchedulerConfig
 from collections.abc import Callable
-from silver_truth.ensemble.models_loss_type import LossType
-from silver_truth.ensemble.act_functions import LevelTrigger
+from src.ensemble.models_loss_type import LossType
+from src.ensemble.act_functions import LevelTrigger
 from torchmetrics.classification import BinaryJaccardIndex
 
 
@@ -155,7 +155,9 @@ class Autoencoder64(pl.LightningModule):
         self.encoder = Encoder64(num_inputs, num_channels, latent_dim)
         self.decoder = Decoder64(num_channels, latent_dim, last_decoder_act_fn)
 
-        self.level_trigger = LevelTrigger()
+        import src.ensemble.utils as utils
+
+        self.level_trigger = LevelTrigger(utils.get_device())
         self.jaccard = BinaryJaccardIndex()
 
         # Example input array needed for visualizing the graph of the network

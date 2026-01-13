@@ -5,42 +5,42 @@ from tqdm import tqdm
 import pandas as pd
 import numpy as np
 from scipy.ndimage import find_objects
-import silver_truth.ensemble.external as ext
-from silver_truth.ensemble.datasets import Version
+from src.ensemble import utils
+import src.ensemble.external as ext
+import src.data_processing.utils.parquet_utils as p_utils
+
+SPLIT_COL = p_utils.SPLITS_COLUMN
 
 
-def build_analysis_databank(qa_dataset_dataframe_path: str, output_path: str) -> None:
+def build_analysis_databank_full(qa_dataset_path: str, output_path: str) -> None:
     """
     Creates an image dataset for helping visualizing the differences between GT and proposed segmentations.
-    Should use cropped output of create_qa_dataset (in order to get the center of the cell).
     """
     # create output path if it doesn't exist
     Path(output_path).mkdir(parents=True, exist_ok=True)
     # load the dataframe
-    df = ext.load_parquet(qa_dataset_dataframe_path)
+    df = ext.load_parquet(qa_dataset_path)
+
+    done_imgs = []
 
     for row in tqdm(df.itertuples(), total=len(df), desc="Processing images"):
+        id = f"{row.campaign_number}_{row.original_image_key}_{row.competitor}"
+        if id in done_imgs:
+            continue
+        done_imgs.append(id)
+
         # load gt image
+        seg_img = tifffile.imread(row.segmentation_path)  # type: ignore
         gt_image = tifffile.imread(row.gt_image)  # type: ignore
-        combined_qa_image = tifffile.imread(row.stacked_path).astype(np.uint8)  # type: ignore
-        # segmented_qa_image = combined_qa_image[1]
-        seg_crop = combined_qa_image[1]
+        ori_image = tifffile.imread(row.original_image_path)  # type: ignore
 
-        gt_crop = gt_image[
-            row.crop_y_start : row.crop_y_end, row.crop_x_start : row.crop_x_end
-        ]
-
-        # contains the rest of the gt segmentations, shown in blue
-        blue_layer = (
-            np.logical_and(gt_crop > 0, gt_crop != row.label).astype(np.uint8) * 255
-        )
-        gt_crop = (gt_crop == row.label).astype(np.uint8) * 255
-        stacked_crop = np.stack([seg_crop, gt_crop, blue_layer], axis=0)
+        seg_img = (seg_img > 0).astype(np.uint8) * 255
+        gt_image = (gt_image > 0).astype(np.uint8) * 255
+        stacked_crop = np.stack([seg_img, gt_image, ori_image], axis=0)
 
         # campaign - image id - cell id - competitor
-        campaign, img_id, competitor, suffix = Path(row.stacked_path).name.split("_")  # type: ignore
-        cell_id, __ = suffix.split(".")
-        new_name = f"{campaign}_{img_id}_{cell_id}_{competitor}.tif"
+        campaign, img_id, competitor, _ = Path(row.stacked_path).name.split("_")  # type: ignore
+        new_name = f"{campaign}_{img_id}_{competitor}.tif"
         # Save the image
         new_img_path = os.path.join(output_path, new_name)
         # output folder
@@ -50,36 +50,93 @@ def build_analysis_databank(qa_dataset_dataframe_path: str, output_path: str) ->
     ext.compress_images(output_path)
 
 
-def build_databank_old(
-    qa_dataset_dataframe_path: str, output_path: str, version: Version
-):
-    # if version == Version.C1:
-    # _build_databank(qa_dataset_dataframe_path, output_path)
-    pass
+def build_analysis_databank(qa_dataset_path: str, output_path: str) -> None:
+    """
+    Creates an image dataset for helping visualizing the differences between GT and proposed segmentations.
+    Should use cropped output of create_qa_dataset (in order to get the center of the cell).
+    """
+    # create output path if it doesn't exist
+    Path(output_path).mkdir(parents=True, exist_ok=True)
+    # load the dataframe
+    df = ext.load_parquet(qa_dataset_path)
+
+    for row in tqdm(df.itertuples(), total=len(df), desc="Processing images"):
+        # campaign - image id - cell id - competitor
+        campaign, img_id, competitor, suffix = Path(row.stacked_path).name.split("_")  # type: ignore
+        cell_id, __ = suffix.split(".")
+        new_name = f"{campaign}_{img_id}_{cell_id}_{competitor}.tif"
+        new_img_path = os.path.join(output_path, new_name)
+
+        # load gt image
+        gt_image = tifffile.imread(row.gt_image)  # type: ignore
+        combined_qa_image = tifffile.imread(row.stacked_path).astype(np.uint8)  # type: ignore
+        seg_crop = combined_qa_image[1]
+
+        crop_y_start, crop_y_end = row.crop_y_start, row.crop_y_end
+        crop_x_start, crop_x_end = row.crop_x_start, row.crop_x_end
+
+        if crop_y_start < 0:  # type: ignore
+            y_inc = -crop_y_start  # type: ignore
+            gt_image = np.vstack((np.zeros((y_inc, gt_image.shape[1])), gt_image))  # type: ignore
+            crop_y_end += y_inc
+            crop_y_start = 0
+        if crop_x_start < 0:  # type: ignore
+            x_inc = -crop_x_start  # type: ignore
+            gt_image = np.hstack((np.zeros((gt_image.shape[0], x_inc)), gt_image))
+            crop_x_end += x_inc
+            crop_x_start = 0
+        if gt_image.shape[0] < crop_y_end:
+            gt_image = np.vstack(
+                (
+                    gt_image,
+                    np.zeros((crop_y_end - gt_image.shape[0], gt_image.shape[1])),
+                )
+            )
+        if gt_image.shape[1] < crop_x_end:  # type: ignore
+            gt_image = np.hstack(
+                (
+                    gt_image,
+                    np.zeros((gt_image.shape[0], crop_x_end - gt_image.shape[1])),
+                )
+            )
+
+        gt_crop = gt_image[crop_y_start:crop_y_end, crop_x_start:crop_x_end]
+
+        # contains the rest of the gt segmentations, shown in blue
+        blue_layer = (
+            np.logical_and(gt_crop > 0, gt_crop != row.label).astype(np.uint8) * 255
+        )
+        gt_crop = (gt_crop == row.label).astype(np.uint8) * 255
+        stacked_crop = np.stack([seg_crop, gt_crop, blue_layer], axis=0)
+
+        # save to output folder
+        tifffile.imwrite(new_img_path, stacked_crop)
+
+    # compress images
+    ext.compress_images(output_path)
 
 
 def build_databank(
-    name,
-    qa_dataset_dataframe_path: str,
+    build_opt: dict,
+    qa_dataset_path: str,
     output_path: str,
-    crop_size: int = 64,
     # apply_blue_layer: bool = True
-) -> None:
+) -> str:
     """
     Generate the databank for the different dataset versions.
 
-    For each gt_image, for each label, all the competitors cropped segmentations (from silver_truth.qa) "votes" (each ON pixel equals 1 vote) /
+    For each gt_image, for each label, all the competitors cropped segmentations (from qa) "votes" (each ON pixel equals 1 vote) /
     are summed into a single image layer, and then normalized by the number of competitors.
     The union of this sum image and the gt image is used to find the minimum appropriate crop size.
     For each gt image, a new image (crop size) is created with the cropped sum image as the 1st layer /
     and the cropped gt image as 2nd layer.
     """
-    # TODO: update description
+    # TODO: update description.
+    # TODO: add support for additional dataset versions.
 
-    new_images_folder = "images"
-    composed_output_path = os.path.join(output_path, name)
     # destination path of the created images
-    images_output_path = os.path.join(composed_output_path, new_images_folder)
+    databank_foldername = utils.get_databank_name(build_opt)
+    images_output_path = os.path.join(output_path, databank_foldername)
     # create images path if it doesn't exist
     Path(images_output_path).mkdir(parents=True, exist_ok=True)
 
@@ -87,15 +144,19 @@ def build_databank(
     data_list = []
 
     # loads the QA dataset
-    df = ext.load_parquet(qa_dataset_dataframe_path)
+    df = ext.load_parquet(qa_dataset_path)
+
     # get the gt images
     unique_gt_images = df["gt_image"].unique()
     # get crop size
-    qa_crop_size = df.iloc[0]["crop_size"]
-    qa_crop_half_size = qa_crop_size // 2
+    crop_size = df.iloc[0]["crop_size"]
+    qa_crop_half_size = crop_size // 2
     # sets the size of the array that will contain the summed images
-    canvas_size = qa_crop_size * 4
+    canvas_size = crop_size * 4 if crop_size <= 64 else crop_size * 2
     canvas_half_size = canvas_size // 2
+
+    print(f"\n{build_opt}")
+    num_removed_segs = 0
 
     # go through the gt images
     for gt_image_path in tqdm(
@@ -116,15 +177,31 @@ def build_databank(
             canvas = np.zeros((canvas_size, canvas_size), dtype=np.int32)
             # select first row
             first_row = df_same_cell.iloc[0]
+            # confirm that all cells have the same split type
+            assert (df_same_cell.split.values == first_row.split).all()
+
             # gets the original center that is used to center and overlap the competitors segmentations
             qa_crop_original_center_y, qa_crop_original_center_x = (
                 first_row["original_center_y"],
                 first_row["original_center_x"],
             )
 
+            num_segs = len(df_same_cell)
+            # filter segmentations according to QA
+            if build_opt["qa"] is not None:
+                df_same_cell_thresh = df_same_cell[
+                    df_same_cell[build_opt["qa"]] > build_opt["qa_threshold"]
+                ]
+                if len(df_same_cell_thresh) > 0:
+                    df_same_cell = df_same_cell_thresh
+                else:
+                    max_ite = df_same_cell[build_opt["qa"]].values.argmax()
+                    df_same_cell = df_same_cell.iloc[max_ite : max_ite + 1]
+
+            num_removed_segs += num_segs - len(df_same_cell)
             # go through the competitors segmentations and add them to canvas
             for row in df_same_cell.itertuples():
-                # load competitor segmentation from silver_truth.qa
+                # load competitor segmentation from qa
                 competitor_qa_image = tifffile.imread(row.stacked_path)[1]
                 # finds the starting point for the crop square
                 start_y = (
@@ -141,7 +218,7 @@ def build_databank(
                 )
                 # create an image that is the sum of all segmentations of a label
                 canvas[
-                    start_y : start_y + qa_crop_size, start_x : start_x + qa_crop_size
+                    start_y : start_y + crop_size, start_x : start_x + crop_size
                 ] += competitor_qa_image
 
             # normalized competitors sumation
@@ -167,11 +244,38 @@ def build_databank(
             ]
             # crop full gt image according to canvas and nem center of segmentation summation
             gt_crop_min_y = qa_crop_original_center_y - canvas_half_size + obj_min_y
+            gt_crop_max_y = gt_crop_min_y + crop_size
             gt_crop_min_x = qa_crop_original_center_x - canvas_half_size + obj_min_x
-            gt_crop = gt_image[
-                gt_crop_min_y : gt_crop_min_y + crop_size,
-                gt_crop_min_x : gt_crop_min_x + crop_size,
-            ]
+            gt_crop_max_x = gt_crop_min_x + crop_size
+
+            gt_temp = gt_image.copy()
+
+            if gt_crop_min_y < 0:
+                y_inc = -gt_crop_min_y
+                gt_temp = np.vstack((np.zeros((y_inc, gt_temp.shape[1])), gt_temp))
+                gt_crop_max_y += y_inc
+                gt_crop_min_y = 0
+            if gt_crop_min_x < 0:
+                x_inc = -gt_crop_min_x
+                gt_temp = np.hstack((np.zeros((gt_temp.shape[0], x_inc)), gt_temp))
+                gt_crop_max_x += x_inc
+                gt_crop_min_x = 0
+            if gt_image.shape[0] < gt_crop_max_y:
+                gt_temp = np.vstack(
+                    (
+                        gt_temp,
+                        np.zeros((gt_crop_max_y - gt_temp.shape[0], gt_temp.shape[1])),
+                    )
+                )
+            if gt_image.shape[1] < gt_crop_max_x:
+                gt_temp = np.hstack(
+                    (
+                        gt_temp,
+                        np.zeros((gt_temp.shape[0], gt_crop_max_x - gt_temp.shape[1])),
+                    )
+                )
+
+            gt_crop = gt_temp[gt_crop_min_y:gt_crop_max_y, gt_crop_min_x:gt_crop_max_x]
             gt_crop = (gt_crop == label).astype(np.uint8) * 255
 
             # stack layers
@@ -194,15 +298,29 @@ def build_databank(
                     "label": label,
                     "crop_size": crop_size,
                     "image_path": new_image_path,
+                    "gt_image": gt_image_path,
+                    SPLIT_COL: first_row[SPLIT_COL],
+                    "qa_jaccard_avg": df_same_cell[build_opt["qa"]].mean()
+                    if build_opt["qa"]
+                    else 0,
+                    "qa_jaccard_min": df_same_cell[build_opt["qa"]].min()
+                    if build_opt["qa"]
+                    else 0,
                 }
             )
+
+    print(
+        f"Number of removed segmentations: {num_removed_segs} ({((num_removed_segs/len(df))*100):.2f}%)"
+    )
 
     # convert list to dataframe
     output_df = pd.DataFrame(data_list)
     # build output parquet path
-    parquet_output_path = os.path.join(composed_output_path, f"ensemble_{name}.parquet")
+    parquet_output_path = os.path.join(output_path, f"{databank_foldername}.parquet")
     # save to parquet file
     output_df.to_parquet(parquet_output_path)
 
     # compress images
     ext.compress_images(images_output_path)
+
+    return parquet_output_path

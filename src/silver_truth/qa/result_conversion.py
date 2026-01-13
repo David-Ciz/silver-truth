@@ -9,6 +9,8 @@ import pandas as pd
 from pathlib import Path
 import logging
 from typing import Optional
+import os
+import src.data_processing.utils.parquet_utils as p_utils
 
 # Setup logging
 logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
@@ -241,3 +243,27 @@ def create_parquet_from_qa_results(
         f"Successfully converted {len(created_files)} files to detailed parquet format"
     )
     return created_files
+
+
+def excel2csv(filepath):
+    """
+    Receives an excel with train, validation and test sheets and converts to an ordered csv.
+    """
+    # load excel
+    df_dict = pd.read_excel(filepath, sheet_name=None)
+    df_sheets = []
+    for col_name in ["train", "validation", "test"]:
+        df = df_dict[col_name]
+        df[p_utils.SPLITS_COLUMN] = [col_name] * len(df)
+        df_sheets.append(df)
+
+    # Concatenate all sheets
+    df = pd.concat(df_sheets)
+    # TODO: should be done at the source
+    df.rename(columns={"Predicted Jaccard index": "qa_jaccard"}, inplace=True)
+    # sort by cell_id
+    df.sort_values(by="cell_id", inplace=True)
+    new_filepath = os.path.splitext(filepath)[0] + ".csv"
+    # save csv
+    df.to_csv(new_filepath, index=None, header=True)
+    return new_filepath

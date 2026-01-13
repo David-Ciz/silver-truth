@@ -206,29 +206,33 @@ def create_qa_dataset(
                         y_start, y_end = center_y - half_size, center_y + half_size
                         x_start, x_end = center_x - half_size, center_x + half_size
 
-                        # Ensure crops are within image bounds
-                        y_start, y_end = max(0, y_start), min(raw_image.shape[0], y_end)
-                        x_start, x_end = max(0, x_start), min(raw_image.shape[1], x_end)
+                        # 1. Calculate how much "out of bounds" we are on every side
+                        pad_top = max(0, -y_start)
+                        pad_bottom = max(0, y_end - raw_image.shape[0])
+                        pad_left = max(0, -x_start)
+                        pad_right = max(0, x_end - raw_image.shape[1])
 
-                        raw_crop = raw_image[y_start:y_end, x_start:x_end]
-                        seg_crop = (
-                            segmentation[y_start:y_end, x_start:x_end] == label
-                        ).astype(np.uint8) * 255
+                        # 2. Define the valid slice coordinates within the image
+                        img_y_start = max(0, y_start)
+                        img_y_end = min(raw_image.shape[0], y_end)
+                        img_x_start = max(0, x_start)
+                        img_x_end = min(raw_image.shape[1], x_end)
 
-                        # Pad if crop is smaller than crop_size
-                        pad_y = crop_size - raw_crop.shape[0]
-                        pad_x = crop_size - raw_crop.shape[1]
+                        # 3. Crop the valid part of the image
+                        raw_crop = raw_image[img_y_start:img_y_end, img_x_start:img_x_end]
+                        seg_crop = (segmentation[img_y_start:img_y_end, img_x_start:img_x_end] == label).astype(
+                            np.uint8) * 255
 
-                        if pad_y > 0 or pad_x > 0:
-                            raw_crop = np.pad(
-                                raw_crop, ((0, pad_y), (0, pad_x)), "constant"
-                            )
-                            seg_crop = np.pad(
-                                seg_crop, ((0, pad_y), (0, pad_x)), "constant"
-                            )
+                        # 4. Pad symmetrically using the calculated offsets
+                        # format: ((top, bottom), (left, right))
+                        raw_crop = np.pad(raw_crop, ((pad_top, pad_bottom), (pad_left, pad_right)), mode='constant')
+                        seg_crop = np.pad(seg_crop, ((pad_top, pad_bottom), (pad_left, pad_right)), mode='constant')
 
-                        # Stack the crops
+                        # Stack
                         stacked_crop = np.stack([raw_crop, seg_crop], axis=0)
+
+                        # Verify
+                        assert stacked_crop.shape == (2, crop_size, crop_size), f"Shape mismatch: {stacked_crop.shape}"
 
                         # Save the stacked image
                         # Include campaign number in cell_id to distinguish between campaigns
@@ -245,10 +249,10 @@ def create_qa_dataset(
                                 "campaign_number": campaign_number,
                                 "competitor": competitor,
                                 "label": label,
-                                "crop_y_start": y_start,
-                                "crop_y_end": y_end,
-                                "crop_x_start": x_start,
-                                "crop_x_end": x_end,
+                                "crop_y_start": crop_y_start,
+                                "crop_y_end": crop_y_end,
+                                "crop_x_start": crop_x_start,
+                                "crop_x_end": crop_x_end,
                                 "original_center_y": center_y,
                                 "original_center_x": center_x,
                                 "crop_size": crop_size,
