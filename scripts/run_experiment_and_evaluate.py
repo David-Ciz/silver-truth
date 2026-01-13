@@ -2,8 +2,8 @@ import click
 import mlflow
 from pathlib import Path
 
-from src.fusion.fusion import FusionModel, fuse_segmentations
-from src.metrics.evaluation_logic import run_evaluation
+from silver_truth.fusion.fusion import FusionModel, fuse_segmentations
+from silver_truth.metrics.evaluation_logic import run_evaluation
 
 
 @click.command()

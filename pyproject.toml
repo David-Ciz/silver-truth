@@ -15,12 +15,20 @@ dependencies = [
     "types-tabulate",
     "pandas",
     "Pillow",
-    "dvc[ssh]"
+    "dvc[ssh]",
     "Pillow",
     "pytorch_lightning",
     "mlflow",
-    "albumentations"
+    "albumentations",
+    "segmentation-models-pytorch"
 ]
+
+[project.scripts]
+silver-ensemble = "silver_truth.cli.ensemble:cli"
+silver-evaluation = "silver_truth.cli.evaluation:cli"
+silver-fusion = "silver_truth.cli.fusion:cli"
+silver-preprocessing = "silver_truth.cli.preprocessing:cli"
+silver-qa = "silver_truth.cli.qa:cli"
 
 [project.optional-dependencies]
 dev = [
