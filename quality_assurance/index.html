@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+    <meta charset="utf-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><link rel="canonical" href="https://silver-truth-3-0.readthedocs.io/quality_assurance/" />
+      <link rel="shortcut icon" href="../img/favicon.ico" />
+    <title>Quality Assurance - Silver-truth 3.0 Documentation</title>
+    <link rel="stylesheet" href="../css/theme.css" />
+    <link rel="stylesheet" href="../css/theme_extra.css" />
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/styles/github.min.css" />
+    
+      <script>
+        // Current page data
+        var mkdocs_page_name = "Quality Assurance";
+        var mkdocs_page_input_path = "quality_assurance.md";
+        var mkdocs_page_url = "/quality_assurance/";
+      </script>
+    
+    <!--[if lt IE 9]>
+      <script src="../js/html5shiv.min.js"></script>
+    <![endif]-->
+      <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/highlight.min.js"></script>
+      <script>hljs.highlightAll();</script> 
+</head>
+
+<body class="wy-body-for-nav" role="document">
+
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side stickynav">
+    <div class="wy-side-scroll">
+      <div class="wy-side-nav-search">
+          <a href=".." class="icon icon-home"> Silver-truth 3.0 Documentation
+        </a><div role="search">
+  <form id ="rtd-search-form" class="wy-form" action="../search.html" method="get">
+      <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" title="Type search term here" />
+  </form>
+</div>
+      </div>
+
+      <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="..">Home</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../Silver-truth-generation/">Silver-truth Generation</a>
+                </li>
+              </ul>
+              <ul class="current">
+                <li class="toctree-l1 current"><a class="reference internal current" href="#">Quality Assurance</a>
+    <ul class="current">
+    <li class="toctree-l2"><a class="reference internal" href="#qa-model">QA Model</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#experimental-framework">Experimental Framework</a>
+        <ul>
+    <li class="toctree-l3"><a class="reference internal" href="#1-competitor-level-exclusion">1. Competitor-Level Exclusion</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#2-image-level-exclusion">2. Image-Level Exclusion</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#3-cell-level-exclusion">3. Cell-Level Exclusion</a>
+    </li>
+        </ul>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#limitations-and-future-work">Limitations and Future Work</a>
+    </li>
+    </ul>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../experiment_tracking/">Experiment Tracking</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../qa_data_preparation/">QA Data Preparation</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../Evaluations/">Evaluations</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../label_synchronizer/">Label Synchronizer</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="" href="../notebooks.md">Notebooks</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../Roadmap/">Roadmap</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../References/">References</a>
+                </li>
+              </ul>
+      </div>
+    </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+      <nav class="wy-nav-top" role="navigation" aria-label="Mobile navigation menu">
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="..">Silver-truth 3.0 Documentation</a>
+        
+      </nav>
+      <div class="wy-nav-content">
+        <div class="rst-content"><div role="navigation" aria-label="breadcrumbs navigation">
+  <ul class="wy-breadcrumbs">
+    <li><a href=".." class="icon icon-home" aria-label="Docs"></a></li>
+      <li class="breadcrumb-item active">Quality Assurance</li>
+    <li class="wy-breadcrumbs-aside">
+    </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+            <div class="section" itemprop="articleBody">
+              
+                <h1 id="quality-assurance-qa">Quality Assurance (QA)</h1>
+<p>This section outlines a proposed methodology for implementing a Quality Assurance (QA) step into the silver-truth generation pipeline. The goal of the QA process is to identify and potentially exclude low-quality segmentations from the fusion process, thereby improving the final fused output.</p>
+<h2 id="qa-model">QA Model</h2>
+<p>We propose a model that takes a raw source image and a competitor's segmentation as input and predicts the quality of the segmentation. This model can be implemented in two ways:</p>
+<ol>
+<li><strong>Classification Model:</strong> Outputs a binary classification of "good" or "bad" for a given segmentation.</li>
+<li><strong>Regression Model:</strong> Outputs a continuous value, such as the Jaccard Index, representing the quality of the segmentation.</li>
+</ol>
+<p>This QA model can be applied at two different granularities:</p>
+<ul>
+<li><strong>Image Level:</strong> The model assesses the overall quality of a segmentation for an entire image.</li>
+<li><strong>Cell Level:</strong> The model assesses the quality of the segmentation for individual cells within an image.</li>
+</ul>
+<h2 id="experimental-framework">Experimental Framework</h2>
+<p>To evaluate the effectiveness of the QA model, we will test three different strategies for incorporating its output into the fusion pipeline. These strategies involve excluding data at different levels of granularity based on the QA model's predictions and a variety of confidence thresholds.</p>
+<h3 id="1-competitor-level-exclusion">1. Competitor-Level Exclusion</h3>
+<p>In this approach, if a competitor's segmentations are consistently rated as "bad" by the QA model across multiple images, the entire competitor is excluded from the fusion process.</p>
+<h3 id="2-image-level-exclusion">2. Image-Level Exclusion</h3>
+<p>This strategy involves excluding specific images from a competitor. If the QA model flags a particular segmentation from a competitor on a specific image as "bad", that single image segmentation is excluded from the fusion process, while the competitor's other segmentations are still used.</p>
+<h3 id="3-cell-level-exclusion">3. Cell-Level Exclusion</h3>
+<p>This is the most granular approach. The QA model identifies individual cell segmentations within an image that are of low quality. These specific "bad" cells are then removed from the fusion process, while the rest of the cells from that competitor's segmentation are retained.</p>
+<p>By experimenting with these three strategies and adjusting the thresholds for what constitutes a "bad" segmentation, we can determine the most effective way to leverage the QA model to improve the quality of the final silver-truth annotations.</p>
+<h2 id="limitations-and-future-work">Limitations and Future Work</h2>
+<p>It is important to note that this initial proposal is a first, naive approach. It has several limitations that should be addressed in future work:</p>
+<ul>
+<li><strong>Error Types:</strong> The current model does not explicitly differentiate between different types of errors, such as false positives and false negatives. A more sophisticated model would be able to identify not just <em>that</em> a segmentation is bad, but <em>why</em> (e.g., missing a cell vs. hallucinating a cell).</li>
+<li><strong>Temporal Information:</strong> The proposed model is static and does not incorporate temporal information from video sequences. Future iterations should leverage temporal consistency to improve the accuracy of the QA process. For example, a cell that is correctly identified in preceding and succeeding frames is more likely to be a true positive.</li>
+</ul>
+              
+            </div>
+          </div><footer>
+    <div class="rst-footer-buttons" role="navigation" aria-label="Footer Navigation">
+        <a href="../Silver-truth-generation/" class="btn btn-neutral float-left" title="Silver-truth Generation"><span class="icon icon-circle-arrow-left"></span> Previous</a>
+        <a href="../experiment_tracking/" class="btn btn-neutral float-right" title="Experiment Tracking">Next <span class="icon icon-circle-arrow-right"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <!-- Copyright etc -->
+  </div>
+
+  Built with <a href="https://www.mkdocs.org/">MkDocs</a> using a <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>.
+</footer>
+          
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+
+  <div class="rst-versions" role="note" aria-label="Versions">
+  <span class="rst-current-version" data-toggle="rst-current-version">
+    
+    
+      <span><a href="../Silver-truth-generation/" style="color: #fcfcfc">&laquo; Previous</a></span>
+    
+    
+      <span><a href="../experiment_tracking/" style="color: #fcfcfc">Next &raquo;</a></span>
+    
+  </span>
+</div>
+    <script src="../js/jquery-3.6.0.min.js"></script>
+    <script>var base_url = "..";</script>
+    <script src="../js/theme_extra.js"></script>
+    <script src="../js/theme.js"></script>
+      <script src="../search/main.js"></script>
+    <script>
+        jQuery(function () {
+            SphinxRtdTheme.Navigation.enable(true);
+        });
+    </script>
+
+</body>
+</html>

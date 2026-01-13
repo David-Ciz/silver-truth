@@ -1,0 +1,303 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+    <meta charset="utf-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><link rel="canonical" href="https://silver-truth-3-0.readthedocs.io/ensemble/" />
+      <link rel="shortcut icon" href="../img/favicon.ico" />
+    <title>Ensemble - Silver-truth 3.0 Documentation</title>
+    <link rel="stylesheet" href="../css/theme.css" />
+    <link rel="stylesheet" href="../css/theme_extra.css" />
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/styles/github.min.css" />
+    
+      <script>
+        // Current page data
+        var mkdocs_page_name = "Ensemble";
+        var mkdocs_page_input_path = "ensemble.md";
+        var mkdocs_page_url = "/ensemble/";
+      </script>
+    
+    <!--[if lt IE 9]>
+      <script src="../js/html5shiv.min.js"></script>
+    <![endif]-->
+      <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/highlight.min.js"></script>
+      <script>hljs.highlightAll();</script> 
+</head>
+
+<body class="wy-body-for-nav" role="document">
+
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side stickynav">
+    <div class="wy-side-scroll">
+      <div class="wy-side-nav-search">
+          <a href=".." class="icon icon-home"> Silver-truth 3.0 Documentation
+        </a><div role="search">
+  <form id ="rtd-search-form" class="wy-form" action="../search.html" method="get">
+      <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" title="Type search term here" />
+  </form>
+</div>
+      </div>
+
+      <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="..">Home</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../Silver-truth-generation/">Silver-truth Generation</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../quality_assurance/">Quality Assurance</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../experiment_tracking/">Experiment Tracking</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../qa_data_preparation/">QA Data Preparation</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../Evaluations/">Evaluations</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../label_synchronizer/">Label Synchronizer</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="" href="../notebooks.md">Notebooks</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../Roadmap/">Roadmap</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../References/">References</a>
+                </li>
+              </ul>
+      </div>
+    </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+      <nav class="wy-nav-top" role="navigation" aria-label="Mobile navigation menu">
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="..">Silver-truth 3.0 Documentation</a>
+        
+      </nav>
+      <div class="wy-nav-content">
+        <div class="rst-content"><div role="navigation" aria-label="breadcrumbs navigation">
+  <ul class="wy-breadcrumbs">
+    <li><a href=".." class="icon icon-home" aria-label="Docs"></a></li>
+      <li class="breadcrumb-item active">Ensemble</li>
+    <li class="wy-breadcrumbs-aside">
+    </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+            <div class="section" itemprop="articleBody">
+              
+                <h1 id="ensemble">Ensemble</h1>
+<p>This section presents a study on different processes intended to replace the Fusion step on the silver-truth workflow. 
+The objective is to find the best performant process capable of generating an accurate segmentation of an image of a cell given several proposed segmentations.</p>
+<h2 id="deliverables">Deliverables</h2>
+<h2 id="strategies">Strategies</h2>
+<p>Specific startegies are related to different datasets.</p>
+<ul>
+<li>Quantifying the error from learning just from gt;</li>
+<li>
+<p>Transfer learning, starting from gt;</p>
+</li>
+<li>
+<p>A layered sequence of new syntetic (slightly improved) dataset generation for training a new model;</p>
+<ul>
+<li>this can be done with single segmentation (and a single model) and also normalized segmentations (with multiple models per layer);</li>
+<li>for inferece, the input will follow through the sequence of trained models;</li>
+</ul>
+</li>
+<li>
+<p>Adding gt to the input, while training, for the model to learn not to modify such segmentation;</p>
+</li>
+<li>
+<p>Simple competitors normalization;</p>
+</li>
+<li>
+<p>Normalizations alongside the raw image;</p>
+</li>
+<li>
+<p>Basic segmentation for comparison;</p>
+</li>
+<li>
+<p>Use QA and non-QA databanks for comparison;</p>
+</li>
+</ul>
+<h2 id="data">Data</h2>
+<h3 id="concepts">Concepts:</h3>
+<ul>
+<li><strong>Databank</strong> is the folder where the images are gathered and the corresponding parquet file.</li>
+<li><strong>Dataset</strong> is the specific data structure used for training models.</li>
+</ul>
+<h3 id="dataset-versions">Dataset versions</h3>
+<ul>
+<li><strong>A1</strong>: <ul>
+<li>gt -&gt; gt [1 input-&gt; 1 output], ground truth to ground truth;</li>
+<li>can be used for an initial training stage before transfer to another dataset;</li>
+<li>does this strategy offer benefits?</li>
+</ul>
+</li>
+<li><strong>A2</strong>:<ul>
+<li>gt&amp;raw -&gt; gt [2-&gt;1], ground truth along side raw image to ground truth;</li>
+<li>for other [2-&gt;1] models.</li>
+</ul>
+</li>
+<li><strong>B1</strong>:<ul>
+<li>seg -&gt; gt [1-&gt;1], segmentation to ground truth;</li>
+<li>can we improve the images? <ul>
+<li>If so, it may be used to create a syntetic dataset which can be used to train a new model.
+ <strong>B2</strong>:</li>
+</ul>
+</li>
+<li>seg&amp;raw -&gt; gt [2-&gt;1], segmentation along side raw image to ground truth;</li>
+</ul>
+</li>
+<li><strong>B3</strong>: <ul>
+<li>seg+gt -&gt; gt [1-&gt;1], segmentation and ground truth to ground truth;</li>
+<li>does adding some ground truths improve the results, compared with dataset B?</li>
+</ul>
+</li>
+<li><strong>C1</strong>: <ul>
+<li>norm_seg -&gt; gt [1-&gt;1], competitors normalized segmentation to ground truth.</li>
+</ul>
+</li>
+<li><strong>C2</strong>: <ul>
+<li>norm_seg&amp;raw -&gt; gt [2-&gt;1], competitors normalized segmentation along side raw image to ground truth;</li>
+<li>same as above but with an additional input;</li>
+<li>may have some issues in cases where the raw images contain additional cells;</li>
+<li>does it improve performance upon dataset D?</li>
+</ul>
+</li>
+<li><strong>D1</strong>: <ul>
+<li>raw -&gt; gt [1-&gt;1], raw image to ground truth;</li>
+<li>may have more trouble with additional cells in the images - will have to learn to ignore everything around the centered structure;</li>
+<li>what's the center of the image? This external information is already given by centering the image in the intended cell (so it's not a completely raw dataset); </li>
+<li>for ablation study to understand how much competitors segmentations improve our models.</li>
+</ul>
+</li>
+</ul>
+<h3 id="steps">Steps:</h3>
+<ol>
+<li>
+<p>Create QA and non-QA (for ablation study) databanks:</p>
+<ul>
+<li>each databank folder has its corresponding parquet file on the same directory;</li>
+<li>each parquet file contains, among other information:<ul>
+<li>a checksum for each file/image;</li>
+<li>the name of each file.</li>
+</ul>
+</li>
+<li>the parquet files are saved in github/mlflow (?).</li>
+</ul>
+</li>
+<li>
+<p>Create Ensemble databank:</p>
+<ul>
+<li>for each ground truth, create the input series (a sequence of images corresponding to the same cell: norm_seg, seg1, seg2...):<ul>
+<li>normalized competitors segmentations with ground truth, suffix: "_normseg";<ul>
+<li>layers RGB: [norm_seg, gt, raw];</li>
+</ul>
+</li>
+<li>single competitors segmentation with ground truth, suffix: "_seg[N]";<ul>
+<li>layers RGB: [seg, gt, raw];</li>
+</ul>
+</li>
+</ul>
+</li>
+<li>each segmentation/raw image is centered according to the normalized segmentation image of the same series;</li>
+<li>the parquet file also contains the name and checksum of each file;</li>
+<li>the parquet files are saved in github/mlflow (?).</li>
+</ul>
+</li>
+<li>
+<p>Compute a split of the Ensemble parquet indices according to the different datasets:</p>
+<ul>
+<li>each resulting set (train, val, test) must contain the same input series as the other sets of the same type;<ul>
+<li>any set of Dataset [X], whether with multiple files with the same ground truth or not, have direct correspondance to any set of the same type of a different Dataset.<ul>
+<li>example 1: all sets of Dataset A1 contain the same files as the Dataset C1;</li>
+<li>example 2: all sets of Dataset B1 contains multiple files with the same ground truth, and in a direct correspondance with all sets of dataset A1.</li>
+</ul>
+</li>
+</ul>
+</li>
+<li>steps:<ul>
+<li>I) load Ensemble parquet to a dataframe;</li>
+<li>II) select only norm_seg images;</li>
+<li>III) do a random split of the indices, according to a given seed value;<ul>
+<li>training (70%), validation (15%) and test(15%);</li>
+<li>log the split details;</li>
+</ul>
+</li>
+<li>IV) create 3 dataframe with the content of the splitted indices;<ul>
+<li>these dataframes are used for the different sets of Dataset A1 and C1;</li>
+</ul>
+</li>
+<li>V) use this dataframe to create the other sets, following the same input series location;</li>
+</ul>
+</li>
+</ul>
+</li>
+<li>
+<p>Instantiate the different datasets sets, with the corresponding dataframe versions.</p>
+<ul>
+<li>calculate the checksum for each image and assert with the corresponding checksum in the dataframe;</li>
+</ul>
+</li>
+</ol>
+<h2 id="models">Models</h2>
+<h2 id="training">Training</h2>
+<h3 id="data-augmentation">Data augmentation</h3>
+<h2 id="results">Results</h2>
+              
+            </div>
+          </div><footer>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <!-- Copyright etc -->
+  </div>
+
+  Built with <a href="https://www.mkdocs.org/">MkDocs</a> using a <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>.
+</footer>
+          
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+
+  <div class="rst-versions" role="note" aria-label="Versions">
+  <span class="rst-current-version" data-toggle="rst-current-version">
+    
+    
+    
+  </span>
+</div>
+    <script src="../js/jquery-3.6.0.min.js"></script>
+    <script>var base_url = "..";</script>
+    <script src="../js/theme_extra.js"></script>
+    <script src="../js/theme.js"></script>
+      <script src="../search/main.js"></script>
+    <script>
+        jQuery(function () {
+            SphinxRtdTheme.Navigation.enable(true);
+        });
+    </script>
+
+</body>
+</html>

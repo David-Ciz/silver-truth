@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+    <meta charset="utf-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="description" content="None" /><link rel="canonical" href="https://silver-truth-3-0.readthedocs.io/" />
+      <link rel="shortcut icon" href="img/favicon.ico" />
+    <title>Silver-truth 3.0 Documentation</title>
+    <link rel="stylesheet" href="css/theme.css" />
+    <link rel="stylesheet" href="css/theme_extra.css" />
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/styles/github.min.css" />
+    
+      <script>
+        // Current page data
+        var mkdocs_page_name = "Home";
+        var mkdocs_page_input_path = "index.md";
+        var mkdocs_page_url = "/";
+      </script>
+    
+    <!--[if lt IE 9]>
+      <script src="js/html5shiv.min.js"></script>
+    <![endif]-->
+      <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/highlight.min.js"></script>
+      <script>hljs.highlightAll();</script> 
+</head>
+
+<body class="wy-body-for-nav" role="document">
+
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side stickynav">
+    <div class="wy-side-scroll">
+      <div class="wy-side-nav-search">
+          <a href="." class="icon icon-home"> Silver-truth 3.0 Documentation
+        </a><div role="search">
+  <form id ="rtd-search-form" class="wy-form" action="./search.html" method="get">
+      <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" title="Type search term here" />
+  </form>
+</div>
+      </div>
+
+      <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <ul class="current">
+                <li class="toctree-l1 current"><a class="reference internal current" href="#">Home</a>
+    <ul class="current">
+    <li class="toctree-l2"><a class="reference internal" href="#introduction">Introduction</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#project-goal">Project Goal</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#key-components-workflow">Key Components &amp; Workflow</a>
+        <ul>
+    <li class="toctree-l3"><a class="reference internal" href="#high-level-workflow-diagram">High-Level Workflow Diagram</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#core-modules">Core Modules</a>
+    </li>
+        </ul>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#getting-started">Getting Started</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#further-documentation">Further Documentation</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#contact">Contact</a>
+    </li>
+    </ul>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="Silver-truth-generation/">Silver-truth Generation</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="quality_assurance/">Quality Assurance</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="experiment_tracking/">Experiment Tracking</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="qa_data_preparation/">QA Data Preparation</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="Evaluations/">Evaluations</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="label_synchronizer/">Label Synchronizer</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="" href="notebooks.md">Notebooks</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="Roadmap/">Roadmap</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="References/">References</a>
+                </li>
+              </ul>
+      </div>
+    </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+      <nav class="wy-nav-top" role="navigation" aria-label="Mobile navigation menu">
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href=".">Silver-truth 3.0 Documentation</a>
+        
+      </nav>
+      <div class="wy-nav-content">
+        <div class="rst-content"><div role="navigation" aria-label="breadcrumbs navigation">
+  <ul class="wy-breadcrumbs">
+    <li><a href="." class="icon icon-home" aria-label="Docs"></a></li>
+      <li class="breadcrumb-item active">Home</li>
+    <li class="wy-breadcrumbs-aside">
+    </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+            <div class="section" itemprop="articleBody">
+              
+                <h1 id="silver-truth-project-documentation">Silver Truth Project Documentation</h1>
+<h2 id="introduction">Introduction</h2>
+<p>Welcome to the documentation for the Silver Truth project. This project focuses on generating and evaluating "silver-standard" corpora for cell tracking challenges.</p>
+<p>A <strong>Silver-standard corpus (silver truth)</strong> is defined as computer-generated reference annotations, obtained as the majority opinion over the results of several competitive algorithms submitted by former challenge participants. This corpus serves as a robust benchmark for evaluating new cell tracking algorithms.</p>
+<h2 id="project-goal">Project Goal</h2>
+<p>This project aims to create a new, better silver truth using more advanced techniques of Quality Assurance and Ensemble methods.</p>
+<h2 id="key-components-workflow">Key Components &amp; Workflow</h2>
+<p>The Silver Truth project is structured around a series of command-line tools that facilitate the entire process from data preparation to evaluation.</p>
+<h3 id="high-level-workflow-diagram">High-Level Workflow Diagram</h3>
+<p>Raw Data -&gt; Synchronization -&gt; DataFrame -&gt; Job Files -&gt; Fusion -&gt; Evaluation</p>
+<h3 id="core-modules">Core Modules</h3>
+<ul>
+<li><strong><code>cli_preprocessing.py</code></strong>: Handles initial data preparation, including synchronizing datasets and creating structured dataframes.</li>
+<li><strong><code>cli_fusion.py</code></strong>: Manages the generation of job files and the execution of the cell segmentation fusion process to create the silver truth.</li>
+<li><strong><code>cli_evaluation.py</code></strong>: Provides tools for evaluating competitor algorithms against ground truth or the generated silver truth.</li>
+</ul>
+<h2 id="getting-started">Getting Started</h2>
+<p>For detailed installation instructions and basic usage examples, please refer to the main <a href="../README.md">README.md</a> file in the project repository.</p>
+<h2 id="further-documentation">Further Documentation</h2>
+<ul>
+<li><a href="label_synchronizer/">Label Synchronization Process</a>: Detailed explanation of how labels are synchronized.</li>
+<li><a href="Silver-truth-generation/">Silver Truth Generation Algorithm</a>: Information on how the silver truth is computationally derived.</li>
+<li><a href="Evaluations/">Evaluation Strategy</a>: Details on the metrics and approach used for evaluating results.</li>
+<li><a href="notebooks.MD">Jupyter Notebooks Overview</a>: A guide to the various analytical and utility notebooks.</li>
+<li><a href="Roadmap/">Project Roadmap</a>: High-level overview of project phases, goals, and progress.</li>
+<li><a href="References/">References and Related Publications</a>: Context for key research papers relevant to the project.</li>
+</ul>
+<h2 id="contact">Contact</h2>
+<p>Issues and questions can be raised on GitHub.</p>
+              
+            </div>
+          </div><footer>
+    <div class="rst-footer-buttons" role="navigation" aria-label="Footer Navigation">
+        <a href="Silver-truth-generation/" class="btn btn-neutral float-right" title="Silver-truth Generation">Next <span class="icon icon-circle-arrow-right"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <!-- Copyright etc -->
+  </div>
+
+  Built with <a href="https://www.mkdocs.org/">MkDocs</a> using a <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>.
+</footer>
+          
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+
+  <div class="rst-versions" role="note" aria-label="Versions">
+  <span class="rst-current-version" data-toggle="rst-current-version">
+    
+    
+    
+      <span><a href="Silver-truth-generation/" style="color: #fcfcfc">Next &raquo;</a></span>
+    
+  </span>
+</div>
+    <script src="js/jquery-3.6.0.min.js"></script>
+    <script>var base_url = ".";</script>
+    <script src="js/theme_extra.js"></script>
+    <script src="js/theme.js"></script>
+      <script src="search/main.js"></script>
+    <script>
+        jQuery(function () {
+            SphinxRtdTheme.Navigation.enable(true);
+        });
+    </script>
+
+</body>
+</html>
+
+<!--
+MkDocs version : 1.6.1
+Build Date UTC : 2026-01-13 14:39:49.997013+00:00
+-->

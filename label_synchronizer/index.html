@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+    <meta charset="utf-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><link rel="canonical" href="https://silver-truth-3-0.readthedocs.io/label_synchronizer/" />
+      <link rel="shortcut icon" href="../img/favicon.ico" />
+    <title>Label Synchronizer - Silver-truth 3.0 Documentation</title>
+    <link rel="stylesheet" href="../css/theme.css" />
+    <link rel="stylesheet" href="../css/theme_extra.css" />
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/styles/github.min.css" />
+    
+      <script>
+        // Current page data
+        var mkdocs_page_name = "Label Synchronizer";
+        var mkdocs_page_input_path = "label_synchronizer.md";
+        var mkdocs_page_url = "/label_synchronizer/";
+      </script>
+    
+    <!--[if lt IE 9]>
+      <script src="../js/html5shiv.min.js"></script>
+    <![endif]-->
+      <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/highlight.min.js"></script>
+      <script>hljs.highlightAll();</script> 
+</head>
+
+<body class="wy-body-for-nav" role="document">
+
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side stickynav">
+    <div class="wy-side-scroll">
+      <div class="wy-side-nav-search">
+          <a href=".." class="icon icon-home"> Silver-truth 3.0 Documentation
+        </a><div role="search">
+  <form id ="rtd-search-form" class="wy-form" action="../search.html" method="get">
+      <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" title="Type search term here" />
+  </form>
+</div>
+      </div>
+
+      <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="..">Home</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../Silver-truth-generation/">Silver-truth Generation</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../quality_assurance/">Quality Assurance</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../experiment_tracking/">Experiment Tracking</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../qa_data_preparation/">QA Data Preparation</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../Evaluations/">Evaluations</a>
+                </li>
+              </ul>
+              <ul class="current">
+                <li class="toctree-l1 current"><a class="reference internal current" href="#">Label Synchronizer</a>
+    <ul class="current">
+    <li class="toctree-l2"><a class="reference internal" href="#overview">Overview</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#prerequisites">Prerequisites</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#obtaining-the-jar-file">Obtaining the JAR File</a>
+        <ul>
+    <li class="toctree-l3"><a class="reference internal" href="#step-1-clone-the-repository">Step 1: Clone the Repository</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#step-2-build-the-jar-file">Step 2: Build the JAR File</a>
+    </li>
+        </ul>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#running-the-synchronization">Running the Synchronization</a>
+        <ul>
+    <li class="toctree-l3"><a class="reference internal" href="#using-python-interface">Using python interface</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#using-the-command-line">Using the Command Line</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#results">Results</a>
+    </li>
+        </ul>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#validation">Validation</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#common-issues-and-solutions">Common Issues and Solutions</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#version-history">Version History</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#references">References</a>
+    </li>
+    </ul>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="" href="../notebooks.md">Notebooks</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../Roadmap/">Roadmap</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../References/">References</a>
+                </li>
+              </ul>
+      </div>
+    </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+      <nav class="wy-nav-top" role="navigation" aria-label="Mobile navigation menu">
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="..">Silver-truth 3.0 Documentation</a>
+        
+      </nav>
+      <div class="wy-nav-content">
+        <div class="rst-content"><div role="navigation" aria-label="breadcrumbs navigation">
+  <ul class="wy-breadcrumbs">
+    <li><a href=".." class="icon icon-home" aria-label="Docs"></a></li>
+      <li class="breadcrumb-item active">Label Synchronizer</li>
+    <li class="wy-breadcrumbs-aside">
+    </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+            <div class="section" itemprop="articleBody">
+              
+                <h1 id="label-synchronization-process">Label Synchronization Process</h1>
+<h2 id="overview">Overview</h2>
+<p>This documentation describes the process of synchronizing labels between silver truth, competitors, ground truth, and tracking files using standalone cell tracking challenge Java application. <strong>Note:</strong> We are no longer using a separate Fiji installation (except for when packaged inside the JAR file). The entire synchronization functionality is now contained within the JAR file.</p>
+<h2 id="prerequisites">Prerequisites</h2>
+<ul>
+<li>A Java Runtime Environment (JRE) installed.</li>
+<li>The standalone JAR file for the 'Annotation Label Sync2' plugin, which contains all necessary dependencies.</li>
+<li>Input data organized in the dataset structure.</li>
+<li>Large amount of disk space for the output data, the synchronizer does not compress the data.</li>
+</ul>
+<h2 id="obtaining-the-jar-file">Obtaining the JAR File</h2>
+<p>To generate the JAR file, follow these steps:</p>
+<h3 id="step-1-clone-the-repository">Step 1: Clone the Repository</h3>
+<p>Clone the repository containing the source code for the 'Annotation Label Sync2' plugin.</p>
+<pre><code class="language-bash">git clone https://github.com/David-Ciz/label-fusion-ng-fork
+</code></pre>
+<h3 id="step-2-build-the-jar-file">Step 2: Build the JAR File</h3>
+<p>Navigate to the root directory of the cloned repository and run the following command to build the JAR file:</p>
+<pre><code class="language-bash">mvn clean package
+</code></pre>
+<p>The JAR file will be generated in the <code>target</code> directory.</p>
+<h2 id="running-the-synchronization">Running the Synchronization</h2>
+<h3 id="using-python-interface">Using python interface</h3>
+<p>You can use the provided Python wrapper script to run the synchronization process in the preprocessing.py file. The script reads the configuration file and runs the synchronization process using the standalone JAR. </p>
+<pre><code class="language-bash">python cli_preprocessing.py synchronize_dataset data/inputs-2020-07 data/synchronize_data
+</code></pre>
+<p><strong>Notes:</strong>
+- Replace <code>data/inputs-2020-07</code> with the path to the input data directory (it should contain folders with datasets).
+- Replace <code>data/synchronize_data</code> with the path to the output directory.</p>
+<h3 id="using-the-command-line">Using the Command Line</h3>
+<p>Since we have moved the synchronization functionality into a standalone JAR file, the synchronization can now be run via a standard Java command without needing a separate Fiji installation. Use the following command:</p>
+<pre><code class="language-bash">java -cp target/LabelSyncer2Runner-1.0-SNAPSHOT-jar-with-dependencies.jar de.mpicbg.ulman.fusion.RunLabelSyncer2 /absolute/path/to/segmentation/results /absolute/path/to/tra/markers /absolute/path/to/output
+</code></pre>
+<p><strong>Notes:</strong>
+- Ensure that all paths provided are absolute.
+- Replace <code>/absolute/path/to/segmentation/results</code>, <code>/absolute/path/to/tra/markers</code>, and <code>/absolute/path/to/output</code> with the actual paths on your system.
+- If you prefer, you can move the JAR to a convenient directory and adjust the command accordingly.
+- It is highly recommended to compress the output data after synchronization to save disk space.</p>
+<h3 id="results">Results</h3>
+<p>The synchronized data will be saved in the specified output directory with the following structure:</p>
+<pre>
+output_dir/
+├── Dataset1/
+│   ├── Competitor1/
+│   │   ├── t001.tif
+│   ├── Competitor2/
+│   │   ├── t001.tif
+│   └── ...
+</pre>
+
+<h2 id="validation">Validation</h2>
+<p>To verify a successful synchronization:
+- Check that the number of output files matches the input.
+- Verify that labels are consistent across temporal sequences.
+- Confirm that the <code>metadata.json</code> file contains the expected information.</p>
+<h2 id="common-issues-and-solutions">Common Issues and Solutions</h2>
+<ul>
+<li>
+<p><strong>Missing Output Files:</strong><br />
+<em>Possible Cause:</em> Incorrect input paths.<br />
+<em>Solution:</em> Verify that the input directories are correct and contain valid data.</p>
+</li>
+<li>
+<p><strong>Inconsistent Labels:</strong><br />
+<em>Possible Cause:</em> TRA markers mismatch.<br />
+<em>Solution:</em> Check that the TRA marker files follow the expected format.</p>
+</li>
+<li>
+<p><strong>Plugin Error:</strong><br />
+<em>Possible Cause:</em> Java version mismatch or dependency issues.<br />
+<em>Solution:</em> Ensure you are using a compatible Java version and that all dependencies are included in the JAR file.</p>
+</li>
+</ul>
+<h2 id="version-history">Version History</h2>
+<table>
+<thead>
+<tr>
+<th>Date</th>
+<th>Version</th>
+<th>Changes</th>
+<th>Author</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>2025-03-27</td>
+<td>1.0</td>
+<td>Initial documentation update</td>
+<td>David Číž</td>
+</tr>
+</tbody>
+</table>
+<h2 id="references">References</h2>
+<ul>
+<li><a href="https://docs.oracle.com/">Java Documentation</a></li>
+<li><a href="#">Annotation Label Sync2 Plugin Documentation</a></li>
+<li><a href="#">Related Publications</a></li>
+<li>https://github.com/CellTrackingChallenge/label-fusion-ng/tree/master</li>
+</ul>
+<p>```markdown</p>
+              
+            </div>
+          </div><footer>
+    <div class="rst-footer-buttons" role="navigation" aria-label="Footer Navigation">
+        <a href="../Evaluations/" class="btn btn-neutral float-left" title="Evaluations"><span class="icon icon-circle-arrow-left"></span> Previous</a>
+        <a href="../Roadmap/" class="btn btn-neutral float-right" title="Roadmap">Next <span class="icon icon-circle-arrow-right"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <!-- Copyright etc -->
+  </div>
+
+  Built with <a href="https://www.mkdocs.org/">MkDocs</a> using a <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>.
+</footer>
+          
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+
+  <div class="rst-versions" role="note" aria-label="Versions">
+  <span class="rst-current-version" data-toggle="rst-current-version">
+    
+    
+      <span><a href="../Evaluations/" style="color: #fcfcfc">&laquo; Previous</a></span>
+    
+    
+      <span><a href="../Roadmap/" style="color: #fcfcfc">Next &raquo;</a></span>
+    
+  </span>
+</div>
+    <script src="../js/jquery-3.6.0.min.js"></script>
+    <script>var base_url = "..";</script>
+    <script src="../js/theme_extra.js"></script>
+    <script src="../js/theme.js"></script>
+      <script src="../search/main.js"></script>
+    <script>
+        jQuery(function () {
+            SphinxRtdTheme.Navigation.enable(true);
+        });
+    </script>
+
+</body>
+</html>

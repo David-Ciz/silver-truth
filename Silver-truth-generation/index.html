@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+    <meta charset="utf-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><link rel="canonical" href="https://silver-truth-3-0.readthedocs.io/Silver-truth-generation/" />
+      <link rel="shortcut icon" href="../img/favicon.ico" />
+    <title>Silver-truth Generation - Silver-truth 3.0 Documentation</title>
+    <link rel="stylesheet" href="../css/theme.css" />
+    <link rel="stylesheet" href="../css/theme_extra.css" />
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/styles/github.min.css" />
+    
+      <script>
+        // Current page data
+        var mkdocs_page_name = "Silver-truth Generation";
+        var mkdocs_page_input_path = "Silver-truth-generation.md";
+        var mkdocs_page_url = "/Silver-truth-generation/";
+      </script>
+    
+    <!--[if lt IE 9]>
+      <script src="../js/html5shiv.min.js"></script>
+    <![endif]-->
+      <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/highlight.min.js"></script>
+      <script>hljs.highlightAll();</script> 
+</head>
+
+<body class="wy-body-for-nav" role="document">
+
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side stickynav">
+    <div class="wy-side-scroll">
+      <div class="wy-side-nav-search">
+          <a href=".." class="icon icon-home"> Silver-truth 3.0 Documentation
+        </a><div role="search">
+  <form id ="rtd-search-form" class="wy-form" action="../search.html" method="get">
+      <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" title="Type search term here" />
+  </form>
+</div>
+      </div>
+
+      <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="..">Home</a>
+                </li>
+              </ul>
+              <ul class="current">
+                <li class="toctree-l1 current"><a class="reference internal current" href="#">Silver-truth Generation</a>
+    <ul class="current">
+    <li class="toctree-l2"><a class="reference internal" href="#overview-of-the-fusion-process">Overview of the Fusion Process</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#the-cli_fusionpy-script">The cli_fusion.py Script</a>
+        <ul>
+    <li class="toctree-l3"><a class="reference internal" href="#1-generate-jobfiles">1. generate-jobfiles</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#2-run-fusion">2. run-fusion</a>
+    </li>
+        </ul>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#fusion-models">Fusion Models</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#inputs-required-by-the-java-plugin">Inputs Required by the Java Plugin</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#outputs-of-the-fusion-process">Outputs of the Fusion Process</a>
+    </li>
+    </ul>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../quality_assurance/">Quality Assurance</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../experiment_tracking/">Experiment Tracking</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../qa_data_preparation/">QA Data Preparation</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../Evaluations/">Evaluations</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../label_synchronizer/">Label Synchronizer</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="" href="../notebooks.md">Notebooks</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../Roadmap/">Roadmap</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../References/">References</a>
+                </li>
+              </ul>
+      </div>
+    </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+      <nav class="wy-nav-top" role="navigation" aria-label="Mobile navigation menu">
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="..">Silver-truth 3.0 Documentation</a>
+        
+      </nav>
+      <div class="wy-nav-content">
+        <div class="rst-content"><div role="navigation" aria-label="breadcrumbs navigation">
+  <ul class="wy-breadcrumbs">
+    <li><a href=".." class="icon icon-home" aria-label="Docs"></a></li>
+      <li class="breadcrumb-item active">Silver-truth Generation</li>
+    <li class="wy-breadcrumbs-aside">
+    </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+            <div class="section" itemprop="articleBody">
+              
+                <h2 id="silver-truth-generation-algorithm">Silver Truth Generation Algorithm</h2>
+<p>The "silver truth" in this project refers to a computer-generated reference annotation, derived from the majority opinion of multiple competitive cell tracking algorithms. This process is crucial for creating robust benchmarks for evaluating new algorithms in cell tracking challenges.</p>
+<h3 id="overview-of-the-fusion-process">Overview of the Fusion Process</h3>
+<p>The generation of silver truth is primarily handled by the <code>cli_fusion.py</code> script, which acts as a Python wrapper around a powerful Java-based fusion tool, specifically the <code>Annotations Fusing tools</code> plugin (packaged as a standalone JAR file). This approach allows us to leverage the robust fusion capabilities of the Java tool while providing a convenient command-line interface through Python.</p>
+<p>The general workflow for generating silver truth involves:</p>
+<ol>
+<li><strong>Preparing Input Data</strong>: Ensuring that synchronized segmentation results from various competitor algorithms are available.</li>
+<li><strong>Generating Job Files</strong>: Creating a job specification file that lists the input image patterns for the fusion tool. This is done using the <code>generate-jobfiles</code> command within <code>cli_fusion.py</code>.</li>
+<li><strong>Running the Fusion Tool</strong>: Executing the Java fusion tool via the <code>run-fusion</code> command in <code>cli_fusion.py</code>, providing the job file and other necessary parameters.</li>
+</ol>
+<h3 id="the-cli_fusionpy-script">The <code>cli_fusion.py</code> Script</h3>
+<p>The <code>cli_fusion.py</code> script provides two main commands:</p>
+<h4 id="1-generate-jobfiles">1. <code>generate-jobfiles</code></h4>
+<p>This command prepares the input for the fusion process by creating a job specification file. This file tells the fusion tool which images from which competitors to consider for fusion.</p>
+<p><strong>Usage:</strong></p>
+<pre><code class="language-bash">python cli_fusion.py generate-jobfiles --parquet-file &lt;path_to_parquet_file&gt; --campaign-number &lt;campaign_number&gt; --output-dir &lt;output_directory&gt; [OPTIONS]
+</code></pre>
+<p><strong>Key Parameters:</strong></p>
+<ul>
+<li><code>--parquet-file</code>: Path to the Parquet dataset file (e.g., <code>BF-C2DL-HSC_dataset_dataframe.parquet</code>), which contains metadata about the synchronized datasets and competitor results.</li>
+<li><code>--campaign-number</code>: A unique identifier for the current fusion campaign (e.g., <code>'01'</code>).</li>
+<li><code>--output-dir</code>: Directory where the generated job file will be saved.</li>
+<li><code>--tracking-marker-column</code> (optional): The column name in the parquet file that contains the tracking marker paths (default: <code>tracking_markers</code>).</li>
+<li><code>--competitor-columns</code> (optional, can be specified multiple times): Column names in the parquet file that contain competitor result paths. If not provided, all columns except known non-competitor columns will be considered.</li>
+</ul>
+<p><strong>Example:</strong></p>
+<pre><code class="language-bash">python cli_fusion.py generate-jobfiles --parquet-file BF-C2DL-HSC_dataset_dataframe.parquet --campaign-number 01 --output-dir job_files
+</code></pre>
+<h4 id="2-run-fusion">2. <code>run-fusion</code></h4>
+<p>This command executes the actual segmentation fusion process using the Java JAR. It takes the generated job file and other configuration parameters to produce the fused silver truth segmentations.</p>
+<p><strong>Usage:</strong></p>
+<pre><code class="language-bash">python cli_fusion.py run-fusion --jar-path &lt;path_to_jar&gt; --job-file &lt;path_to_job_file&gt; --output-pattern &lt;output_pattern&gt; --time-points &lt;time_points&gt; --num-threads &lt;num_threads&gt; --model &lt;model&gt; [OPTIONS]
+</code></pre>
+<p><strong>Key Parameters:</strong></p>
+<ul>
+<li><code>--jar-path</code> (required): Path to the executable Java JAR file (e.g., <code>fusers-all-dependencies.jar</code>). This JAR encapsulates the <code>Annotations Fusing tools</code>.</li>
+<li><code>--job-file</code> (required): Path to the job specification file generated by <code>generate-jobfiles</code>.</li>
+<li><code>--output-pattern</code> (required): Output filename pattern for the fused images, including <code>TTT</code> or <code>TTTT</code> placeholders for time points (e.g., <code>/path/to/fused_TTT.tif</code>).</li>
+<li><code>--time-points</code> (required): A string specifying the time points to process (e.g., <code>"1-9,23,25"</code>).</li>
+<li><code>--num-threads</code> (required): Number of processing threads to use for the fusion.</li>
+<li><code>--model</code> (required): The fusion model to use. Available models are defined by the <code>FusionModel</code> enum in <code>src/fusion/fusion.py</code> (e.g., <code>weighted_average</code>, <code>majority_vote</code>).</li>
+<li><code>--threshold</code> (optional): Voting threshold for merging (default: <code>1.0</code>).</li>
+<li><code>--cmv-mode</code> (optional): Enable Combinatorial Model Validation mode (e.g., <code>"CMV"</code>, <code>"CMV2_8"</code>).</li>
+<li><code>--seg-folder</code> (optional): Optional path to ground truth folder for scoring during fusion.</li>
+<li><code>--debug</code> (optional): Enable debug logging and show Java process output.</li>
+</ul>
+<p><strong>Example:</strong></p>
+<pre><code class="language-bash">python cli_fusion.py run-fusion --jar-path src/data_processing/cell_tracking_java_helpers/label-fusion-ng-2.2.0-SNAPSHOT-jar-with-dependencies.jar --job-file job_files/BF-C2DL-HSC_01_job_file.txt --output-pattern data/fused/BF-C2DL-HSC_fused_TTT.tif --time-points &quot;1-10&quot; --num-threads 4 --model &quot;weighted_average&quot;
+</code></pre>
+<h3 id="fusion-models">Fusion Models</h3>
+<p>The <code>--model</code> parameter in <code>run-fusion</code> allows selection of different fusion algorithms. These correspond to the <code>FusionModel</code> enum in <code>src/fusion/fusion.py</code>. Common models include:</p>
+<ul>
+<li><strong><code>weighted_average</code></strong></li>
+<li><strong><code>majority_vote</code></strong></li>
+</ul>
+<h3 id="inputs-required-by-the-java-plugin">Inputs Required by the Java Plugin</h3>
+<p>The underlying Java <code>Annotations Fusing tools</code> plugin primarily requires:</p>
+<ul>
+<li><strong>Input Segmentation Images</strong>: These are the individual segmentation results from various competitor algorithms, typically in <code>.tif</code> format.</li>
+<li><strong>Job Specification File</strong>: A text file (generated by <code>generate-jobfiles</code>) that lists the paths to these input images for each time point and competitor.</li>
+</ul>
+<h3 id="outputs-of-the-fusion-process">Outputs of the Fusion Process</h3>
+<p>The <code>run-fusion</code> command outputs the fused segmentation images, which represent the generated silver truth. These are typically <code>.tif</code> files following the specified <code>--output-pattern</code>.</p>
+              
+            </div>
+          </div><footer>
+    <div class="rst-footer-buttons" role="navigation" aria-label="Footer Navigation">
+        <a href=".." class="btn btn-neutral float-left" title="Home"><span class="icon icon-circle-arrow-left"></span> Previous</a>
+        <a href="../quality_assurance/" class="btn btn-neutral float-right" title="Quality Assurance">Next <span class="icon icon-circle-arrow-right"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <!-- Copyright etc -->
+  </div>
+
+  Built with <a href="https://www.mkdocs.org/">MkDocs</a> using a <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>.
+</footer>
+          
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+
+  <div class="rst-versions" role="note" aria-label="Versions">
+  <span class="rst-current-version" data-toggle="rst-current-version">
+    
+    
+      <span><a href=".." style="color: #fcfcfc">&laquo; Previous</a></span>
+    
+    
+      <span><a href="../quality_assurance/" style="color: #fcfcfc">Next &raquo;</a></span>
+    
+  </span>
+</div>
+    <script src="../js/jquery-3.6.0.min.js"></script>
+    <script>var base_url = "..";</script>
+    <script src="../js/theme_extra.js"></script>
+    <script src="../js/theme.js"></script>
+      <script src="../search/main.js"></script>
+    <script>
+        jQuery(function () {
+            SphinxRtdTheme.Navigation.enable(true);
+        });
+    </script>
+
+</body>
+</html>
