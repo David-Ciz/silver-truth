@@ -44,3 +44,28 @@ stages:
         - src/silver_truth/data_processing/utils/dataset_dataframe_creation.py
       outs:
         - data/dataframes/${item}_split_mixed.parquet
+
+
+  create_qa_crops_mixed:
+    # Point directly to the dictionary in params.yaml
+    foreach: ${datasets}
+    do:
+      cmd: >
+        silver-qa create-dataset 
+        --dataset-dataframe-path data/dataframes/${key}_split_mixed.parquet 
+        --output-dir data/qa_crops/${key}/mixed_sz${item.crop_size}/ 
+        --output-parquet-path data/qa_crops/${key}/mixed_sz${item.crop_size}/qa_dataset.parquet 
+        --crop
+        --crop-size ${item.crop_size}
+
+      deps:
+        # Use ${key} for the dataset name
+        - data/dataframes/${key}_split_mixed.parquet
+        - src/silver_truth/cli/qa.py
+
+      # Track the specific parameter so DVC knows to re-run if 64 changes to 128
+      params:
+        - datasets.${key}.crop_size
+
+      outs:
+        - data/qa_crops/${key}/mixed_sz${item.crop_size}/

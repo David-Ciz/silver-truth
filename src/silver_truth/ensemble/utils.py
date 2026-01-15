@@ -1,7 +1,7 @@
 from tqdm import tqdm
 import tifffile
 from scipy.ndimage import find_objects
-import src.ensemble.external as ext
+import silver_truth.ensemble.external as ext
 import torch
 
 ORIGINAL_DATASETS = {

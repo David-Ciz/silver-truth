@@ -6,9 +6,8 @@ import pandas as pd
 import tifffile
 import numpy as np
 
-from src.metrics.metrics import calculate_qa_jaccard_score
-import src.data_processing.utils.dataset_dataframe_creation as ddc
-import src.data_processing.utils.parquet_utils as p_utils
+import silver_truth.data_processing.utils.dataset_dataframe_creation as ddc
+import silver_truth.data_processing.utils.parquet_utils as p_utils
 import os
 from silver_truth.metrics.metrics import calculate_qa_jaccard_score
 

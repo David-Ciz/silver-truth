@@ -10,7 +10,7 @@ from pathlib import Path
 import logging
 from typing import Optional
 import os
-import src.data_processing.utils.parquet_utils as p_utils
+import silver_truth.data_processing.utils.parquet_utils as p_utils
 
 # Setup logging
 logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")

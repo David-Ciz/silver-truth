@@ -1,0 +1,4 @@
+# params.yaml
+datasets:
+  BF-C2DL-HSC:
+    crop_size: 64

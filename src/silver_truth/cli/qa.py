@@ -17,9 +17,24 @@ def cli():
 
 
 @cli.command()
-@click.argument("dataset_dataframe_path", type=click.Path(exists=True))
-@click.argument("output_dir", type=click.Path(file_okay=False, dir_okay=True))
-@click.argument("output_parquet_path", type=click.Path(file_okay=True, dir_okay=False))
+@click.option(
+    "--dataset-dataframe-path",
+    required=True,
+    type=click.Path(exists=True),
+    help="Path to the dataset dataframe",
+)
+@click.option(
+    "--output-dir",
+    required=True,
+    type=click.Path(file_okay=False, dir_okay=True),
+    help="Directory to write dataset outputs",
+)
+@click.option(
+    "--output-parquet-path",
+    required=True,
+    type=click.Path(file_okay=True, dir_okay=False),
+    help="Path to write output parquet file",
+)
 @click.option(
     "--crop", default=False, is_flag=True, help="Create crops for the QA dataset"
 )
