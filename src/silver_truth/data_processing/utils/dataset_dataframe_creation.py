@@ -1,11 +1,14 @@
 import ast
+import os
 
 import pandas as pd
 from pathlib import Path
 from collections import defaultdict
-from typing import Dict, Any, List, Set
+from typing import Dict, Any, List, Set, Optional
 import pyarrow as pa
 import pyarrow.parquet as pq
+import tifffile
+import numpy as np
 
 # Constants
 RAW_DATA_FOLDERS = {"01", "02"}
@@ -71,6 +74,7 @@ def process_source_images(
             composite_key = f"{campaign_number}_{image_number}"
             dataset_info[composite_key]["source_image"] = str(image)
             dataset_info[composite_key]["campaign_number"] = campaign_number
+            dataset_info[composite_key]["time_frame"] = int(image_number.split(".")[0])
 
 
 def process_gt_data(
@@ -87,6 +91,7 @@ def process_gt_data(
             composite_key = f"{campaign_number}_{image_number}"
             dataset_info[composite_key]["gt_image"] = str(image)
             dataset_info[composite_key]["campaign_number"] = campaign_number
+            dataset_info[composite_key]["time_frame"] = int(image_number.split(".")[0])
 
     # Process tracking marker images
     for image in tra_subfolder.iterdir():
@@ -95,6 +100,7 @@ def process_gt_data(
             composite_key = f"{campaign_number}_{image_number}"
             dataset_info[composite_key]["tracking_markers"] = str(image)
             dataset_info[composite_key]["campaign_number"] = campaign_number
+            dataset_info[composite_key]["time_frame"] = int(image_number.split(".")[0])
 
 
 def process_competitor_data(
@@ -124,6 +130,7 @@ def process_competitor_campaign(
             composite_key = f"{campaign_number}_{image_number}"
             dataset_info[composite_key][str(competitor_folder.name)] = str(image)
             dataset_info[composite_key]["campaign_number"] = campaign_number
+            dataset_info[composite_key]["time_frame"] = int(image_number.split(".")[0])
 
 
 def extract_image_number(filename: str) -> str:
@@ -216,7 +223,7 @@ def save_dataframe_to_parquet_with_metadata(df: pd.DataFrame, output_path: str) 
         df: The pandas DataFrame to save.
         output_path: The file path to store the Parquet file.
     """
-    print(df)
+
     if "creation_time" in df.attrs:
         del df.attrs["creation_time"]
     # Convert DataFrame to a PyArrow table without preserving the index.
@@ -227,7 +234,6 @@ def save_dataframe_to_parquet_with_metadata(df: pd.DataFrame, output_path: str) 
     metadata = {
         str(key).encode(): str(value).encode() for key, value in df.attrs.items()
     }
-    print(metadata)
 
     # Replace the table's schema metadata with our custom metadata.
     table = table.replace_schema_metadata(metadata)
@@ -300,6 +306,8 @@ def _make_paths_relative(df: pd.DataFrame, base_dir: Path) -> pd.DataFrame:
             "source_image",
             "gt_image",
             "tracking_markers",
+            "time_frame",
+            "split",
         ]
     ]
 
@@ -307,15 +315,224 @@ def _make_paths_relative(df: pd.DataFrame, base_dir: Path) -> pd.DataFrame:
         if col in df.columns:
             df[col] = df[col].apply(
                 lambda x: str(Path(x).relative_to(data_dir))
-                if x and Path(x).is_absolute()
+                if isinstance(x, str) and x and Path(x).is_absolute()
                 else x
             )
 
     return df
 
 
+def count_cells_in_image(image_path: str) -> int:
+    """
+    Count the number of cells in an image.
+    Assumes instance segmentation where each cell has a unique integer ID > 0.
+    """
+    if not image_path or not isinstance(image_path, (str, Path)):
+        return 0
+
+    try:
+        if not Path(image_path).exists():
+            return 0
+
+        img = tifffile.imread(image_path)
+        # Assuming background is 0
+        unique_labels = np.unique(img)
+        # Subtract 1 for background if 0 is present
+        count = len(unique_labels) - 1 if 0 in unique_labels else len(unique_labels)
+        return count
+    except Exception as e:
+        print(f"Error reading image {image_path}: {e}")
+        return 0
+
+
+def add_stratified_split(df: pd.DataFrame, split_ratios: str) -> pd.DataFrame:
+    """
+    Splits data into train/val/test based on cell counts for images WITH Ground Truth.
+    Images without Ground Truth are marked as 'unlabeled'.
+    """
+    # 1. Parse Ratios
+    try:
+        ratios = [float(r) for r in split_ratios.split(",")]
+        if len(ratios) != 3:
+            raise ValueError("Split ratios must be a list of 3 numbers.")
+        total_ratio = sum(ratios)
+        ratios = [r / total_ratio for r in ratios]
+    except ValueError as e:
+        print(f"Invalid split ratios: {e}. Returning unsplit df.")
+        return df
+
+    # 2. Identify Rows with Valid GT
+    # We define a helper to check if GT exists on disk
+    def has_valid_gt(path):
+        return path is not None and isinstance(path, str) and os.path.exists(path)
+
+    print("Verifying Ground Truth existence...")
+    # Create a mask for valid data
+    df["has_gt"] = df["gt_image"].apply(has_valid_gt)
+    print(df)
+    # 3. Split the DataFrame
+    df_labeled = df[df["has_gt"]].copy()
+    df_unlabeled = df[~df["has_gt"]].copy()
+    print(df_unlabeled)
+    print(f"Labeled images (for training): {len(df_labeled)}")
+    print(f"Unlabeled images (for inference/silver truth): {len(df_unlabeled)}")
+
+    # 4. Stratify ONLY the Labeled Data
+    if not df_labeled.empty:
+        # Calculate cell counts (Assuming count_cells_in_image is defined)
+        df_labeled["_cell_count"] = df_labeled["gt_image"].apply(count_cells_in_image)
+
+        # Sort desc (Greedy Bin Packing)
+        df_sorted = df_labeled.sort_values(by="_cell_count", ascending=False)
+
+        total_cells = df_sorted["_cell_count"].sum()
+        target_train = total_cells * ratios[0]
+        target_val = total_cells * ratios[1]
+
+        current_train = 0
+        current_val = 0
+        splits = []
+
+        for count in df_sorted["_cell_count"]:
+            if current_train + count <= target_train:
+                splits.append("train")
+                current_train += count
+            elif current_val + count <= target_val:
+                splits.append("validation")
+                current_val += count
+            else:
+                splits.append("test")
+
+        df_sorted["split"] = splits
+        df_labeled = df_sorted.drop(columns=["_cell_count"])
+
+    # 5. Handle Unlabeled Data
+    df_unlabeled["split"] = "unlabeled"
+
+    # 6. Recombine
+    df_final = pd.concat([df_labeled, df_unlabeled])
+
+    # Drop the helper column
+    df_final = df_final.drop(columns=["has_gt"])
+
+    return df_final
+
+    # Restore original order if needed? The user didn't specify, but let's just drop the temp col
+    # and return the df with 'split'. Since we sorted, the index is shuffled.
+    # If we want to preserve order we could sort back by index, but it probably doesn't matter for parquet.
+
+    # Print actual splits
+    actual_train = df_sorted[df_sorted["split"] == "train"]["_temp_cell_count"].sum()
+    actual_val = df_sorted[df_sorted["split"] == "validation"]["_temp_cell_count"].sum()
+    actual_test = df_sorted[df_sorted["split"] == "test"]["_temp_cell_count"].sum()
+
+    print(
+        f"Actual Split Counts (Cells): Train={actual_train}, Val={actual_val}, Test={actual_test}"
+    )
+    print(
+        f"Actual Ratios: Train={actual_train/total_cells:.2f}, Val={actual_val/total_cells:.2f}, Test={actual_test/total_cells:.2f}"
+    )
+
+    df_sorted = df_sorted.drop(columns=["_temp_cell_count"])
+    return df_sorted
+
+
+def add_fold_split(df: pd.DataFrame, mode: str, split_ratios: str) -> pd.DataFrame:
+    """
+    Add 'split' column based on Fold strategy (Leave-One-Sequence-Out).
+
+    Args:
+        df: DataFrame with 'campaign_number' and 'time_frame'.
+        mode: 'fold-1' (Train 01, Test 02) or 'fold-2' (Train 02, Test 01).
+        split_ratios: String "train,val" (e.g. "80,20") defining split of the training sequence.
+    """
+    if "campaign_number" not in df.columns:
+        raise ValueError("Dataframe must have 'campaign_number' column.")
+    if "time_frame" not in df.columns:
+        # Fallback if time_frame missing? Maybe try to parse from composite_key?
+        # But we added it to extraction, so should be there if re-generated.
+        # If loading old parquet, might need to extract.
+        pass  # Assume it's there for now as we updated extraction.
+
+    train_seq = "01" if mode == "fold-1" else "02"
+    test_seq = "02" if mode == "fold-1" else "01"
+
+    # Parse ratios
+    try:
+        ratios = [float(r) for r in split_ratios.split(",")]
+        if len(ratios) != 2:
+            raise ValueError(
+                f"Fold mode requires exactly 2 ratios (Train, Val). Got {len(ratios)}: {split_ratios}"
+            )
+        # Normalize
+        total = sum(ratios)
+        val_ratio = ratios[1] / total
+        print(
+            f"Fold Split: Using Validation Ratio {val_ratio:.2f} (from {split_ratios})"
+        )
+    except ValueError as e:
+        print(f"Error parsing split ratios for fold mode: {e}")
+        # Fallback or strict fail? Strict fail is better for clarity.
+        raise
+
+    print(f"Fold Config: Train on {train_seq}, Test on {test_seq}")
+
+    # 1. Assign Test Set
+    df.loc[df["campaign_number"] == test_seq, "split"] = "test"
+
+    # 2. Assign Train/Validation (Temporal split of Train Sequence)
+    # We grab the training sequence data
+    train_seq_mask = df["campaign_number"] == train_seq
+
+    # We need to sort by time_frame to split temporally
+    # Let's get the indices of the train sequence rows
+    train_seq_indices = df[train_seq_mask].index
+
+    # Create a temporary view/copy of the train sequence part
+    train_seq_df = df.loc[train_seq_indices].copy()
+
+    # Ensure time_frame is int
+    if "time_frame" not in train_seq_df.columns:
+        # attempt to parse from key "XX_YYYY.tif" -> YYYY
+        # composite_key: "01_0000.tif"
+        train_seq_df["time_frame"] = train_seq_df["composite_key"].apply(
+            lambda x: int(x.split("_")[1].split(".")[0])
+        )
+
+    train_seq_df = train_seq_df.sort_values("time_frame")
+
+    n_train_seq = len(train_seq_df)
+    # Calculate split point. We want val_ratio to be validation (end of sequence)
+    # Train is (1 - val_ratio)
+    split_idx = int(n_train_seq * (1 - val_ratio))
+
+    print(
+        f"Splitting Train Sequence {train_seq}: Total {n_train_seq}, Split Index {split_idx}"
+    )
+
+    # Get the composite_keys for train and val
+    train_keys = set(train_seq_df.iloc[:split_idx]["composite_key"])
+    val_keys = set(train_seq_df.iloc[split_idx:]["composite_key"])
+
+    # Update main dataframe
+    df.loc[df["composite_key"].isin(train_keys), "split"] = "train"
+    df.loc[df["composite_key"].isin(val_keys), "split"] = "validation"
+
+    # Stats
+    n_train = len(train_keys)
+    n_val = len(val_keys)
+    n_test = len(df[df["split"] == "test"])
+    print(f"Split Stats: Train={n_train}, Val={n_val}, Test={n_test}")
+
+    return df
+
+
 def create_dataset_dataframe_logic(
-    synchronized_dataset_dir: Path | str, output_path: Path | str
+    synchronized_dataset_dir: Path | str,
+    output_path: Path | str,
+    split_mode: str = "mixed",
+    split_ratios: Optional[str] = None,
+    seed: int = 42,
 ) -> None:
     synchronized_dataset_dir = Path(
         synchronized_dataset_dir
@@ -327,6 +544,21 @@ def create_dataset_dataframe_logic(
         synchronized_dataset_dir
     )
     dataset_dataframe = convert_to_dataframe(dataset_info)
+
+    # Apply split based on mode
+    print(f"Applying split mode: {split_mode}")
+    if split_mode == "mixed":
+        # Default for mixed if not provided
+        ratios = split_ratios if split_ratios else "70,15,15"
+        dataset_dataframe = add_stratified_split(dataset_dataframe, ratios)
+    elif split_mode.startswith("fold-"):
+        # Default for fold if not provided (80,20 to match previous 0.2 val_ratio)
+        ratios = split_ratios if split_ratios else "80,20"
+        dataset_dataframe = add_fold_split(dataset_dataframe, split_mode, ratios)
+    else:
+        print(f"Unknown split mode '{split_mode}', applying default mixed split.")
+        ratios = split_ratios if split_ratios else "70,15,15"
+        dataset_dataframe = add_stratified_split(dataset_dataframe, ratios)
 
     # Convert paths to relative (starting with data/)
     dataset_dataframe = _make_paths_relative(

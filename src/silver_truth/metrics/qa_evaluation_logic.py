@@ -8,8 +8,9 @@ import numpy as np
 
 from silver_truth.metrics.metrics import calculate_qa_jaccard_score
 from silver_truth.data_processing.utils.dataset_dataframe_creation import (
-            load_dataframe_from_parquet_with_metadata,
-        )
+    load_dataframe_from_parquet_with_metadata,
+)
+
 # Setup basic logging
 logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
 
@@ -46,7 +47,6 @@ def run_qa_evaluation(
         logging.info(f"Total QA images: {len(qa_df)}")
 
         # Load original dataset dataframe to get GT information
-
 
         gt_df = load_dataframe_from_parquet_with_metadata(
             str(ground_truth_dataframe_path)

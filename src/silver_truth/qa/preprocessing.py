@@ -219,20 +219,36 @@ def create_qa_dataset(
                         img_x_end = min(raw_image.shape[1], x_end)
 
                         # 3. Crop the valid part of the image
-                        raw_crop = raw_image[img_y_start:img_y_end, img_x_start:img_x_end]
-                        seg_crop = (segmentation[img_y_start:img_y_end, img_x_start:img_x_end] == label).astype(
-                            np.uint8) * 255
+                        raw_crop = raw_image[
+                            img_y_start:img_y_end, img_x_start:img_x_end
+                        ]
+                        seg_crop = (
+                            segmentation[img_y_start:img_y_end, img_x_start:img_x_end]
+                            == label
+                        ).astype(np.uint8) * 255
 
                         # 4. Pad symmetrically using the calculated offsets
                         # format: ((top, bottom), (left, right))
-                        raw_crop = np.pad(raw_crop, ((pad_top, pad_bottom), (pad_left, pad_right)), mode='constant')
-                        seg_crop = np.pad(seg_crop, ((pad_top, pad_bottom), (pad_left, pad_right)), mode='constant')
+                        raw_crop = np.pad(
+                            raw_crop,
+                            ((pad_top, pad_bottom), (pad_left, pad_right)),
+                            mode="constant",
+                        )
+                        seg_crop = np.pad(
+                            seg_crop,
+                            ((pad_top, pad_bottom), (pad_left, pad_right)),
+                            mode="constant",
+                        )
 
                         # Stack
                         stacked_crop = np.stack([raw_crop, seg_crop], axis=0)
 
                         # Verify
-                        assert stacked_crop.shape == (2, crop_size, crop_size), f"Shape mismatch: {stacked_crop.shape}"
+                        assert stacked_crop.shape == (
+                            2,
+                            crop_size,
+                            crop_size,
+                        ), f"Shape mismatch: {stacked_crop.shape}"
 
                         # Save the stacked image
                         # Include campaign number in cell_id to distinguish between campaigns
@@ -249,10 +265,10 @@ def create_qa_dataset(
                                 "campaign_number": campaign_number,
                                 "competitor": competitor,
                                 "label": label,
-                                "crop_y_start": crop_y_start,
-                                "crop_y_end": crop_y_end,
-                                "crop_x_start": crop_x_start,
-                                "crop_x_end": crop_x_end,
+                                "crop_y_start": y_start,
+                                "crop_y_end": y_end,
+                                "crop_x_start": x_start,
+                                "crop_x_end": x_end,
                                 "original_center_y": center_y,
                                 "original_center_x": center_x,
                                 "crop_size": crop_size,

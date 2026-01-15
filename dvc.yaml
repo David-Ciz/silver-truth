@@ -1,0 +1,46 @@
+stages:
+
+  # 1. Thesis Fold 1 (Train 01 / Test 02)
+  # Generates dataset dataframe with 'split' column configured for Fold 1.
+  create_fold1:
+    foreach:
+      - BF-C2DL-HSC
+      - BF-C2DL-MuSC
+    do:
+      cmd: silver-preprocessing create-dataset-dataframe data/synchronized_data/${item} --output_path data/dataframes/${item}_split_fold-1.parquet --split-mode fold-1 --split-ratios "80,20"
+      deps:
+        - data/synchronized_data/${item}
+        - src/silver_truth/cli/preprocessing.py
+        - src/silver_truth/data_processing/utils/dataset_dataframe_creation.py
+      outs:
+        - data/dataframes/${item}_split_fold-1.parquet
+
+  # 2. Thesis Fold 2 (Train 02 / Test 01)
+  # Generates dataset dataframe with 'split' column configured for Fold 2.
+  create_fold2:
+    foreach:
+      - BF-C2DL-HSC
+      - BF-C2DL-MuSC
+    do:
+      cmd: silver-preprocessing create-dataset-dataframe data/synchronized_data/${item} --output_path data/dataframes/${item}_split_fold-2.parquet --split-mode fold-2 --split-ratios "80,20"
+      deps:
+        - data/synchronized_data/${item}
+        - src/silver_truth/cli/preprocessing.py
+        - src/silver_truth/data_processing/utils/dataset_dataframe_creation.py
+      outs:
+        - data/dataframes/${item}_split_fold-2.parquet
+
+  # 3. Mixed Split (For Silver Truth Provider)
+  # Generates dataset dataframe with 'split' column configured for Mixed Stratified Split.
+  create_mixed:
+    foreach:
+      - BF-C2DL-HSC
+      - BF-C2DL-MuSC
+    do:
+      cmd: silver-preprocessing create-dataset-dataframe data/synchronized_data/${item} --output_path data/dataframes/${item}_split_mixed.parquet --split-mode mixed --split-ratios "70,15,15"
+      deps:
+        - data/synchronized_data/${item}
+        - src/silver_truth/cli/preprocessing.py
+        - src/silver_truth/data_processing/utils/dataset_dataframe_creation.py
+      outs:
+        - data/dataframes/${item}_split_mixed.parquet
