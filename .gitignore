@@ -138,3 +138,11 @@ mlruns/
 # Data files
 *.parquet
 *.csv
+
+# Ignore everything under data/
+/data/*
+ 
+# But keep this one folder and everything inside it
+!/data/synchronized_data/
+!/data/synchronized_data/**
+/data/synchronized_data/BF-C2DL-HSC-test
