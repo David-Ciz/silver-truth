@@ -105,16 +105,16 @@ def evaluate_models(models_paths, build_opt_list):
 
 build_opt_list = [
     {"name": "BF-C2DL-HSC", "version": Version.C1, "crop_size": 64, "split_seed": 42, "split_sets": [0.7,0.15,0.15], "qa": None},
-    {"name": "BF-C2DL-HSC", "version": Version.C1, "crop_size": 64, "split_seed": 42, "split_sets": [0.7,0.15,0.15], "qa": "QA-eb7-1", "qa_threshold": 0.50},
-    {"name": "BF-C2DL-HSC", "version": Version.C1, "crop_size": 64, "split_seed": 42, "split_sets": [0.7,0.15,0.15], "qa": "QA-eb7-1", "qa_threshold": 0.55},
-    {"name": "BF-C2DL-HSC", "version": Version.C1, "crop_size": 64, "split_seed": 42, "split_sets": [0.7,0.15,0.15], "qa": "QA-eb7-1", "qa_threshold": 0.60},
-    {"name": "BF-C2DL-HSC", "version": Version.C1, "crop_size": 64, "split_seed": 42, "split_sets": [0.7,0.15,0.15], "qa": "QA-eb7-1", "qa_threshold": 0.65},
-    {"name": "BF-C2DL-HSC", "version": Version.C1, "crop_size": 64, "split_seed": 42, "split_sets": [0.7,0.15,0.15], "qa": "QA-eb7-1", "qa_threshold": 0.70},
-    {"name": "BF-C2DL-HSC", "version": Version.C1, "crop_size": 64, "split_seed": 42, "split_sets": [0.7,0.15,0.15], "qa": "QA-eb7-1", "qa_threshold": 0.75},
-    {"name": "BF-C2DL-HSC", "version": Version.C1, "crop_size": 64, "split_seed": 42, "split_sets": [0.7,0.15,0.15], "qa": "QA-eb7-1", "qa_threshold": 0.80},
-    {"name": "BF-C2DL-HSC", "version": Version.C1, "crop_size": 64, "split_seed": 42, "split_sets": [0.7,0.15,0.15], "qa": "QA-eb7-1", "qa_threshold": 0.85},
-    {"name": "BF-C2DL-HSC", "version": Version.C1, "crop_size": 64, "split_seed": 42, "split_sets": [0.7,0.15,0.15], "qa": "QA-eb7-1", "qa_threshold": 0.90},
-    #{"name": "BF-C2DL-MuSC", "version": Version.C1, "crop_size": 512, "split_seed": 42, "split_sets": [0.7,0.15,0.15], "qa": None},
+    #{"name": "BF-C2DL-HSC", "version": Version.C1, "crop_size": 64, "split_seed": 42, "split_sets": [0.7,0.15,0.15], "qa": "QA-eb7-1", "qa_threshold": 0.50},
+    #{"name": "BF-C2DL-HSC", "version": Version.C1, "crop_size": 64, "split_seed": 42, "split_sets": [0.7,0.15,0.15], "qa": "QA-eb7-1", "qa_threshold": 0.55},
+    #{"name": "BF-C2DL-HSC", "version": Version.C1, "crop_size": 64, "split_seed": 42, "split_sets": [0.7,0.15,0.15], "qa": "QA-eb7-1", "qa_threshold": 0.60},
+    #{"name": "BF-C2DL-HSC", "version": Version.C1, "crop_size": 64, "split_seed": 42, "split_sets": [0.7,0.15,0.15], "qa": "QA-eb7-1", "qa_threshold": 0.65},
+    #{"name": "BF-C2DL-HSC", "version": Version.C1, "crop_size": 64, "split_seed": 42, "split_sets": [0.7,0.15,0.15], "qa": "QA-eb7-1", "qa_threshold": 0.70},
+    #{"name": "BF-C2DL-HSC", "version": Version.C1, "crop_size": 64, "split_seed": 42, "split_sets": [0.7,0.15,0.15], "qa": "QA-eb7-1", "qa_threshold": 0.75},
+    #{"name": "BF-C2DL-HSC", "version": Version.C1, "crop_size": 64, "split_seed": 42, "split_sets": [0.7,0.15,0.15], "qa": "QA-eb7-1", "qa_threshold": 0.80},
+    #{"name": "BF-C2DL-HSC", "version": Version.C1, "crop_size": 64, "split_seed": 42, "split_sets": [0.7,0.15,0.15], "qa": "QA-eb7-1", "qa_threshold": 0.85},
+    #{"name": "BF-C2DL-HSC", "version": Version.C1, "crop_size": 64, "split_seed": 42, "split_sets": [0.7,0.15,0.15], "qa": "QA-eb7-1", "qa_threshold": 0.90},
+    ##{"name": "BF-C2DL-MuSC", "version": Version.C1, "crop_size": 512, "split_seed": 42, "split_sets": [0.7,0.15,0.15], "qa": None},
 ]
 
 #qa_parquet_path = build_qa_databank(build_opt_list[0])
@@ -136,7 +136,6 @@ models_paths = [
 ]
 evaluate_models(models_paths, build_opt_list)
 
-a = 0
 
 # ----- ######## ----- #
 
