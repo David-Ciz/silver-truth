@@ -1,16 +1,16 @@
 # from src.data_processing.label_synchronizer import verify_dataset_synchronization_logic
-from src.ensemble.datasets import Version
-import src.ensemble.external as ext
-import src.ensemble.ensemble as ensemble
-import src.ensemble.utils as utils
+from src.silver_truth.ensemble.datasets import Version
+import src.silver_truth.ensemble.external as ext
+import src.silver_truth.ensemble.ensemble as ensemble
+import src.silver_truth.ensemble.utils as utils
 import os
-from src.data_processing.utils.parquet_utils import add_split_type
-from src.ensemble.models import ModelType
+from src.silver_truth.data_processing.utils.parquet_utils import add_split_type
+from src.silver_truth.ensemble.models import ModelType
 
 # import src.qa.preprocessing as  qa_pp
-from src.qa.evaluation import integrate_results
-from src.qa.result_conversion import excel2csv
-import src.qa.preprocessing as qa_pp
+from src.silver_truth.qa.evaluation import integrate_results
+from src.silver_truth.qa.result_conversion import excel2csv
+import src.silver_truth.qa.preprocessing as qa_pp
 
 
 # ----- Workflow ----- #

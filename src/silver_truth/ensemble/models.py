@@ -4,8 +4,8 @@ import torch
 from torch import optim
 from torch.nn import functional as F
 import segmentation_models_pytorch as smp
-from src.ensemble.act_functions import LevelTrigger
-from src.ensemble.models_loss_type import LossType
+from src.silver_truth.ensemble.act_functions import LevelTrigger
+from src.silver_truth.ensemble.models_loss_type import LossType
 from enum import Enum
 
 """

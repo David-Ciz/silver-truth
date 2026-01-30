@@ -8,10 +8,10 @@ import pytorch_lightning as pl
 from pytorch_lightning.callbacks import Callback, EarlyStopping, ModelCheckpoint
 import mlflow
 import matplotlib.pyplot as plt
-from src.ensemble.datasets import EnsembleDatasetC1
-from src.ensemble.models_loss_type import LossType
-from src.ensemble.models import SMP_Model
-import src.ensemble.utils as utils
+from src.silver_truth.ensemble.datasets import EnsembleDatasetC1
+from src.silver_truth.ensemble.models_loss_type import LossType
+from src.silver_truth.ensemble.models import SMP_Model
+import src.silver_truth.ensemble.utils as utils
 import albumentations as A
 
 # TODO: create config pipepline:

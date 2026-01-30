@@ -6,8 +6,8 @@ from torch.nn import functional as F
 import pytorch_lightning as pl
 from pytorch_lightning.utilities.types import OptimizerLRSchedulerConfig
 from collections.abc import Callable
-from src.ensemble.models_loss_type import LossType
-from src.ensemble.act_functions import LevelTrigger
+from src.silver_truth.ensemble.models_loss_type import LossType
+from src.silver_truth.ensemble.act_functions import LevelTrigger
 from torchmetrics.classification import BinaryJaccardIndex
 
 

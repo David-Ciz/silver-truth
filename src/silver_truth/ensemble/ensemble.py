@@ -1,13 +1,13 @@
 import logging
 import mlflow
-from src.ensemble.datasets import EnsembleDatasetC1
-import src.ensemble.databanks_builds as db_builds
-import src.ensemble.envs as envs
-import src.ensemble.external as ext
-import src.ensemble.training as training
-from src.ensemble.models import SMP_Model
-import src.ensemble.utils as utils
-from src.data_processing.utils.parquet_utils import same_splits
+from src.silver_truth.ensemble.datasets import EnsembleDatasetC1
+import src.silver_truth.ensemble.databanks_builds as db_builds
+import src.silver_truth.ensemble.envs as envs
+import src.silver_truth.ensemble.external as ext
+import src.silver_truth.ensemble.training as training
+from src.silver_truth.ensemble.models import SMP_Model
+import src.silver_truth.ensemble.utils as utils
+from src.silver_truth.data_processing.utils.parquet_utils import same_splits
 import segmentation_models_pytorch as smp
 import torch
 import pandas as pd
