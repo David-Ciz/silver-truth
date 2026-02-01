@@ -2,7 +2,12 @@ import pandas as pd
 import torch
 import torch.nn as nn
 from torch.utils.data import DataLoader, Dataset, Subset
-from torchvision.models import resnet50, ResNet50_Weights
+from torchvision.models import (
+    resnet18, resnet50, resnet101,
+    ResNet18_Weights, ResNet50_Weights, ResNet101_Weights,
+    efficientnet_b1, efficientnet_b4, efficientnet_b7,
+    EfficientNet_B1_Weights, EfficientNet_B4_Weights, EfficientNet_B7_Weights
+)
 from torch.optim.lr_scheduler import ReduceLROnPlateau
 import click
 import tifffile
@@ -106,22 +111,53 @@ class JaccardDataset(Dataset):
 
 
 # Define the model
-class JaccardResNet(nn.Module):
-    def __init__(self, dropout_rate=0.3):
-        super(JaccardResNet, self).__init__()
-        self.resnet = resnet50(weights=ResNet50_Weights.IMAGENET1K_V1)
-        self.resnet.conv1 = nn.Conv2d(
-            2, 64, kernel_size=7, stride=2, padding=3, bias=False
-        )  # Adjust for 2 channels
-
-        # Replace the final fc layer with dropout + linear
-        in_features = self.resnet.fc.in_features
-        self.resnet.fc = nn.Identity()  # Remove original fc
+class Jaccard(nn.Module):
+    def __init__(self, dropout_rate=0.3, model_type='resnet50'):
+        super(Jaccard, self).__init__()
+        
+        if model_type == 'resnet18':
+            self.model = resnet18(weights=ResNet18_Weights.IMAGENET1K_V1)
+            in_features = self.model.fc.in_features
+            self.model.fc = nn.Identity()
+        elif model_type == 'resnet50':
+            self.model = resnet50(weights=ResNet50_Weights.IMAGENET1K_V1)
+            in_features = self.model.fc.in_features
+            self.model.fc = nn.Identity()
+        elif model_type == 'resnet101':
+            self.model = resnet101(weights=ResNet101_Weights.IMAGENET1K_V1)
+            in_features = self.model.fc.in_features
+            self.model.fc = nn.Identity()
+        elif model_type == 'efficientnet_b1':
+            self.model = efficientnet_b1(weights=EfficientNet_B1_Weights.IMAGENET1K_V1)
+            in_features = self.model.classifier[1].in_features
+            self.model.classifier = nn.Identity()
+        elif model_type == 'efficientnet_b4':
+            self.model = efficientnet_b4(weights=EfficientNet_B4_Weights.IMAGENET1K_V1)
+            in_features = self.model.classifier[1].in_features
+            self.model.classifier = nn.Identity()
+        elif model_type == 'efficientnet_b7':
+            self.model = efficientnet_b7(weights=EfficientNet_B7_Weights.IMAGENET1K_V1)
+            in_features = self.model.classifier[1].in_features
+            self.model.classifier = nn.Identity()
+        else:
+            raise ValueError(f"Unsupported model_type: {model_type}")
+        
+        # Adjust first conv layer for 2 channels
+        if 'resnet' in model_type:
+            self.model.conv1 = nn.Conv2d(
+                2, 64, kernel_size=7, stride=2, padding=3, bias=False
+            )
+        elif 'efficientnet' in model_type:
+            # EfficientNet has stem conv
+            self.model.features[0][0] = nn.Conv2d(
+                2, 32, kernel_size=3, stride=2, padding=1, bias=False
+            )
+        
         self.dropout = nn.Dropout(p=dropout_rate)
         self.fc = nn.Linear(in_features, 1)  # Regression output
 
     def forward(self, x):
-        x = self.resnet(x)
+        x = self.model(x)
         x = self.dropout(x)
         x = self.fc(x)
         return x
@@ -134,6 +170,12 @@ def tensor_normalize(tensor, mean, std):
     return tensor
 
 
+class NormalizeTransform:
+    """Transform to normalize tensor to [-1, 1] from [0, 1]."""
+    def __call__(self, x):
+        return tensor_normalize(x, mean=[0.5, 0.5], std=[0.5, 0.5])
+
+
 def get_transform():
     """
     Get the default transform for the dataset.
@@ -141,7 +183,7 @@ def get_transform():
     Assumes input is already normalized to [0, 1] range.
     Maps [0, 1] -> [-1, 1] which is standard for pretrained models.
     """
-    return lambda x: tensor_normalize(x, mean=[0.5, 0.5], std=[0.5, 0.5])
+    return NormalizeTransform()
 
 
 def train_epoch(model, dataloader, criterion, optimizer, device, max_grad_norm=1.0):
@@ -252,9 +294,14 @@ def load_model(path, device):
         Tuple of (model, metadata)
     """
     checkpoint = torch.load(path, map_location=device)
-    model = JaccardResNet().to(device)
-    model.load_state_dict(checkpoint["model_state_dict"])
     metadata = checkpoint.get("metadata", {})
+    
+    # Get model parameters from metadata (with defaults for backward compatibility)
+    dropout_rate = metadata.get("dropout_rate", 0.3)
+    model_type = metadata.get("model_type", "resnet50")
+    
+    model = Jaccard(dropout_rate=dropout_rate, model_type=model_type).to(device)
+    model.load_state_dict(checkpoint["model_state_dict"])
     print(f"Model loaded from {path}")
     return model, metadata
 
@@ -294,7 +341,7 @@ def get_split_indices(dataset):
 
 @click.group()
 def cli():
-    """ResNet50 Jaccard Index Prediction - Training and Evaluation CLI."""
+    """CNN Jaccard Index Prediction - Training and Evaluation CLI."""
     pass
 
 
@@ -314,13 +361,13 @@ def cli():
 @click.option(
     "--output-model",
     type=click.Path(),
-    default="resnet50_jaccard.pt",
+    default="cnn_jaccard.pt",
     help="Path to save the trained model.",
 )
 @click.option(
     "--output-excel",
     type=click.Path(),
-    default="results_resnet50.xlsx",
+    default="results_cnn.xlsx",
     help="Path to save the evaluation results.",
 )
 @click.option("--batch-size", type=int, default=16, help="Batch size for training.")
@@ -330,7 +377,16 @@ def cli():
     "--weight-decay", type=float, default=1e-4, help="Weight decay (L2 regularization)."
 )
 @click.option(
-    "--dropout-rate", type=float, default=0.3, help="Dropout rate before final layer."
+    "--dropout-rate",
+    type=float,
+    default=0.3,
+    help="Dropout rate for the model.",
+)
+@click.option(
+    "--model-type",
+    type=click.Choice(['resnet18', 'resnet50', 'resnet101', 'efficientnet_b1', 'efficientnet_b4', 'efficientnet_b7']),
+    default='resnet50',
+    help="Model architecture to use.",
 )
 @click.option(
     "--patience", type=int, default=10, help="Early stopping patience (0 to disable)."
@@ -357,7 +413,7 @@ def cli():
 @click.option(
     "--mlflow-experiment",
     type=str,
-    default="resnet50-jaccard",
+    default="cnn-jaccard",
     help="MLflow experiment name.",
 )
 @click.option(
@@ -381,11 +437,12 @@ def train(
     seed,
     num_workers,
     grad_clip,
+    model_type,
     mlflow_tracking_uri,
     mlflow_experiment,
     mlflow_run_name,
 ):
-    """Train the ResNet50 model for Jaccard index prediction."""
+    """Train the CNN model for Jaccard index prediction."""
     # Set seed for reproducibility
     set_seed(seed)
     print(f"Random seed: {seed}")
@@ -434,7 +491,8 @@ def train(
     )
 
     # Model, criterion, optimizer
-    model = JaccardResNet(dropout_rate=dropout_rate).to(device)
+    model = Jaccard(dropout_rate=dropout_rate, model_type=model_type).to(device)
+    print(f"Using model: {model_type}")
     criterion = nn.MSELoss()
     optimizer = torch.optim.Adam(
         model.parameters(), lr=learning_rate, weight_decay=weight_decay
@@ -465,6 +523,7 @@ def train(
                 "seed": seed,
                 "num_workers": num_workers,
                 "grad_clip": grad_clip,
+                "model_type": model_type,
                 "train_samples": len(train_indices),
                 "val_samples": len(val_indices),
                 "test_samples": len(test_indices),
@@ -544,6 +603,7 @@ def train(
             "num_epochs": num_epochs,
             "weight_decay": weight_decay,
             "dropout_rate": dropout_rate,
+            "model_type": model_type,
             "augmentation": augment,
             "best_val_loss": best_val_loss,
             "train_samples": len(train_indices),
@@ -600,7 +660,7 @@ def train(
 @click.option(
     "--output-excel",
     type=click.Path(),
-    default="results_resnet50.xlsx",
+    default="results_cnn.xlsx",
     help="Path to save the evaluation results.",
 )
 @click.option("--batch-size", type=int, default=16, help="Batch size for evaluation.")
