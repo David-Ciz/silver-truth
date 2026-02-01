@@ -45,7 +45,6 @@ stages:
       outs:
         - data/dataframes/${item}_split_mixed.parquet
 
-
   create_qa_crops_mixed:
     # Point directly to the dictionary in params.yaml
     foreach: ${datasets}
@@ -69,3 +68,38 @@ stages:
 
       outs:
         - data/qa_crops/${key}/mixed_sz${item.crop_size}/
+
+  # CNN Training
+  cnn_training:
+    cmd: >
+      python cnn.py train
+      --parquet-file data/dataframes/${item}_split_mixed.parquet
+      --model-type efficientnet_b4
+      --dropout-rate 0.5
+      --batch-size 16
+      --num-epochs 10
+      --output-model cnn_jaccard.pt
+      --output-excel results_cnn.xlsx
+    deps:
+      - data/dataframes/${item}_split_mixed.parquet
+      - data/qa_crops/${key}/mixed_sz${item.crop_size}/
+      - cnn.py
+    outs:
+      - cnn_jaccard.pt
+      - results_cnn.xlsx
+
+  # CNN Evaluation
+  cnn_evaluation:
+    cmd: >
+      python cnn.py evaluate
+      --parquet-file data/dataframes/${item}_split_mixed.parquet
+      --model-path cnn_jaccard.pt
+      --output-excel results_cnn.xlsx
+      --batch-size 16
+    deps:
+      - data/dataframes/${item}_split_mixed.parquet
+      - data/qa_crops/${key}/mixed_sz${item.crop_size}/
+      - cnn_jaccard.pt
+      - cnn.py
+    outs:
+      - results_cnn.xlsx
