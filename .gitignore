@@ -5,6 +5,7 @@ models/
 data/*
 !data/*.dvc
 !data/.gitkeep
+data/
 
 
 # OS generated files (seen in your status)
@@ -31,6 +32,10 @@ __pycache__/
 
 # C extensions
 *.so
+*.db
+*.pt
+*.parquet
+*.dvc
 
 # Distribution / packaging
 .Python
@@ -107,6 +112,7 @@ __pypackages__/
 env/
 venv/
 ENV/
+ST/
 env.bak/
 venv.bak/
 .spyderproject
