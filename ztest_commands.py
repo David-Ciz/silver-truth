@@ -214,12 +214,22 @@ build_opt_list = [
     # {"name": "BF-C2DL-MuSC", "version": Version.C1, "crop_size": 512, "split_seed": 42, "split_sets": [0.7,0.15,0.15], "qa": None},
 ]
 
+build_opt_list = [
+    {
+        "name": "BF-C2DL-HSC",
+        "version": Version.B1,
+        "crop_size": 64,
+        "split_seed": 42,
+        "split_sets": [0.7, 0.15, 0.15],
+        "qa": None,
+    },]
+
 # qa_parquet_path = build_qa_databank(build_opt_list[0])
 
 ##### 3) get results from QA
 
 ##### 4)
-integrate_qa_results(build_opt_list)
+#integrate_qa_results(build_opt_list)
 
 ## OPTIONAL: build analysis databanks in order to better visualize the data
 # ensemble.build_analysis_databanks(build_opt_list[0]["name"], qa_parquet_path, 'all')
@@ -231,7 +241,7 @@ models_paths = [
     "data/ensemble_data/results/checkpoints/C1_ds1-42-7015_QA--/M1--.ckpt",
     "data/ensemble_data/results/checkpoints/C1_ds1-42-7015_QA--/M2--.ckpt",
 ]
-evaluate_models(models_paths, build_opt_list)
+#evaluate_models(models_paths, build_opt_list)
 
 a = 0
 

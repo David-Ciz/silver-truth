@@ -8,6 +8,7 @@ from scipy.ndimage import find_objects
 from src.silver_truth.ensemble import utils
 import src.silver_truth.ensemble.external as ext
 import src.silver_truth.data_processing.utils.parquet_utils as p_utils
+from src.silver_truth.ensemble.datasets import Version
 
 SPLIT_COL = p_utils.SPLITS_COLUMN
 
@@ -116,14 +117,119 @@ def build_analysis_databank(qa_dataset_path: str, output_path: str) -> None:
     ext.compress_images(output_path)
 
 
-def build_databank(
-    build_opt: dict,
-    qa_dataset_path: str,
-    output_path: str,
-    # apply_blue_layer: bool = True
-) -> str:
+def build_databank(build_opt: dict, qa_dataset_path: str, output_path: str) -> str:
+    if build_opt["version"] == Version.B1:
+        return build_databank_B1(build_opt, qa_dataset_path, output_path)
+    elif build_opt["version"] == Version.C1:
+        return build_databank_C1(build_opt, qa_dataset_path, output_path)
+    
+    raise Exception("Error: Dataset version not yet supported.")
+
+
+def build_databank_B1(build_opt: dict, qa_dataset_path: str, output_path: str) -> str:
     """
-    Generate the databank for the different dataset versions.
+    Generate the databank for dataset B1 versions.
+
+    Each image has a competitor's segmentation on the first layer, the corresponding gt image on the second layer, 
+    and an empty third layer.
+    """
+    # destination path of the created images
+    databank_foldername = utils.get_databank_name(build_opt)
+    images_output_path = os.path.join(output_path, databank_foldername)
+    # create images path if it doesn't exist
+    Path(images_output_path).mkdir(parents=True, exist_ok=True)
+
+    # load the dataframe
+    df = ext.load_parquet(qa_dataset_path)
+
+    # output parquet support file
+    data_list = []
+
+    for row in tqdm(df.itertuples(), total=len(df), desc="Processing images"):
+        qa_jaccard = 0
+        if build_opt["qa"]:
+            qa_jaccard = getattr(row, row.qa)   # type: ignore
+            if row.qa_threshold < qa_jaccard:
+                continue
+
+        # campaign - image id - cell id - competitor
+        campaign, img_id, competitor, suffix = Path(row.stacked_path).name.split("_")  # type: ignore
+        cell_id, __ = suffix.split(".")
+        new_name = f"{campaign}_{img_id}_{cell_id}_{competitor}.tif"
+        new_img_path = os.path.join(images_output_path, new_name)
+
+        # load gt image
+        gt_image = tifffile.imread(row.gt_image)  # type: ignore
+        combined_qa_image = tifffile.imread(row.stacked_path).astype(np.uint8)  # type: ignore
+        seg_crop = combined_qa_image[1]
+
+        crop_y_start, crop_y_end = row.crop_y_start, row.crop_y_end
+        crop_x_start, crop_x_end = row.crop_x_start, row.crop_x_end
+
+        if crop_y_start < 0:  # type: ignore
+            y_inc = -crop_y_start  # type: ignore
+            gt_image = np.vstack((np.zeros((y_inc, gt_image.shape[1])), gt_image))  # type: ignore
+            crop_y_end += y_inc
+            crop_y_start = 0
+        if crop_x_start < 0:  # type: ignore
+            x_inc = -crop_x_start  # type: ignore
+            gt_image = np.hstack((np.zeros((gt_image.shape[0], x_inc)), gt_image))
+            crop_x_end += x_inc
+            crop_x_start = 0
+        if gt_image.shape[0] < crop_y_end:
+            gt_image = np.vstack(
+                (
+                    gt_image,
+                    np.zeros((crop_y_end - gt_image.shape[0], gt_image.shape[1])),
+                )
+            )
+        if gt_image.shape[1] < crop_x_end:  # type: ignore
+            gt_image = np.hstack(
+                (
+                    gt_image,
+                    np.zeros((gt_image.shape[0], crop_x_end - gt_image.shape[1])),
+                )
+            )
+
+        gt_crop = gt_image[crop_y_start:crop_y_end, crop_x_start:crop_x_end]
+
+        # contains the rest of the gt segmentations, shown in blue
+        empty_blue_layer = np.zeros((build_opt["crop_size"], build_opt["crop_size"]), dtype=np.uint8)
+        gt_crop = (gt_crop == row.label).astype(np.uint8) * 255
+        stacked_crop = np.stack([seg_crop, gt_crop, empty_blue_layer], axis=0)
+
+        # save to output folder
+        tifffile.imwrite(new_img_path, stacked_crop)
+
+        # save details
+        data_list.append(
+            {
+                "campaign": campaign,
+                "image_id": img_id,
+                "label": row.label,
+                "crop_size": row.crop_size,
+                "image_path": new_img_path,
+                "gt_image": row.gt_image,
+                SPLIT_COL: getattr(row, SPLIT_COL),
+                #TODO: add jaccard?
+                #"qa_jaccard": qa_jaccard,
+            })
+
+    # convert list to dataframe
+    output_df = pd.DataFrame(data_list)
+    parquet_output_path = os.path.join(output_path, f"{databank_foldername}.parquet")
+    # save to parquet file
+    output_df.to_parquet(parquet_output_path)
+
+    # compress images
+    ext.compress_images(images_output_path)
+
+    return parquet_output_path
+
+
+def build_databank_C1(build_opt: dict, qa_dataset_path: str, output_path: str) -> str:
+    """
+    Generate the databank for dataset C1 versions.
 
     For each gt_image, for each label, all the competitors cropped segmentations (from qa) "votes" (each ON pixel equals 1 vote) /
     are summed into a single image layer, and then normalized by the number of competitors.
@@ -132,7 +238,6 @@ def build_databank(
     and the cropped gt image as 2nd layer.
     """
     # TODO: update description.
-    # TODO: add support for additional dataset versions.
 
     # destination path of the created images
     databank_foldername = utils.get_databank_name(build_opt)
