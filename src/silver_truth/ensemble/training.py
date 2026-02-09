@@ -9,7 +9,7 @@ import pytorch_lightning as pl
 from pytorch_lightning.callbacks import Callback, EarlyStopping, ModelCheckpoint
 import mlflow
 import matplotlib.pyplot as plt
-from silver_truth.ensemble.datasets import EnsembleDatasetC1
+from silver_truth.ensemble.datasets import EnsembleDatasetB1, EnsembleDatasetC1, Version
 from silver_truth.ensemble.models_loss_type import LossType
 from silver_truth.ensemble.models import SMP_Model
 import silver_truth.ensemble.utils as utils
@@ -322,6 +322,7 @@ def run(
     # device = torch.device("cuda:0") if torch.cuda.is_available() else torch.device("cpu")
     # print("Device:", device)
     """"""
+    databank_opt = run_params.get("databank_opt")
 
     latent_dim = None  # 32
 
@@ -337,11 +338,21 @@ def run(
 
     mlflow.log_param("dataset_transform", transform)
 
-    # get dataset
-    # ensemble_dataset = EnsembleDatasetC1(parquet_path, transform)
-    train_set = EnsembleDatasetC1(parquet_path, "train", transform)
-    val_set = EnsembleDatasetC1(parquet_path, "validation")
-    test_set = EnsembleDatasetC1(parquet_path, "test")
+    # get datasets
+    train_set: data.Dataset
+    val_set: data.Dataset
+    test_set: data.Dataset
+    version = databank_opt["version"] if databank_opt else Version.C1
+    if version == Version.B1:
+        train_set = EnsembleDatasetB1(parquet_path, "train", transform)
+        val_set = EnsembleDatasetB1(parquet_path, "validation")
+        test_set = EnsembleDatasetB1(parquet_path, "test")
+    elif version == Version.C1:
+        train_set = EnsembleDatasetC1(parquet_path, "train", transform)
+        val_set = EnsembleDatasetC1(parquet_path, "validation")
+        test_set = EnsembleDatasetC1(parquet_path, "test")
+    else:
+        raise Exception(f"Error: dataset version '{version.name}' not implemented!")
     # split dataset
     # dataset_split = [0.7, 0.15, 0.15]
     # train_set, val_set, test_set = torch.utils.data.random_split(ensemble_dataset, dataset_split)

@@ -93,23 +93,14 @@ def build_ensemble_databanks(build_opt_list, qa_parquet_dir="data/ensemble_data/
     return ensemble_databanks
 
 
-def train_model(ensemble_databank_path):
+def train_model(databank_opt):
     ##### 6) train models
-    ds_ensemble_split = f"data/ensemble_data/databanks/ensemble_{ds_create_opt['version'].name}_{ds_create_opt['name']}_split{ds_create_opt['split_seed']}.parquet"  # noqa: F821
-
-    # train models
-    experiment_name = f"{ds_create_opt['name']}_exp1"  # noqa: F821
-    databank_name = os.path.basename(ds_ensemble_split)[
-        len("ensemble_") : -len(".parquet")
-    ]
-    train_parquet_path = f"{os.path.join(os.getcwd(), ds_ensemble_split)}"
+    experiment_name = f"{utils.get_databank_name(databank_opt)}_exp1"
     run_sequence = [
-        {"model_type": ModelType.Unet, "max_epochs": 2, "databank": None},
+        {"model_type": ModelType.Unet, "max_epochs": 2, "databank_opt": databank_opt},
         # {"model_type": ModelType.UnetPlusPlus, "max_epochs": 100, "qa": None}
     ]
-    ensemble.run_experiment(
-        experiment_name, databank_name, train_parquet_path, run_sequence
-    )
+    ensemble.run_experiment(experiment_name, run_sequence)
 
 
 def evaluate_models(models_paths, build_opt_list):
@@ -234,9 +225,9 @@ build_opt_list = [
 
 ## OPTIONAL: build analysis databanks in order to better visualize the data
 # ensemble.build_analysis_databanks(build_opt_list[0]["name"], qa_parquet_path, 'all')
-ensemble_databanks = build_ensemble_databanks(build_opt_list)
+# ensemble_databanks = build_ensemble_databanks(build_opt_list)
 
-# train_model()
+train_model(build_opt_list[0])
 
 models_paths = [
     "data/ensemble_data/results/checkpoints/C1_ds1-42-7015_QA--/M1--.ckpt",
