@@ -290,7 +290,8 @@ def build_databank_B1(build_opt: dict, qa_dataset_path: str, output_path: str) -
         # campaign - image id - cell id - competitor
         campaign, img_id, competitor, suffix = Path(row.stacked_path).name.split("_")  # type: ignore
         cell_id, __ = suffix.split(".")
-        new_name = f"{campaign}_{img_id}_{cell_id}_{competitor}.tif"
+        full_cell_id = f"{campaign}_{img_id}_{cell_id}"
+        new_name = f"{full_cell_id}_{competitor}.tif"
         new_img_path = os.path.join(images_output_path, new_name)
 
         # load gt image
@@ -341,6 +342,7 @@ def build_databank_B1(build_opt: dict, qa_dataset_path: str, output_path: str) -
         # save details
         data_list.append(
             {
+                "full_cell_id": full_cell_id,
                 "campaign": campaign,
                 "image_id": img_id,
                 "label": row.label,
