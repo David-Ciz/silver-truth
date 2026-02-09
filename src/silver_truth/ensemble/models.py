@@ -34,6 +34,7 @@ class ModelType(Enum):
     UPerNet = 10
     Segformer = 11
     DPT = 12
+    Siamese = 13
 
 
 class SMP_Model(pl.LightningModule):
@@ -97,6 +98,8 @@ class SMP_Model(pl.LightningModule):
                 return smp.DPT(
                     encoder_name="resnet34", encoder_weights=None, in_channels=1
                 )
+            case ModelType.Siamese:
+                raise Exception("Error: Network not implemente here.")
 
     def forward(self, x):
         x = self.model(x)

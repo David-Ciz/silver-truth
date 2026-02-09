@@ -9,9 +9,10 @@ import pytorch_lightning as pl
 from pytorch_lightning.callbacks import Callback, EarlyStopping, ModelCheckpoint
 import mlflow
 import matplotlib.pyplot as plt
+from silver_truth.ensemble.model_siamese import SiameseUnet
 from silver_truth.ensemble.datasets import EnsembleDatasetB1, EnsembleDatasetC1, Version
 from silver_truth.ensemble.models_loss_type import LossType
-from silver_truth.ensemble.models import SMP_Model
+from silver_truth.ensemble.models import ModelType, SMP_Model
 import silver_truth.ensemble.utils as utils
 import albumentations as A
 
@@ -141,7 +142,10 @@ def _train_model(
 
     model_type = run_params["model_type"]
     max_epochs = run_params["max_epochs"]
-    model_pl = SMP_Model(model_type)
+    if model_type == ModelType.Siamese:
+        model_pl = SiameseUnet(device)
+    else:
+        model_pl = SMP_Model(model_type, device)
 
     mlflow.log_param("model_type", model_type)
     mlflow.log_param("model", model_pl.model.__class__.__name__)

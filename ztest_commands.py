@@ -97,7 +97,12 @@ def train_model(databank_opt):
     ##### 6) train models
     experiment_name = f"{utils.get_databank_name(databank_opt)}_exp1"
     run_sequence = [
-        {"model_type": ModelType.Unet, "max_epochs": 2, "databank_opt": databank_opt},
+        {
+            "model_type": ModelType.Siamese,
+            "max_epochs": 2,
+            "databank_opt": databank_opt,
+        },
+        # {"model_type": ModelType.Unet, "max_epochs": 2, "databank_opt": None},
         # {"model_type": ModelType.UnetPlusPlus, "max_epochs": 100, "qa": None}
     ]
     ensemble.run_experiment(experiment_name, run_sequence)
