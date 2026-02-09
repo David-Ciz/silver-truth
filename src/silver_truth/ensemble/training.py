@@ -8,7 +8,7 @@ import pytorch_lightning as pl
 from pytorch_lightning.callbacks import Callback, EarlyStopping, ModelCheckpoint
 import mlflow
 import matplotlib.pyplot as plt
-from src.silver_truth.ensemble.datasets import EnsembleDatasetC1
+from src.silver_truth.ensemble.datasets import EnsembleDatasetB1, EnsembleDatasetC1, Version
 from src.silver_truth.ensemble.models_loss_type import LossType
 from src.silver_truth.ensemble.models import SMP_Model
 import src.silver_truth.ensemble.utils as utils
@@ -228,9 +228,7 @@ def _visualize_dataset(subset):
     plt.waitforbuttonpress(0)
 
 
-def run(
-    databank_name: str, run_params: dict, parquet_path: str, rand_seed: int = 42
-) -> None:
+def run(run_params: dict, rand_seed: int = 42) -> None:
     """
     Run a training session.
     With "remote", there's no visual feedback, such as image reconstructions.
@@ -244,6 +242,10 @@ def run(
     # device = torch.device("cuda:0") if torch.cuda.is_available() else torch.device("cpu")
     # print("Device:", device)
     """"""
+    databank_opt = run_params["databank_opt"]
+    databank_name = utils.get_databank_name(databank_opt)
+    relative_parquet_path = f"data/ensemble_data/databanks/{databank_name}.parquet"
+    parquet_path = f"{os.path.join(os.getcwd(), relative_parquet_path)}"
 
     latent_dim = None  # 32
 
@@ -259,11 +261,17 @@ def run(
 
     mlflow.log_param("dataset_transform", transform)
 
-    # get dataset
-    # ensemble_dataset = EnsembleDatasetC1(parquet_path, transform)
-    train_set = EnsembleDatasetC1(parquet_path, "train", transform)
-    val_set = EnsembleDatasetC1(parquet_path, "validation")
-    test_set = EnsembleDatasetC1(parquet_path, "test")
+    # get datasets
+    if databank_opt["version"] == Version.B1:
+        train_set = EnsembleDatasetB1(parquet_path, "train", transform)
+        val_set = EnsembleDatasetB1(parquet_path, "validation")
+        test_set = EnsembleDatasetB1(parquet_path, "test")
+    elif databank_opt["version"] == Version.C1:
+        train_set = EnsembleDatasetC1(parquet_path, "train", transform)
+        val_set = EnsembleDatasetC1(parquet_path, "validation")
+        test_set = EnsembleDatasetC1(parquet_path, "test")
+    else:
+        raise Exception(f"Error: dataset version '{databank_opt["version"].name}' not implemented!")
     # split dataset
     # dataset_split = [0.7, 0.15, 0.15]
     # train_set, val_set, test_set = torch.utils.data.random_split(ensemble_dataset, dataset_split)
