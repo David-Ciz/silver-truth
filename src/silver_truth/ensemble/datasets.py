@@ -48,27 +48,25 @@ class EnsembleDatasetB1(Dataset):
         self.data = []
         self.gts = []
 
-        # fill tensors with actual data
-        for index, row in enumerate(df.itertuples()):
-            if split != "all":
-                if row.split != split:
-                    continue
+        unique_cell_ids = df["full_cell_id"].unique()
 
-            cell_ids = np.unique(row.full_cell_id) # type: ignore
-            
-            # load the image
-            composed_image = tifffile.imread(row.image_path)  # type: ignore
-            # split the composed image
-
-            # albumentations require (H, W, C) for images
-            segmentation = (
-                composed_image[0].astype(dtype=np.float32) / 255
-            )  # scale down to [0,1]
-            gt_image = (
-                composed_image[1].astype(dtype=np.float32) / 255
-            )  # scale down to [0,1]
-            self.data.append(segmentation)
-            self.gts.append(gt_image)
+        for full_cell_id in unique_cell_ids:
+            df_same_cell = df[df["full_cell_id"] == full_cell_id]
+            segmentations = []
+            gt_image = ()
+            # fill tensors with actual data
+            for index, row in enumerate(df_same_cell.itertuples()):
+                if split != "all":
+                    if row.split != split:
+                        continue
+                # load the image
+                composed_image = tifffile.imread(row.image_path)  # type: ignore
+                # albumentations require (H, W, C) for images
+                segmentations.append(composed_image[0].astype(dtype=np.float32) / 255)  # scale down to [0,1]
+                gt_image = (composed_image[1].astype(dtype=np.float32) / 255)  # scale down to [0,1]
+            if len(segmentations) > 0:    
+                self.data.append(np.array(segmentations))
+                self.gts.append(gt_image)
 
 
     def __len__(self) -> int:
