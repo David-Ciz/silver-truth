@@ -154,8 +154,8 @@ def generate_evaluation(
 
     # calculate metrics
     tp, fp, fn, tn = smp.metrics.get_stats(
-        reconst_imgs.long(), target_set.long(), mode="binary", threshold=0.5
-    )  # type: ignore
+        reconst_imgs.long(), target_set.long(), mode="binary", threshold=0.5 # type: ignore
+    )  
     iou = smp.metrics.iou_score(tp, fp, fn, tn)
     f1 = smp.metrics.f1_score(tp, fp, fn, tn)
     # iou_total = smp.metrics.iou_score(tp, fp, fn, tn, reduction="micro")
