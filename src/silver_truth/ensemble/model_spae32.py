@@ -145,7 +145,7 @@ class SparseAutoencoder32(pl.LightningModule):
         self.encoder = Encoder32(num_inputs, num_channels, latent_dim)
         self.decoder = Decoder32(num_channels, latent_dim, last_decoder_act_fn)
 
-        import src.ensemble.utils as utils
+        import src.silver_truth.ensemble.utils as utils
 
         self.level_trigger = LevelTrigger(utils.get_device())
         self.jaccard = BinaryJaccardIndex()
