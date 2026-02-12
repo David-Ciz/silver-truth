@@ -6,7 +6,7 @@ from torch import Tensor
 class HighPassFilter(nn.Module):
     def __init__(self, cutoff: float = 0.5, inplace: bool = False):
         super().__init__()
-        assert(cutoff >= 0.0 and cutoff < 1.0)
+        assert cutoff >= 0.0 and cutoff < 1.0
         self.cutoff = Tensor([cutoff]) 
         self.inplace = inplace
 
@@ -18,7 +18,7 @@ class HighPassFilter(nn.Module):
 class LevelTrigger(nn.Module):
     def __init__(self, device: torch.device, threshold: float = 0.5):
         super().__init__()
-        assert(threshold >= 0.0 and threshold < 1.0)
+        assert threshold >= 0.0 and threshold < 1.0
         self.threshold = Tensor([threshold]).to(device)
 
     def forward(self, input: Tensor) -> Tensor:
