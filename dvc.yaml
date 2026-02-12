@@ -69,37 +69,74 @@ stages:
       outs:
         - data/qa_crops/${key}/mixed_sz${item.crop_size}/
 
-  # CNN Training
-  cnn_training:
-    cmd: >
-      python cnn.py train
-      --parquet-file data/dataframes/${item}_split_mixed.parquet
-      --model-type efficientnet_b4
-      --dropout-rate 0.5
-      --batch-size 16
-      --num-epochs 10
-      --output-model cnn_jaccard.pt
-      --output-excel results_cnn.xlsx
-    deps:
-      - data/dataframes/${item}_split_mixed.parquet
-      - data/qa_crops/${key}/mixed_sz${item.crop_size}/
-      - cnn.py
-    outs:
-      - cnn_jaccard.pt
-      - results_cnn.xlsx
+  # ==========================================================================
+  # Fusion Pipeline Stages
+  # ==========================================================================
+  # Note: CNN training/evaluation are NOT included in DVC because they are
+  # experimental in nature (hyperparameter tuning, model selection).
+  # Use MLflow for experiment tracking instead:
+  #   python cnn.py train --mlflow-experiment "cnn-jaccard" [OPTIONS]
+  #
+  # For fusion experiments comparing different strategies, use:
+  #   python scripts/run_fusion_experiment.py --help
+  # ==========================================================================
 
-  # CNN Evaluation
-  cnn_evaluation:
-    cmd: >
-      python cnn.py evaluate
-      --parquet-file data/dataframes/${item}_split_mixed.parquet
-      --model-path cnn_jaccard.pt
-      --output-excel results_cnn.xlsx
-      --batch-size 16
-    deps:
-      - data/dataframes/${item}_split_mixed.parquet
-      - data/qa_crops/${key}/mixed_sz${item.crop_size}/
-      - cnn_jaccard.pt
-      - cnn.py
-    outs:
-      - results_cnn.xlsx
+  # Generate job files for fusion - Mixed Split
+  generate_job_files_mixed:
+    foreach:
+      - dataset: BF-C2DL-HSC
+        campaign: "01"
+      - dataset: BF-C2DL-HSC
+        campaign: "02"
+    do:
+      cmd: >
+        silver-fusion generate-jobfiles
+        --parquet-file data/dataframes/${item.dataset}_split_mixed.parquet
+        --campaign-number ${item.campaign}
+        --output-dir data/job_files/${item.dataset}/mixed
+      deps:
+        - data/dataframes/${item.dataset}_split_mixed.parquet
+        - src/silver_truth/cli/fusion.py
+        - src/silver_truth/job_file_generator.py
+      outs:
+        - data/job_files/${item.dataset}/mixed/${item.dataset}_${item.campaign}_job_file.txt
+
+  # Generate job files for fusion - Fold 1 (Train 01 / Test 02)
+  generate_job_files_fold1:
+    foreach:
+      - dataset: BF-C2DL-HSC
+        campaign: "01"
+      - dataset: BF-C2DL-HSC
+        campaign: "02"
+    do:
+      cmd: >
+        silver-fusion generate-jobfiles
+        --parquet-file data/dataframes/${item.dataset}_split_fold-1.parquet
+        --campaign-number ${item.campaign}
+        --output-dir data/job_files/${item.dataset}/fold-1
+      deps:
+        - data/dataframes/${item.dataset}_split_fold-1.parquet
+        - src/silver_truth/cli/fusion.py
+        - src/silver_truth/job_file_generator.py
+      outs:
+        - data/job_files/${item.dataset}/fold-1/${item.dataset}_${item.campaign}_job_file.txt
+
+  # Generate job files for fusion - Fold 2 (Train 02 / Test 01)
+  generate_job_files_fold2:
+    foreach:
+      - dataset: BF-C2DL-HSC
+        campaign: "01"
+      - dataset: BF-C2DL-HSC
+        campaign: "02"
+    do:
+      cmd: >
+        silver-fusion generate-jobfiles
+        --parquet-file data/dataframes/${item.dataset}_split_fold-2.parquet
+        --campaign-number ${item.campaign}
+        --output-dir data/job_files/${item.dataset}/fold-2
+      deps:
+        - data/dataframes/${item.dataset}_split_fold-2.parquet
+        - src/silver_truth/cli/fusion.py
+        - src/silver_truth/job_file_generator.py
+      outs:
+        - data/job_files/${item.dataset}/fold-2/${item.dataset}_${item.campaign}_job_file.txt

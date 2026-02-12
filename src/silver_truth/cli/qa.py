@@ -39,16 +39,41 @@ def cli():
     "--crop", default=False, is_flag=True, help="Create crops for the QA dataset"
 )
 @click.option("--crop-size", default=64, help="Size of the crops for the QA dataset")
+@click.option(
+    "--centering",
+    type=click.Choice(["competitor", "gt_mask", "tracking_marker"]),
+    default="competitor",
+    help="Strategy for centering crops.",
+)
+@click.option(
+    "--exclude-competitors",
+    multiple=True,
+    help="Competitors to exclude from the dataset.",
+)
 def create_dataset(
     dataset_dataframe_path: str,
     output_dir: str,
     output_parquet_path: str,
     crop: bool = False,
     crop_size: int = 64,
+    centering: str = "competitor",
+    exclude_competitors: tuple = (),
 ) -> None:
-    """Creates a QA dataset for cell-level analysis."""
+    """Creates a QA dataset for cell-level analysis.
+
+    CENTERING STRATEGIES:
+    - competitor (default): Center on the competitor's prediction. Warning: Misalignment between competitors.
+    - gt_mask: Center on the Ground Truth mask centroid. Best for alignment but potential data leakage.
+    - tracking_marker: Center on the Tracking Marker (TRA) centroid. Good compromise for alignment.
+    """
     create_qa_dataset(
-        dataset_dataframe_path, output_dir, output_parquet_path, crop, crop_size
+        dataset_dataframe_path,
+        output_dir,
+        output_parquet_path,
+        crop,
+        crop_size,
+        centering,
+        list(exclude_competitors),
     )
 
 

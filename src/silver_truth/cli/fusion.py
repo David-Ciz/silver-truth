@@ -29,7 +29,7 @@ def cli():
     required=True,
     type=click.Path(exists=True, dir_okay=False, resolve_path=True),
     help="Path to the executable Java JAR file (e.g., fusers-all-dependencies.jar).",
-    default="src/data_processing/cell_tracking_java_helpers/label-fusion-ng-2.2.0-SNAPSHOT-jar-with-dependencies.jar",
+    default="src/silver_truth/data_processing/cell_tracking_java_helpers/label-fusion-ng-2.2.0-SNAPSHOT-jar-with-dependencies.jar",
 )
 @click.option(
     "--job-file",
@@ -226,6 +226,12 @@ def generate_jobfiles(
     help="Legacy base directory containing dataframes/ and fused_results/",
 )
 @click.option(
+    "--model-name",
+    type=str,
+    default=None,
+    help="Name of the fusion model (for column naming). If not provided, will be inferred from directory structure.",
+)
+@click.option(
     "--process-all", is_flag=True, help="Process every dataset under base-dir"
 )
 def add_fused_images(
@@ -234,6 +240,7 @@ def add_fused_images(
     fused_results_dir,
     output_parquet,
     base_dir,
+    model_name,
     process_all,
 ):
     """Add fused image paths to dataset dataframes."""
@@ -257,6 +264,7 @@ def add_fused_images(
         fused_results_dir=fused_results_dir,
         output_parquet_path=output_parquet,
         base_dir=base_dir,
+        model_name=model_name,
     )
     if not success:
         exit(1)
