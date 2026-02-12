@@ -1,5 +1,5 @@
 import mlflow
-import src.ensemble.external as ext
+import src.silver_truth.ensemble.external as ext
 
 # TODO: add to env
 _mlflow_mlruns_path = "data/ensemble_data/results/mlruns"
