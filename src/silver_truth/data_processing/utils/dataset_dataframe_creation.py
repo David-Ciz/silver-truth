@@ -417,26 +417,6 @@ def add_stratified_split(df: pd.DataFrame, split_ratios: str) -> pd.DataFrame:
 
     return df_final
 
-    # Restore original order if needed? The user didn't specify, but let's just drop the temp col
-    # and return the df with 'split'. Since we sorted, the index is shuffled.
-    # If we want to preserve order we could sort back by index, but it probably doesn't matter for parquet.
-
-    # Print actual splits
-    actual_train = df_sorted[df_sorted["split"] == "train"]["_temp_cell_count"].sum()
-    actual_val = df_sorted[df_sorted["split"] == "validation"]["_temp_cell_count"].sum()
-    actual_test = df_sorted[df_sorted["split"] == "test"]["_temp_cell_count"].sum()
-
-    print(
-        f"Actual Split Counts (Cells): Train={actual_train}, Val={actual_val}, Test={actual_test}"
-    )
-    print(
-        f"Actual Ratios: Train={actual_train/total_cells:.2f}, Val={actual_val/total_cells:.2f}, Test={actual_test/total_cells:.2f}"
-    )
-
-    df_sorted = df_sorted.drop(columns=["_temp_cell_count"])
-    return df_sorted
-
-
 def add_fold_split(df: pd.DataFrame, mode: str, split_ratios: str) -> pd.DataFrame:
     """
     Add 'split' column based on Fold strategy (Leave-One-Sequence-Out).
