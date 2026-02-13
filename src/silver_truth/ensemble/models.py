@@ -4,9 +4,10 @@ import torch
 from torch import optim
 from torch.nn import functional as F
 import segmentation_models_pytorch as smp
-from src.silver_truth.ensemble.act_functions import LevelTrigger
-from src.silver_truth.ensemble.models_loss_type import LossType
+from silver_truth.ensemble.act_functions import LevelTrigger
+from silver_truth.ensemble.models_loss_type import LossType
 from enum import Enum
+from typing import Optional
 
 """
 smp.Unet.loss_type = property(lambda self:self._loss_type,                              # type: ignore
@@ -36,11 +37,12 @@ class ModelType(Enum):
 
 
 class SMP_Model(pl.LightningModule):
-    def __init__(self, model_type: ModelType, device: torch.device):
+    def __init__(self, model_type: ModelType, device: Optional[torch.device] = None):
         super().__init__()
         self.save_hyperparameters()
         self.model = self._get_model(model_type)
-        self.level_trigger = LevelTrigger(device)
+        # Device is managed by Lightning; keep trigger device-agnostic.
+        self.level_trigger = LevelTrigger()
         self.loss_type = LossType.MSE
         # self.loss_function = DiceLoss("binary", from_logits=True)
 

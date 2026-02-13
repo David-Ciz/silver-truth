@@ -8,10 +8,10 @@ import pytorch_lightning as pl
 from pytorch_lightning.callbacks import Callback, EarlyStopping, ModelCheckpoint
 import mlflow
 import matplotlib.pyplot as plt
-from src.silver_truth.ensemble.datasets import EnsembleDatasetC1
-from src.silver_truth.ensemble.models_loss_type import LossType
-from src.silver_truth.ensemble.models import SMP_Model
-import src.silver_truth.ensemble.utils as utils
+from silver_truth.ensemble.datasets import EnsembleDatasetC1
+from silver_truth.ensemble.models_loss_type import LossType
+from silver_truth.ensemble.models import SMP_Model
+import silver_truth.ensemble.utils as utils
 import albumentations as A
 
 # TODO: create config pipepline:
@@ -121,7 +121,7 @@ def _train_model(
     test_loader,
 ):
     device = utils.get_device()
-    print("Device:", device)
+    print("Device (legacy selector):", device)
 
     """
     model = Autoencoder32(
@@ -140,10 +140,10 @@ def _train_model(
 
     model_type = run_params["model_type"]
     max_epochs = run_params["max_epochs"]
-    model_pl = SMP_Model(model_type, device)
+    model_pl = SMP_Model(model_type)
 
     mlflow.log_param("model_type", model_type)
-    mlflow.log_param("model", model_pl.model)
+    mlflow.log_param("model", model_pl.model.__class__.__name__)
     mlflow.log_param("loss_type", model_pl.loss_type)
 
     # Create a PyTorch Lightning trainer with the generation callback
@@ -155,6 +155,15 @@ def _train_model(
 
     checkpoint_filename = f"M{model_type.value}-{databank_suffix}"
 
+    checkpoint_callback = ModelCheckpoint(
+        filename=checkpoint_filename,
+        dirpath=f"{_checkpoint_path}/{databank_name}",
+        monitor="val_loss",
+        mode="min",
+        save_top_k=1,
+        save_weights_only=True,
+    )
+
     trainer = pl.Trainer(
         default_root_dir=os.path.join(os.getcwd(), _checkpoint_path),
         deterministic=True,
@@ -162,14 +171,7 @@ def _train_model(
         devices="auto",
         max_epochs=max_epochs,
         callbacks=[
-            ModelCheckpoint(
-                filename=checkpoint_filename,
-                dirpath=f"{_checkpoint_path}/{databank_name}",
-                monitor="val_loss",
-                mode="min",
-                save_top_k=1,
-                save_weights_only=True,
-            ),
+            checkpoint_callback,
             # LearningRateMonitor("epoch"),
             EvaluationCallback(
                 _get_eval_sets(train_dataset),
@@ -181,11 +183,52 @@ def _train_model(
 
     trainer.fit(model_pl, train_loader, val_loader)
 
+    best_checkpoint_path = checkpoint_callback.best_model_path
+    eval_model = model_pl
+    if best_checkpoint_path:
+        mlflow.log_param("best_checkpoint_path", best_checkpoint_path)
+        try:
+            eval_model = SMP_Model.load_from_checkpoint(
+                best_checkpoint_path, weights_only=False
+            )
+        except Exception:
+            # Fall back to the in-memory model if checkpoint loading fails.
+            eval_model = model_pl
+
+    # Compute final mean metrics on the best checkpoint for val and test.
+    eval_model.to(device)
+    val_mean_loss, val_mean_f1, val_mean_iou = _evaluate_model(
+        eval_model, *_get_eval_sets(val_dataset)
+    )
+    test_mean_loss, test_mean_f1, test_mean_iou = _evaluate_model(
+        eval_model, *_get_eval_sets(test_loader.dataset)
+    )
+    mlflow.log_metric("val_mean_loss", val_mean_loss)
+    mlflow.log_metric("val_mean_f1", val_mean_f1)
+    mlflow.log_metric("val_mean_iou", val_mean_iou)
+    mlflow.log_metric("test_mean_loss", test_mean_loss)
+    mlflow.log_metric("test_mean_f1", test_mean_f1)
+    mlflow.log_metric("test_mean_iou", test_mean_iou)
+    print(
+        f"final metrics: val_mean_iou={val_mean_iou:.4f}, val_mean_f1={val_mean_f1:.4f}, "
+        f"test_mean_iou={test_mean_iou:.4f}, test_mean_f1={test_mean_f1:.4f}"
+    )
+
     # Test best model on validation and test set
-    val_result = trainer.test(model_pl, dataloaders=val_loader, verbose=False)
-    test_result = trainer.test(model_pl, dataloaders=test_loader, verbose=False)
-    result = {"val": val_result, "test": test_result}
-    return model_pl, result
+    val_result = trainer.test(eval_model, dataloaders=val_loader, verbose=False)
+    test_result = trainer.test(eval_model, dataloaders=test_loader, verbose=False)
+    result = {
+        "val": val_result,
+        "test": test_result,
+        "best_checkpoint_path": best_checkpoint_path,
+        "val_mean_loss": val_mean_loss,
+        "val_mean_f1": val_mean_f1,
+        "val_mean_iou": val_mean_iou,
+        "test_mean_loss": test_mean_loss,
+        "test_mean_f1": test_mean_f1,
+        "test_mean_iou": test_mean_iou,
+    }
+    return eval_model, result
 
 
 def _visualize_reconstructions(model, train_set):
@@ -308,6 +351,7 @@ def run(
         test_loader,
     )
 
-    # DEBUG only
-    _visualize_reconstructions(model, _get_stacked_images(val_set, 16))
+    # Optional local visualization (disabled by default to avoid blocking runs)
+    if run_params.get("visualize", False):
+        _visualize_reconstructions(model, _get_stacked_images(val_set, 16))
     print("Done.")

@@ -1,17 +1,18 @@
 import logging
 import mlflow
-from src.silver_truth.ensemble.datasets import EnsembleDatasetC1
-import src.silver_truth.ensemble.databanks_builds as db_builds
-import src.silver_truth.ensemble.envs as envs
-import src.silver_truth.ensemble.external as ext
-import src.silver_truth.ensemble.training as training
-from src.silver_truth.ensemble.models import SMP_Model
-import src.silver_truth.ensemble.utils as utils
-from src.silver_truth.data_processing.utils.parquet_utils import same_splits
+from silver_truth.ensemble.datasets import EnsembleDatasetC1
+import silver_truth.ensemble.databanks_builds as db_builds
+import silver_truth.ensemble.envs as envs
+import silver_truth.ensemble.external as ext
+import silver_truth.ensemble.training as training
+from silver_truth.ensemble.models import SMP_Model
+import silver_truth.ensemble.utils as utils
+from silver_truth.data_processing.utils.parquet_utils import same_splits
 import segmentation_models_pytorch as smp
 import torch
 import pandas as pd
 import os
+from typing import Dict, Union
 
 
 # Basic Logging Setup
@@ -191,3 +192,38 @@ def generate_evaluation(
         df.to_parquet(output_parquet_path)
 
     return output_parquet_path
+
+
+def evaluate_checkpoint(
+    model_path: str, databank_path: str, split_type: str = "test"
+) -> Dict[str, Union[float, int, str]]:
+    """
+    Run inference for a checkpoint on a databank split and return aggregated metrics.
+    """
+    output_parquet_path = generate_evaluation(model_path, databank_path, split_type)
+    output_df = pd.read_parquet(output_parquet_path)
+
+    if split_type == "all":
+        model_name = os.path.basename(model_path).split(".ckpt")[0]
+        iou_col = f"{model_name}_iou"
+        f1_col = f"{model_name}_f1"
+    else:
+        iou_col = "iou"
+        f1_col = "f1"
+
+    if len(output_df) == 0:
+        return {
+            "output_parquet_path": output_parquet_path,
+            "split": split_type,
+            "count": 0,
+            "iou_mean": float("nan"),
+            "f1_mean": float("nan"),
+        }
+
+    return {
+        "output_parquet_path": output_parquet_path,
+        "split": split_type,
+        "count": int(len(output_df)),
+        "iou_mean": float(output_df[iou_col].mean()),
+        "f1_mean": float(output_df[f1_col].mean()),
+    }

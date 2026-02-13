@@ -5,9 +5,9 @@ from tqdm import tqdm
 import pandas as pd
 import numpy as np
 from scipy.ndimage import find_objects
-from src.silver_truth.ensemble import utils
-import src.silver_truth.ensemble.external as ext
-import src.silver_truth.data_processing.utils.parquet_utils as p_utils
+from silver_truth.ensemble import utils
+import silver_truth.ensemble.external as ext
+import silver_truth.data_processing.utils.parquet_utils as p_utils
 
 SPLIT_COL = p_utils.SPLITS_COLUMN
 

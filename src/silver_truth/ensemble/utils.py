@@ -13,7 +13,11 @@ DATABANKS_DIR = "data/ensemble_data/databanks"
 
 
 def get_device():
-    return torch.device("cuda:0") if torch.cuda.is_available() else torch.device("cpu")
+    if torch.cuda.is_available():
+        return torch.device("cuda:0")
+    if torch.backends.mps.is_available():
+        return torch.device("mps")
+    return torch.device("cpu")
 
 
 def find_largest_gt_cell_size(dataset_dataframe_path: str) -> tuple[int, str]:

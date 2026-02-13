@@ -302,10 +302,12 @@ def add_fused_images(
     help="Run only flat (non-weighted) fusion models.",
 )
 @click.option(
-    "--thresholds",
-    default="0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8,0.9,1.0",
-    show_default=True,
-    help="Comma-separated threshold values.",
+    "--weights-column",
+    default=None,
+    help=(
+        "Optional QA parquet column containing competitor weights. "
+        "If not provided/found, weighted fusion models are skipped."
+    ),
 )
 @click.option(
     "--num-threads",
@@ -359,7 +361,7 @@ def run_fusion_crops(
     models: tuple[str, ...],
     all_models: bool,
     flat_models_only: bool,
-    thresholds: str,
+    weights_column: Optional[str],
     num_threads: int,
     chunk_size: int,
     mlflow_experiment: str,
@@ -377,7 +379,7 @@ def run_fusion_crops(
             models=models,
             all_models=all_models,
             flat_models_only=flat_models_only,
-            thresholds=thresholds,
+            weights_column=weights_column,
             num_threads=num_threads,
             chunk_size=chunk_size,
             mlflow_experiment=mlflow_experiment,
@@ -400,6 +402,8 @@ def run_fusion_crops(
     click.echo(click.style("Fusion crops experiment completed.", fg="green", bold=True))
     click.echo(f"MLflow run ID: {result['mlflow_run_id']}")
     click.echo(f"Summary CSV: {result['summary_path']}")
+    if result.get("leaderboard_path"):
+        click.echo(f"Leaderboard CSV: {result['leaderboard_path']}")
     click.echo(f"Output dir: {result['output_dir']}")
     if result.get("job_dir"):
         click.echo(f"Job dir: {result['job_dir']}")

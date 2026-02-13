@@ -123,6 +123,29 @@ stages:
       outs:
         - data/dataframes/${key}/qa_crops/fold-2_sz${item.crop_size}_qa_dataset.parquet
 
+  # Build baseline (non-QA-gated) Ensemble databank from mixed QA crops.
+  create_ensemble_databank_c1_hsc_mixed:
+    cmd: >
+      silver-ensemble build-databank
+      --dataset-name BF-C2DL-HSC
+      --qa-parquet-path data/dataframes/BF-C2DL-HSC/qa_crops/mixed_sz${datasets.BF-C2DL-HSC.crop_size}_qa_dataset.parquet
+      --version C1
+      --crop-size ${datasets.BF-C2DL-HSC.crop_size}
+      --split-seed 42
+      --split-sets "0.7,0.15,0.15"
+    deps:
+      - data/dataframes/BF-C2DL-HSC/qa_crops/mixed_sz${datasets.BF-C2DL-HSC.crop_size}_qa_dataset.parquet
+      - src/silver_truth/cli/ensemble.py
+      - src/silver_truth/ensemble/ensemble.py
+      - src/silver_truth/ensemble/databanks_builds.py
+      - src/silver_truth/ensemble/utils.py
+      - src/silver_truth/data_processing/utils/parquet_utils.py
+    params:
+      - datasets.BF-C2DL-HSC.crop_size
+    outs:
+      - data/ensemble_data/databanks/C1_ds1-42-7015_QA--/
+      - data/ensemble_data/databanks/C1_ds1-42-7015_QA--.parquet
+
   # ==========================================================================
   # Fusion Pipeline Stages
   # ==========================================================================
