@@ -2,7 +2,10 @@ import click
 from pathlib import Path
 from typing import Optional
 
-from silver_truth.qa.preprocessing import create_qa_dataset
+from silver_truth.qa.preprocessing import (
+    attach_split_to_qa_dataset,
+    create_qa_dataset,
+)
 from silver_truth.qa.evaluation import run_qa_evaluation
 from silver_truth.qa.result_conversion import (
     convert_qa_csv_to_detailed_parquet,
@@ -74,6 +77,38 @@ def create_dataset(
         crop_size,
         centering,
         list(exclude_competitors),
+    )
+
+
+@cli.command()
+@click.option(
+    "--qa-base-parquet",
+    required=True,
+    type=click.Path(exists=True),
+    help="Path to base QA parquet file (generated once per dataset/crop-size).",
+)
+@click.option(
+    "--dataset-dataframe-path",
+    required=True,
+    type=click.Path(exists=True),
+    help="Path to split-specific whole-image dataset parquet.",
+)
+@click.option(
+    "--output-parquet-path",
+    required=True,
+    type=click.Path(file_okay=True, dir_okay=False),
+    help="Path to write split-annotated QA parquet file.",
+)
+def attach_split(
+    qa_base_parquet: str,
+    dataset_dataframe_path: str,
+    output_parquet_path: str,
+) -> None:
+    """Attach split labels to an existing QA parquet."""
+    attach_split_to_qa_dataset(
+        qa_base_parquet,
+        dataset_dataframe_path,
+        output_parquet_path,
     )
 
 

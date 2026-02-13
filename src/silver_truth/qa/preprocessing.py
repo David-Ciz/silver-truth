@@ -503,3 +503,101 @@ def create_qa_dataset(
             f"  - {len(output_df)} full-size images with cell masks created in {output_path}"
         )
     logging.info(f"  - QA dataframe saved to {output_parquet_path}")
+
+
+def attach_split_to_qa_dataset(
+    qa_base_parquet_path: str,
+    dataset_dataframe_path: str,
+    output_parquet_path: str,
+) -> None:
+    """
+    Attach split labels (train/validation/test/...) to an existing QA dataset parquet.
+
+    This enables generating expensive QA crops once, then materializing split-specific
+    QA parquet files by joining against different dataset dataframe split variants.
+
+    Join keys are:
+    1) campaign_number + gt_image (preferred)
+    2) campaign_number + original_image_path/source_image (fallback)
+    """
+    logging.info("Starting QA split attachment.")
+    logging.info(f"  - Base QA parquet: {qa_base_parquet_path}")
+    logging.info(f"  - Split dataframe: {dataset_dataframe_path}")
+    logging.info(f"  - Output parquet: {output_parquet_path}")
+
+    qa_df = pd.read_parquet(qa_base_parquet_path)
+    dataset_df = load_dataframe_from_parquet_with_metadata(dataset_dataframe_path)
+
+    if "split" not in dataset_df.columns:
+        raise ValueError(
+            f"Dataset dataframe has no 'split' column: {dataset_dataframe_path}"
+        )
+    if (
+        "campaign_number" not in qa_df.columns
+        or "campaign_number" not in dataset_df.columns
+    ):
+        raise ValueError(
+            "Both QA and dataset dataframes must contain 'campaign_number'."
+        )
+
+    if "gt_image" in qa_df.columns and "gt_image" in dataset_df.columns:
+        qa_join_cols = ["campaign_number", "gt_image"]
+        dataset_join_cols = ["campaign_number", "gt_image"]
+    elif (
+        "original_image_path" in qa_df.columns and "source_image" in dataset_df.columns
+    ):
+        qa_join_cols = ["campaign_number", "original_image_path"]
+        dataset_join_cols = ["campaign_number", "source_image"]
+    else:
+        raise ValueError(
+            "Could not determine join keys. Expected either "
+            "(campaign_number + gt_image) or "
+            "(campaign_number + original_image_path/source_image)."
+        )
+
+    split_lookup = (
+        dataset_df[dataset_join_cols + ["split"]]
+        .dropna(subset=dataset_join_cols + ["split"])
+        .copy()
+    )
+
+    # Validate split lookup uniqueness to avoid ambiguous assignments.
+    split_variants = split_lookup.groupby(dataset_join_cols)["split"].nunique()
+    ambiguous = split_variants[split_variants > 1]
+    if not ambiguous.empty:
+        raise ValueError(
+            "Ambiguous split assignment detected for join keys in dataset dataframe."
+        )
+
+    split_lookup = split_lookup.drop_duplicates(subset=dataset_join_cols, keep="first")
+    qa_without_split = qa_df.drop(columns=["split"], errors="ignore")
+
+    merged = qa_without_split.merge(
+        split_lookup,
+        left_on=qa_join_cols,
+        right_on=dataset_join_cols,
+        how="left",
+        validate="many_to_one",
+    )
+
+    # Drop right-hand join columns when names differ.
+    extra_join_cols = [col for col in dataset_join_cols if col not in qa_join_cols]
+    if extra_join_cols:
+        merged = merged.drop(columns=extra_join_cols)
+
+    missing_split = merged["split"].isna().sum()
+    if missing_split:
+        sample_rows = merged.loc[merged["split"].isna(), qa_join_cols].head(5)
+        raise ValueError(
+            f"Failed to assign split for {missing_split} QA row(s). "
+            f"Sample unmatched keys: {sample_rows.to_dict(orient='records')}"
+        )
+
+    output_path = Path(output_parquet_path)
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    merged.to_parquet(output_path)
+    logging.info(
+        "QA split attachment complete. Rows: %d, output: %s",
+        len(merged),
+        output_path,
+    )
