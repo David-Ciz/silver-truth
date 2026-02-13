@@ -7,13 +7,13 @@ stages:
       - BF-C2DL-HSC
       - BF-C2DL-MuSC
     do:
-      cmd: silver-preprocessing create-dataset-dataframe data/synchronized_data/${item} --output_path data/dataframes/${item}_split_fold-1.parquet --split-mode fold-1 --split-ratios "80,20"
+      cmd: silver-preprocessing create-dataset-dataframe data/synchronized_data/${item} --output_path data/dataframes/${item}/whole_image/${item}_split_fold-1.parquet --split-mode fold-1 --split-ratios "80,20"
       deps:
         - data/synchronized_data/${item}
         - src/silver_truth/cli/preprocessing.py
         - src/silver_truth/data_processing/utils/dataset_dataframe_creation.py
       outs:
-        - data/dataframes/${item}_split_fold-1.parquet
+        - data/dataframes/${item}/whole_image/${item}_split_fold-1.parquet
 
   # 2. Thesis Fold 2 (Train 02 / Test 01)
   # Generates dataset dataframe with 'split' column configured for Fold 2.
@@ -22,13 +22,13 @@ stages:
       - BF-C2DL-HSC
       - BF-C2DL-MuSC
     do:
-      cmd: silver-preprocessing create-dataset-dataframe data/synchronized_data/${item} --output_path data/dataframes/${item}_split_fold-2.parquet --split-mode fold-2 --split-ratios "80,20"
+      cmd: silver-preprocessing create-dataset-dataframe data/synchronized_data/${item} --output_path data/dataframes/${item}/whole_image/${item}_split_fold-2.parquet --split-mode fold-2 --split-ratios "80,20"
       deps:
         - data/synchronized_data/${item}
         - src/silver_truth/cli/preprocessing.py
         - src/silver_truth/data_processing/utils/dataset_dataframe_creation.py
       outs:
-        - data/dataframes/${item}_split_fold-2.parquet
+        - data/dataframes/${item}/whole_image/${item}_split_fold-2.parquet
 
   # 3. Mixed Split (For Silver Truth Provider)
   # Generates dataset dataframe with 'split' column configured for Mixed Stratified Split.
@@ -37,13 +37,13 @@ stages:
       - BF-C2DL-HSC
       - BF-C2DL-MuSC
     do:
-      cmd: silver-preprocessing create-dataset-dataframe data/synchronized_data/${item} --output_path data/dataframes/${item}_split_mixed.parquet --split-mode mixed --split-ratios "70,15,15"
+      cmd: silver-preprocessing create-dataset-dataframe data/synchronized_data/${item} --output_path data/dataframes/${item}/whole_image/${item}_split_mixed.parquet --split-mode mixed --split-ratios "70,15,15"
       deps:
         - data/synchronized_data/${item}
         - src/silver_truth/cli/preprocessing.py
         - src/silver_truth/data_processing/utils/dataset_dataframe_creation.py
       outs:
-        - data/dataframes/${item}_split_mixed.parquet
+        - data/dataframes/${item}/whole_image/${item}_split_mixed.parquet
 
   create_qa_crops_mixed:
     # Point directly to the dictionary in params.yaml
@@ -51,15 +51,15 @@ stages:
     do:
       cmd: >
         silver-qa create-dataset 
-        --dataset-dataframe-path data/dataframes/${key}_split_mixed.parquet 
+        --dataset-dataframe-path data/dataframes/${key}/whole_image/${key}_split_mixed.parquet 
         --output-dir data/qa_crops/${key}/mixed_sz${item.crop_size}/ 
-        --output-parquet-path data/qa_crops/${key}/mixed_sz${item.crop_size}/qa_dataset.parquet 
+        --output-parquet-path data/dataframes/${key}/qa_crops/mixed_sz${item.crop_size}_qa_dataset.parquet 
         --crop
         --crop-size ${item.crop_size}
 
       deps:
         # Use ${key} for the dataset name
-        - data/dataframes/${key}_split_mixed.parquet
+        - data/dataframes/${key}/whole_image/${key}_split_mixed.parquet
         - src/silver_truth/cli/qa.py
 
       # Track the specific parameter so DVC knows to re-run if 64 changes to 128
@@ -68,6 +68,7 @@ stages:
 
       outs:
         - data/qa_crops/${key}/mixed_sz${item.crop_size}/
+        - data/dataframes/${key}/qa_crops/mixed_sz${item.crop_size}_qa_dataset.parquet
 
   # ==========================================================================
   # Fusion Pipeline Stages
@@ -91,11 +92,11 @@ stages:
     do:
       cmd: >
         silver-fusion generate-jobfiles
-        --parquet-file data/dataframes/${item.dataset}_split_mixed.parquet
+        --parquet-file data/dataframes/${item.dataset}/whole_image/${item.dataset}_split_mixed.parquet
         --campaign-number ${item.campaign}
         --output-dir data/job_files/${item.dataset}/mixed
       deps:
-        - data/dataframes/${item.dataset}_split_mixed.parquet
+        - data/dataframes/${item.dataset}/whole_image/${item.dataset}_split_mixed.parquet
         - src/silver_truth/cli/fusion.py
         - src/silver_truth/job_file_generator.py
       outs:
@@ -111,11 +112,11 @@ stages:
     do:
       cmd: >
         silver-fusion generate-jobfiles
-        --parquet-file data/dataframes/${item.dataset}_split_fold-1.parquet
+        --parquet-file data/dataframes/${item.dataset}/whole_image/${item.dataset}_split_fold-1.parquet
         --campaign-number ${item.campaign}
         --output-dir data/job_files/${item.dataset}/fold-1
       deps:
-        - data/dataframes/${item.dataset}_split_fold-1.parquet
+        - data/dataframes/${item.dataset}/whole_image/${item.dataset}_split_fold-1.parquet
         - src/silver_truth/cli/fusion.py
         - src/silver_truth/job_file_generator.py
       outs:
@@ -131,11 +132,11 @@ stages:
     do:
       cmd: >
         silver-fusion generate-jobfiles
-        --parquet-file data/dataframes/${item.dataset}_split_fold-2.parquet
+        --parquet-file data/dataframes/${item.dataset}/whole_image/${item.dataset}_split_fold-2.parquet
         --campaign-number ${item.campaign}
         --output-dir data/job_files/${item.dataset}/fold-2
       deps:
-        - data/dataframes/${item.dataset}_split_fold-2.parquet
+        - data/dataframes/${item.dataset}/whole_image/${item.dataset}_split_fold-2.parquet
         - src/silver_truth/cli/fusion.py
         - src/silver_truth/job_file_generator.py
       outs:

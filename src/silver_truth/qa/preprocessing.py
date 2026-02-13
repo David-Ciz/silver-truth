@@ -273,6 +273,28 @@ def create_qa_dataset(
                     raw_image = tifffile.imread(raw_image_path)
                     segmentation = tifffile.imread(segmentation_path)
                     gt_image = tifffile.imread(gt_image_path)
+
+                    # Load TRA image (Tracking Truth) using column
+                    if "tracking_markers" in row:
+                        tra_image_path = row["tracking_markers"]
+                        if tra_image_path and Path(tra_image_path).exists():
+                            tra_image = tifffile.imread(tra_image_path)
+                        else:
+                            logging.warning(
+                                f"TRA image not found at {tra_image_path} or path empty. Using empty."
+                            )
+                            tra_image = np.zeros_like(gt_image)
+                    else:
+                        # Fallback to inference if column missing
+                        tra_image_path = (
+                            str(gt_image_path)
+                            .replace("SEG", "TRA")
+                            .replace("man_seg", "man_track")
+                        )
+                        if Path(tra_image_path).exists():
+                            tra_image = tifffile.imread(tra_image_path)
+                        else:
+                            tra_image = np.zeros_like(gt_image)
                 except Exception as e:
                     logging.error(
                         f"Error reading image, segmentation or ground truth file for {raw_image_path.stem}: {e}"
@@ -380,12 +402,25 @@ def create_qa_dataset(
                             mode="constant",
                         )
 
-                        # We will save as 3 channels: Raw, Seg, GT_Mask
-                        stacked_crop = np.stack([raw_crop, seg_crop, gt_crop], axis=0)
+                        # Extract TRA crop
+                        tra_crop = (
+                            tra_image[img_y_start:img_y_end, img_x_start:img_x_end]
+                            == label
+                        ).astype(np.uint8) * 255
+                        tra_crop = np.pad(
+                            tra_crop,
+                            ((pad_top, pad_bottom), (pad_left, pad_right)),
+                            mode="constant",
+                        )
+
+                        # We will save as 4 channels: Raw, Seg, GT_Mask, TRA_Mask
+                        stacked_crop = np.stack(
+                            [raw_crop, seg_crop, gt_crop, tra_crop], axis=0
+                        )
 
                         # Verify
                         assert stacked_crop.shape == (
-                            3,
+                            4,
                             crop_size,
                             crop_size,
                         ), f"Shape mismatch: {stacked_crop.shape}"

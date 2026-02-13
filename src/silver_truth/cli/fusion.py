@@ -1,5 +1,6 @@
 import logging
 from typing import Optional
+from pathlib import Path
 
 import click
 
@@ -8,6 +9,10 @@ from silver_truth.fusion.fusion import (
     fuse_segmentations,
     add_fused_images_to_dataframe_logic,
     process_all_datasets_logic,
+)
+from silver_truth.fusion.crops_experiment import (
+    ALL_MODELS as CROP_EXPERIMENT_MODELS,
+    run_crops_fusion_experiment,
 )
 from silver_truth.job_file_generator import generate_job_file
 
@@ -268,6 +273,136 @@ def add_fused_images(
     )
     if not success:
         exit(1)
+
+
+@cli.command()
+@click.option(
+    "--qa-parquet",
+    required=True,
+    type=click.Path(exists=True, dir_okay=False, path_type=Path),
+    help="Path to QA crops parquet.",
+)
+@click.option(
+    "--output-dir",
+    type=click.Path(path_type=Path),
+    default="fusion_results_crops",
+    show_default=True,
+    help="Directory for fusion outputs and summary CSVs.",
+)
+@click.option(
+    "--models",
+    multiple=True,
+    type=click.Choice(CROP_EXPERIMENT_MODELS, case_sensitive=False),
+    help="Fusion models to run. Can be specified multiple times.",
+)
+@click.option("--all-models", is_flag=True, help="Run all available fusion models.")
+@click.option(
+    "--flat-models-only",
+    is_flag=True,
+    help="Run only flat (non-weighted) fusion models.",
+)
+@click.option(
+    "--thresholds",
+    default="0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8,0.9,1.0",
+    show_default=True,
+    help="Comma-separated threshold values.",
+)
+@click.option(
+    "--num-threads",
+    default=4,
+    show_default=True,
+    type=int,
+    help="Fusion thread count.",
+)
+@click.option(
+    "--chunk-size",
+    default=500,
+    show_default=True,
+    type=int,
+    help="Number of synthetic timepoints per Java invocation.",
+)
+@click.option(
+    "--mlflow-experiment",
+    default="fusion-crops-baseline",
+    show_default=True,
+    help="MLflow experiment name.",
+)
+@click.option(
+    "--mlflow-tracking-path",
+    default="data/fusion_experiments/mlruns",
+    show_default=True,
+    help="MLflow tracking directory.",
+)
+@click.option(
+    "--skip-fusion",
+    is_flag=True,
+    help="Skip fusion and only evaluate existing outputs.",
+)
+@click.option(
+    "--keep-job-dir", is_flag=True, help="Keep generated fusion job directory."
+)
+@click.option(
+    "--job-dir",
+    type=click.Path(path_type=Path),
+    default=None,
+    help="Explicit job directory. If provided, it is reused/updated and not removed.",
+)
+@click.option(
+    "--debug/--no-debug",
+    default=False,
+    show_default=True,
+    help="Enable debug output from the Java fusion process.",
+)
+def run_fusion_crops(
+    qa_parquet: Path,
+    output_dir: Path,
+    models: tuple[str, ...],
+    all_models: bool,
+    flat_models_only: bool,
+    thresholds: str,
+    num_threads: int,
+    chunk_size: int,
+    mlflow_experiment: str,
+    mlflow_tracking_path: str,
+    skip_fusion: bool,
+    keep_job_dir: bool,
+    job_dir: Optional[Path],
+    debug: bool,
+):
+    """Run fusion on QA crops with MLflow tracking."""
+    try:
+        result = run_crops_fusion_experiment(
+            qa_parquet=qa_parquet,
+            output_dir=output_dir,
+            models=models,
+            all_models=all_models,
+            flat_models_only=flat_models_only,
+            thresholds=thresholds,
+            num_threads=num_threads,
+            chunk_size=chunk_size,
+            mlflow_experiment=mlflow_experiment,
+            mlflow_tracking_path=mlflow_tracking_path,
+            skip_fusion=skip_fusion,
+            keep_job_dir=keep_job_dir,
+            job_dir=job_dir,
+            debug=debug,
+        )
+    except Exception as e:
+        click.echo(
+            click.style(
+                f"Error while running fusion crops experiment: {e}",
+                fg="red",
+                bold=True,
+            )
+        )
+        exit(1)
+
+    click.echo(click.style("Fusion crops experiment completed.", fg="green", bold=True))
+    click.echo(f"MLflow run ID: {result['mlflow_run_id']}")
+    click.echo(f"Summary CSV: {result['summary_path']}")
+    click.echo(f"Output dir: {result['output_dir']}")
+    if result.get("job_dir"):
+        click.echo(f"Job dir: {result['job_dir']}")
 
 
 if __name__ == "__main__":
