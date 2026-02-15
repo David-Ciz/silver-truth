@@ -16,14 +16,70 @@ class Version(Enum):
     A2 = 2  # gt&raw, gt        [2,1]
     B1 = 3  # seg, gt           [1,1]
     B2 = 4  # seg&raw, gt       [2,1]
-    B3 = 5  # seg+gt, gt        [1,1]
+    B3 = 5  # segs, gt          [N,1]
     C1 = 6  # norm_seg, gt      [1,1]
     C2 = 7  # norm_seg&raw, gt  [2,1]
     D1 = 8  # raw, gt           [1,1]
 
+
 class EnsembleDatasetB1(Dataset):
     """
     Ensemble dataset data structure B1.
+
+    Input: crop image with competitor segmentation.
+    Label: crop image of ground truth.
+    """
+
+    def __init__(
+        self,
+        ensemble_parquet_path,
+        split,
+        transform: Optional[Callable] = None,
+    ) -> None:
+        super().__init__()
+
+        # load dataframe
+        df = ext.load_parquet(ensemble_parquet_path)
+
+        self.version = Version.C1
+        if transform is None:
+            self.transform = A.Compose([A.ToTensorV2()])
+        else:
+            self.transform = transform
+        self.data = []
+        self.gts = []
+
+        # fill tensors with actual data
+        for index, row in enumerate(df.itertuples()):
+            if split != "all":
+                if row.split != split:
+                    continue
+            # load the image
+            composed_image = tifffile.imread(row.image_path)  # type: ignore
+            # split the composed image
+
+            # albumentations require (H, W, C) for images
+            segmentation = (
+                composed_image[0].astype(dtype=np.float32) / 255
+            )  # scale down to [0,1]
+            gt_image = (
+                composed_image[1].astype(dtype=np.float32) / 255
+            )  # scale down to [0,1]
+            self.data.append(segmentation)
+            self.gts.append(gt_image)
+
+    def __len__(self) -> int:
+        return len(self.data)
+
+    def __getitem__(self, index):
+        # return self.transform(self.data[index]), self.transform(self.gts[index])
+        augmented = self.transform(image=self.data[index], mask=self.gts[index])
+        return augmented["image"], augmented["mask"].unsqueeze(-3)
+
+
+class EnsembleDatasetB3(Dataset):
+    """
+    Ensemble dataset data structure B31.
 
     Input: crop images of competitors segmentations.
     Label: crop image of ground truth.
