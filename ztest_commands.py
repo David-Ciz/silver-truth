@@ -93,19 +93,12 @@ def build_ensemble_databanks(build_opt_list, qa_parquet_dir="data/ensemble_data/
     return ensemble_databanks
 
 
-def train_model(databank_opt):
+def train_model(databank_opt, run_sequence):
     ##### 6) train models
     experiment_name = f"{utils.get_databank_name(databank_opt)}_exp1"
-    run_sequence = [
-        {
-            "model_type": ModelType.Siamese,
-            "max_epochs": 2,
-            "databank_opt": databank_opt,
-        },
-        # {"model_type": ModelType.Unet, "max_epochs": 2, "databank_opt": None},
-        # {"model_type": ModelType.UnetPlusPlus, "max_epochs": 100, "qa": None}
-    ]
-    ensemble.run_experiment(experiment_name, run_sequence)
+    databank_name = utils.get_databank_name(databank_opt)
+    parquet_file = os.path.join(utils.DATABANKS_DIR, f"{databank_name}.parquet")
+    ensemble.run_experiment(experiment_name, databank_name, parquet_file, run_sequence)
 
 
 def evaluate_models(models_paths, build_opt_list):
@@ -232,7 +225,14 @@ build_opt_list = [
 # ensemble.build_analysis_databanks(build_opt_list[0]["name"], qa_parquet_path, 'all')
 # ensemble_databanks = build_ensemble_databanks(build_opt_list)
 
-train_model(build_opt_list[0])
+databank_opt = build_opt_list[0]
+run_sequence = [
+    # {"model_type": ModelType.Siamese, "max_epochs": 2, "databank_opt": databank_opt},
+    {"model_type": ModelType.Unet, "max_epochs": 100, "databank_opt": databank_opt},
+    # {"model_type": ModelType.UnetPlusPlus, "max_epochs": 100, "qa": databank_opt}
+]
+
+train_model(databank_opt, run_sequence)
 
 models_paths = [
     "data/ensemble_data/results/checkpoints/C1_ds1-42-7015_QA--/M1--.ckpt",
