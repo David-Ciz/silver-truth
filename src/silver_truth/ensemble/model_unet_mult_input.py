@@ -31,7 +31,7 @@ class Unet_Mult_Input(pl.LightningModule):
         b, n, h, w = x.shape
         # 1. BATCH FOLDING: Reshape to treat Competitors as part of the Batch
         # New shape: (Batch * N, 1, H, W)
-        x_reshaped = x.view(b * n, 1, h, w)
+        x_reshaped = x.reshape((b * n, 1, h, w))
         # 2. ENCODER PASS (Weight Shared)
         # SMP encoders return a list of features (for skip connections)
         # features[0] is the high-res input, features[-1] is the bottleneck
@@ -77,4 +77,15 @@ class Unet_Mult_Input(pl.LightningModule):
             {"optimizer": optimizer, "lr_scheduler": scheduler, "monitor": "val_loss"}
         )
 
-    # ... training/val/test steps remain the same ...
+    def training_step(self, batch, batch_idx):
+        loss = self._get_reconstruction_loss(batch)
+        self.log("train_loss", loss)
+        return loss
+
+    def validation_step(self, batch, batch_idx):
+        loss = self._get_reconstruction_loss(batch)
+        self.log("val_loss", loss)
+
+    def test_step(self, batch, batch_idx):
+        loss = self._get_reconstruction_loss(batch)
+        self.log("test_loss", loss)

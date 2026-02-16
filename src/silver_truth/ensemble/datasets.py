@@ -41,7 +41,7 @@ class EnsembleDatasetB1(Dataset):
         # load dataframe
         df = ext.load_parquet(ensemble_parquet_path)
 
-        self.version = Version.C1
+        self.version = Version.B1
         if transform is None:
             self.transform = A.Compose([A.ToTensorV2()])
         else:
@@ -90,13 +90,14 @@ class EnsembleDatasetB3(Dataset):
         ensemble_parquet_path,
         split,
         transform: Optional[Callable] = None,
+        num_inputs: int = 8,
     ) -> None:
         super().__init__()
 
         # load dataframe
         df = ext.load_parquet(ensemble_parquet_path)
 
-        self.version = Version.B1
+        self.version = Version.B3
         if transform is None:
             self.transform = A.Compose([A.ToTensorV2()])
         else:
@@ -124,7 +125,14 @@ class EnsembleDatasetB3(Dataset):
                 gt_image = (
                     composed_image[1].astype(dtype=np.float32) / 255
                 )  # scale down to [0,1]
+
             if len(segmentations) > 0 and gt_image is not None:
+                h, w = segmentations[0].shape
+                if len(segmentations) < num_inputs:
+                    for _ in range(num_inputs - len(segmentations)):
+                        segmentations.append(np.zeros((h, w), dtype=np.float32))
+                elif len(segmentations) > num_inputs:
+                    segmentations = segmentations[:num_inputs]
                 self.data.append(np.array(segmentations))
                 self.gts.append(gt_image)
 
@@ -132,10 +140,10 @@ class EnsembleDatasetB3(Dataset):
         return len(self.data)
 
     def __getitem__(self, index):
-        augmented = self.transform(
-            images=np.expand_dims(self.data[index], axis=-1), mask=self.gts[index]
-        )
-        return augmented["images"], augmented["mask"].unsqueeze(-3)
+        c, h, w = self.data[index].shape
+        data = np.reshape(self.data[index], (1, h, w, c))
+        augmented = self.transform(images=data, mask=self.gts[index])
+        return augmented["images"], augmented["mask"].unsqueeze(-3).unsqueeze(-3)
 
 
 class EnsembleDatasetC1(Dataset):
