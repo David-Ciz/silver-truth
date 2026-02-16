@@ -8,7 +8,7 @@ from silver_truth.ensemble.act_functions import LevelTrigger
 from silver_truth.ensemble.models_loss_type import LossType
 
 
-class SiameseUnet(pl.LightningModule):
+class Unet_Mult_Input(pl.LightningModule):
     def __init__(self, device: torch.device, max_competitors: int = 32):
         super().__init__()
         # We still use SMP, but we will call encoder and decoder separately
