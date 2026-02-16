@@ -41,7 +41,7 @@ class EnsembleDatasetB1(Dataset):
         # load dataframe
         df = ext.load_parquet(ensemble_parquet_path)
 
-        self.version = Version.C1
+        self.version = Version.B1
         if transform is None:
             self.transform = A.Compose([A.ToTensorV2()])
         else:
@@ -90,13 +90,14 @@ class EnsembleDatasetB3(Dataset):
         ensemble_parquet_path,
         split,
         transform: Optional[Callable] = None,
+        num_inputs: int = 8
     ) -> None:
         super().__init__()
 
         # load dataframe
         df = ext.load_parquet(ensemble_parquet_path)
 
-        self.version = Version.B1
+        self.version = Version.B3
         if transform is None:
             self.transform = A.Compose([A.ToTensorV2()])
         else:
@@ -120,17 +121,35 @@ class EnsembleDatasetB3(Dataset):
                 # albumentations require (H, W, C) for images
                 segmentations.append(composed_image[0].astype(dtype=np.float32) / 255)  # scale down to [0,1]
                 gt_image = (composed_image[1].astype(dtype=np.float32) / 255)  # scale down to [0,1]
-            if len(segmentations) > 0:    
+
+            if len(segmentations) > 0:
+                h,w = segmentations[0].shape
+                # add empty images to fill all input channels
+                for _ in range(num_inputs - len(segmentations)):
+                    segmentations.append(np.zeros((h,w), dtype=np.float32))
                 self.data.append(np.array(segmentations))
                 self.gts.append(gt_image)
-
+                
 
     def __len__(self) -> int:
         return len(self.data)
 
     def __getitem__(self, index):
-        augmented = self.transform(images=np.expand_dims(self.data[index], axis=-1), mask=self.gts[index])
+        '''
+        #Working for unet_mult_input but with list for eval instead of stack.
+        c,h,w = self.data[index].shape
+        data = np.reshape(self.data[index],(1,h,w,c))
+        augmented = self.transform(images=data, mask=self.gts[index])
         return augmented["images"], augmented["mask"].unsqueeze(-3)
+        '''
+        #augmented = self.transform(images=data, mask=np.expand_dims(self.gts[index], axis=-1))
+        #augmented = self.transform(images=np.expand_dims(self.data[index], axis=-1), mask=self.gts[index])
+        #augmented = self.transform(images=self.data[index], mask=self.gts[index])
+        c,h,w = self.data[index].shape
+        data = np.reshape(self.data[index], (1,h,w,c))
+        augmented = self.transform(images=data, mask=self.gts[index])
+        return augmented["images"], augmented["mask"].unsqueeze(-3).unsqueeze(-3)
+        
 
 
 class EnsembleDatasetC1(Dataset):
