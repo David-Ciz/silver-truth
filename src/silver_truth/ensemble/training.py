@@ -8,8 +8,9 @@ import pytorch_lightning as pl
 from pytorch_lightning.callbacks import Callback, EarlyStopping, ModelCheckpoint
 import mlflow
 import matplotlib.pyplot as plt
-from silver_truth.ensemble.model_siamese import SiameseUnet
-from src.silver_truth.ensemble.datasets import EnsembleDatasetB1, EnsembleDatasetC1, Version
+from silver_truth.ensemble.model_unet_mult_input import Unet_Mult_Input
+from silver_truth.ensemble.model_unet_dynamic import Unet_Dynamic
+from src.silver_truth.ensemble.datasets import EnsembleDatasetB1, EnsembleDatasetB3, EnsembleDatasetC1, Version
 from src.silver_truth.ensemble.models_loss_type import LossType
 from src.silver_truth.ensemble.models import ModelType, SMP_Model
 import src.silver_truth.ensemble.utils as utils
@@ -100,7 +101,8 @@ def _get_eval_sets(dataset):
         img, gt = dataset[i]
         imgs.append(img)
         gts.append(gt)
-    return torch.stack(imgs, dim=0), torch.stack(gts, dim=0)
+    #return torch.stack(imgs, dim=0), torch.stack(gts, dim=0)
+    return imgs, torch.stack(gts, dim=0)
 
 
 def _get_stacked_images(dataset, num):
@@ -141,8 +143,11 @@ def _train_model(
 
     model_type = run_params["model_type"]
     max_epochs = run_params["max_epochs"]
-    if model_type == ModelType.Siamese:
-        model_pl = SiameseUnet(device)
+    if model_type == ModelType.Unet_Mult_Input:
+        model_pl = Unet_Mult_Input(device)
+    elif model_type == ModelType.Unet_Dynamic:
+        model_pl = Unet_Dynamic(model_type, device)
+
     else:
         model_pl = SMP_Model(model_type, device)
 
@@ -270,6 +275,10 @@ def run(run_params: dict, rand_seed: int = 42) -> None:
         train_set = EnsembleDatasetB1(parquet_path, "train", transform)
         val_set = EnsembleDatasetB1(parquet_path, "validation")
         test_set = EnsembleDatasetB1(parquet_path, "test")
+    elif databank_opt["version"] == Version.B3:
+        train_set = EnsembleDatasetB3(parquet_path, "train", transform)
+        val_set = EnsembleDatasetB3(parquet_path, "validation")
+        test_set = EnsembleDatasetB3(parquet_path, "test")
     elif databank_opt["version"] == Version.C1:
         train_set = EnsembleDatasetC1(parquet_path, "train", transform)
         val_set = EnsembleDatasetC1(parquet_path, "validation")

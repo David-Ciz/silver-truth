@@ -79,7 +79,7 @@ class EnsembleDatasetB1(Dataset):
 
 class EnsembleDatasetB3(Dataset):
     """
-    Ensemble dataset data structure B31.
+    Ensemble dataset data structure B3.
 
     Input: crop images of competitors segmentations.
     Label: crop image of ground truth.
@@ -129,8 +129,8 @@ class EnsembleDatasetB3(Dataset):
         return len(self.data)
 
     def __getitem__(self, index):
-        augmented = self.transform(image=self.data[index], mask=self.gts[index])
-        return augmented["image"], augmented["mask"].unsqueeze(-3)
+        augmented = self.transform(images=np.expand_dims(self.data[index], axis=-1), mask=self.gts[index])
+        return augmented["images"], augmented["mask"].unsqueeze(-3)
 
 
 class EnsembleDatasetC1(Dataset):

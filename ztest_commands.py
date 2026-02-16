@@ -206,7 +206,7 @@ build_opt_list = [
 build_opt_list = [
     {
         "name": "BF-C2DL-HSC",
-        "version": Version.B1,
+        "version": Version.B3,
         "crop_size": 64,
         "split_seed": 42,
         "split_sets": [0.7, 0.15, 0.15],
@@ -226,8 +226,8 @@ build_opt_list = [
 
 databank_opt = build_opt_list[0]
 run_sequence = [
-        #{"model_type": ModelType.Siamese, "max_epochs": 2, "databank_opt": databank_opt},
-        {"model_type": ModelType.Unet, "max_epochs": 100, "databank_opt": databank_opt},
+        {"model_type": ModelType.Unet_Dynamic, "max_epochs": 2, "databank_opt": databank_opt},
+        #{"model_type": ModelType.Unet, "max_epochs": 100, "databank_opt": databank_opt},
         #{"model_type": ModelType.UnetPlusPlus, "max_epochs": 100, "qa": databank_opt}
     ]
 
