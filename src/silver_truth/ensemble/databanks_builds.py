@@ -221,7 +221,7 @@ def build_analysis_databank(qa_dataset_path: str, output_path: str) -> None:
             gt_image = np.hstack((np.zeros((gt_image.shape[0], x_inc)), gt_image))
             crop_x_end += x_inc
             crop_x_start = 0
-        if gt_image.shape[0] < crop_y_end:
+        if gt_image.shape[0] < crop_y_end:  # type: ignore
             gt_image = np.vstack(
                 (
                     gt_image,

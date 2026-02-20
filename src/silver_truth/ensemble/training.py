@@ -101,7 +101,7 @@ class EvaluationCallback(Callback):
             print(f"val_loss: {val_loss}, val_f1: {val_f1}, val_iou: {val_iou}")
 
 
-def _get_eval_sets(dataset):
+def _get_eval_sets(dataset, is_single_input):
     imgs, gts = [], []
     for i in range(len(dataset)):
         img, gt = dataset[i]
@@ -109,21 +109,28 @@ def _get_eval_sets(dataset):
         gts.append(gt)
     imgs_tensor = torch.stack(imgs, dim=0)
     gts_tensor = torch.stack(gts, dim=0)
-    # Multi-input B3 data may carry a leading singleton dimension from transforms.
-    if imgs_tensor.dim() == 5 and imgs_tensor.shape[1] == 1:
-        imgs_tensor = imgs_tensor.squeeze(1)
-    if gts_tensor.dim() == 5 and gts_tensor.shape[1] == 1:
-        gts_tensor = gts_tensor.squeeze(1)
+    if not is_single_input:
+        if imgs_tensor.dim() == 5 and imgs_tensor.shape[1] == 1:
+            imgs_tensor = imgs_tensor.squeeze(1)
+        if gts_tensor.dim() == 5 and gts_tensor.shape[1] == 1:
+            gts_tensor = gts_tensor.squeeze(1)
     return imgs_tensor, gts_tensor
 
 
-def _get_stacked_images(dataset, num):
+def _get_stacked_images(dataset, num, is_single_input):
     imgs, gts = [], []
     for i in range(min(num, len(dataset))):
         img, gt = dataset[i]
         imgs.append(img)
         gts.append(gt)
-    return torch.cat(imgs, dim=0), torch.cat(gts, dim=0)
+    imgs_tensor = torch.stack(imgs, dim=0)
+    gts_tensor = torch.stack(gts, dim=0)
+    if not is_single_input:
+        if imgs_tensor.dim() == 5 and imgs_tensor.shape[1] == 1:
+            imgs_tensor = imgs_tensor.squeeze(1)
+        if gts_tensor.dim() == 5 and gts_tensor.shape[1] == 1:
+            gts_tensor = gts_tensor.squeeze(1)
+    return imgs_tensor, gts_tensor
 
 
 def _train_model(
@@ -134,6 +141,7 @@ def _train_model(
     train_loader,
     val_loader,
     test_loader,
+    is_single_input,
 ):
     device = utils.get_device()
     print("Device (legacy selector):", device)
@@ -195,8 +203,8 @@ def _train_model(
             checkpoint_callback,
             # LearningRateMonitor("epoch"),
             EvaluationCallback(
-                _get_eval_sets(train_dataset),
-                _get_eval_sets(val_dataset),
+                _get_eval_sets(train_dataset, is_single_input),
+                _get_eval_sets(val_dataset, is_single_input),
             ),
             EarlyStopping(monitor="val_loss", patience=10),
         ],
@@ -252,10 +260,10 @@ def _train_model(
     # Compute final mean metrics on the best checkpoint for val and test.
     eval_model.to(device)
     val_mean_loss, val_mean_f1, val_mean_iou = _evaluate_model(
-        eval_model, *_get_eval_sets(val_dataset)
+        eval_model, *_get_eval_sets(val_dataset, is_single_input)
     )
     test_mean_loss, test_mean_f1, test_mean_iou = _evaluate_model(
-        eval_model, *_get_eval_sets(test_loader.dataset)
+        eval_model, *_get_eval_sets(test_loader.dataset, is_single_input)
     )
     mlflow.log_metric("val_mean_loss", val_mean_loss)
     mlflow.log_metric("val_mean_f1", val_mean_f1)
@@ -358,6 +366,8 @@ def run(
 
     mlflow.log_param("dataset_transform", transform)
 
+    is_single_input = True
+
     # get datasets
     train_set: data.Dataset
     val_set: data.Dataset
@@ -368,6 +378,7 @@ def run(
         val_set = EnsembleDatasetB1(parquet_path, "validation")
         test_set = EnsembleDatasetB1(parquet_path, "test")
     elif version == Version.B3:
+        is_single_input = False
         train_set = EnsembleDatasetB3(parquet_path, "train", transform)
         val_set = EnsembleDatasetB3(parquet_path, "validation")
         test_set = EnsembleDatasetB3(parquet_path, "test")
@@ -384,8 +395,10 @@ def run(
     # TODO: note: use this to see the difference in learning with and without data augmentation
     # train_set.dataset = EnsembleDatasetC1(parquet_path, None)
 
+    batch_size = None
+    if is_single_input:
+        batch_size = 7
     # dataloaders
-    batch_size = None  # 7
     train_loader = data.DataLoader(
         train_set,
         batch_size=batch_size,
@@ -422,11 +435,14 @@ def run(
         train_loader,
         val_loader,
         test_loader,
+        is_single_input,
     )
 
     # Optional local visualization (disabled by default to avoid blocking runs)
     if run_params.get("visualize", False):
-        _visualize_reconstructions(model, _get_stacked_images(val_set, 16))
+        _visualize_reconstructions(
+            model, _get_stacked_images(val_set, 16, is_single_input)
+        )
 
     best_epoch = result.get("best_checkpoint_epoch")
     best_checkpoint_path = result.get("best_checkpoint_path")
