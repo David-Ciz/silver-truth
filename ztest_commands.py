@@ -227,14 +227,14 @@ build_opt_list = [
 
 databank_opt = build_opt_list[0]
 run_sequence = [
-    # {"model_type": ModelType.Siamese, "max_epochs": 2, "databank_opt": databank_opt},
-    {"model_type": ModelType.Unet, "max_epochs": 100, "databank_opt": databank_opt},
     {
-        "model_type": ModelType.Unet_Dynamic,
-        "max_epochs": 2,
+        "model_type": ModelType.Unet_Mult_Input,
+        "max_epochs": 100,
         "databank_opt": databank_opt,
     },
-    # {"model_type": ModelType.UnetPlusPlus, "max_epochs": 100, "qa": databank_opt}
+    # {"model_type": ModelType.Unet, "max_epochs": 100, "databank_opt": databank_opt},
+    # {"model_type": ModelType.Unet_Dynamic, "max_epochs": 2, "databank_opt": databank_opt},
+    # {"model_type": ModelType.UnetPlusPlus, "max_epochs": 100, "qa": databank_opt},
 ]
 
 train_model(databank_opt, run_sequence)
