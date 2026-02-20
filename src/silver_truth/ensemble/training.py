@@ -95,22 +95,28 @@ class EvaluationCallback(Callback):
             print(f"val_loss: {val_loss}, val_f1: {val_f1}, val_iou: {val_iou}")
 
 
-def _get_eval_sets(dataset):
+def _get_eval_sets(dataset, is_single_input):
     imgs, gts = [], []
     for i in range(len(dataset)):
         img, gt = dataset[i]
         imgs.append(img)
         gts.append(gt)
-    return torch.cat(imgs, dim=0), torch.cat(gts, dim=0)
+    if is_single_input:
+        return torch.stack(imgs, dim=0), torch.stack(gts, dim=0)
+    else:
+        return torch.cat(imgs, dim=0), torch.cat(gts, dim=0)
 
 
-def _get_stacked_images(dataset, num):
+def _get_stacked_images(dataset, num, is_single_input):
     imgs, gts = [], []
     for i in range(min(num, len(dataset))):
         img, gt = dataset[i]
         imgs.append(img)
         gts.append(gt)
-    return torch.cat(imgs, dim=0), torch.cat(gts, dim=0)
+    if is_single_input:
+        return torch.stack(imgs, dim=0), torch.stack(gts, dim=0)
+    else:
+        return torch.cat(imgs, dim=0), torch.cat(gts, dim=0)
 
 
 def _train_model(
@@ -121,6 +127,7 @@ def _train_model(
     train_loader,
     val_loader,
     test_loader,
+    is_single_input,
 ):
     device = utils.get_device()
     print("Device:", device)
@@ -180,8 +187,8 @@ def _train_model(
             ),
             # LearningRateMonitor("epoch"),
             EvaluationCallback(
-                _get_eval_sets(train_dataset),
-                _get_eval_sets(val_dataset),
+                _get_eval_sets(train_dataset, is_single_input),
+                _get_eval_sets(val_dataset, is_single_input),
             ),
             EarlyStopping(monitor="val_loss", patience=10),
         ],
@@ -269,12 +276,15 @@ def run(run_params: dict, rand_seed: int = 42) -> None:
 
     mlflow.log_param("dataset_transform", transform)
 
+    is_single_input = True
+
     # get datasets
     if databank_opt["version"] == Version.B1:
         train_set = EnsembleDatasetB1(parquet_path, "train", transform)
         val_set = EnsembleDatasetB1(parquet_path, "validation")
         test_set = EnsembleDatasetB1(parquet_path, "test")
     elif databank_opt["version"] == Version.B3:
+        is_single_input = False
         train_set = EnsembleDatasetB3(parquet_path, "train", transform)
         val_set = EnsembleDatasetB3(parquet_path, "validation")
         test_set = EnsembleDatasetB3(parquet_path, "test")
@@ -291,8 +301,10 @@ def run(run_params: dict, rand_seed: int = 42) -> None:
     # TODO: note: use this to see the difference in learning with and without data augmentation
     # train_set.dataset = EnsembleDatasetC1(parquet_path, None)
 
-    # dataloaders
-    batch_size = None#7
+    batch_size = None
+    if is_single_input:
+        batch_size = 7
+    # dataloaders    
     train_loader = data.DataLoader(
         train_set, batch_size=batch_size, shuffle=True, drop_last=False#True
     )
@@ -326,8 +338,9 @@ def run(run_params: dict, rand_seed: int = 42) -> None:
         train_loader,
         val_loader,
         test_loader,
+        is_single_input,
     )
 
     # DEBUG only
-    _visualize_reconstructions(model, _get_stacked_images(val_set, 16))
+    _visualize_reconstructions(model, _get_stacked_images(val_set, 16, is_single_input))
     print("Done.")
