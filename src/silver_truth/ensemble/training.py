@@ -101,17 +101,16 @@ def _get_eval_sets(dataset):
         img, gt = dataset[i]
         imgs.append(img)
         gts.append(gt)
-    #return torch.stack(imgs, dim=0), torch.stack(gts, dim=0)
-    return imgs, torch.stack(gts, dim=0)
+    return torch.cat(imgs, dim=0), torch.cat(gts, dim=0)
 
 
 def _get_stacked_images(dataset, num):
     imgs, gts = [], []
-    for i in range(num):
+    for i in range(min(num, len(dataset))):
         img, gt = dataset[i]
         imgs.append(img)
         gts.append(gt)
-    return torch.stack(imgs, dim=0), torch.stack(gts, dim=0)
+    return torch.cat(imgs, dim=0), torch.cat(gts, dim=0)
 
 
 def _train_model(
@@ -293,9 +292,9 @@ def run(run_params: dict, rand_seed: int = 42) -> None:
     # train_set.dataset = EnsembleDatasetC1(parquet_path, None)
 
     # dataloaders
-    batch_size = 7
+    batch_size = None#7
     train_loader = data.DataLoader(
-        train_set, batch_size=batch_size, shuffle=True, drop_last=True
+        train_set, batch_size=batch_size, shuffle=True, drop_last=False#True
     )
     val_loader = data.DataLoader(
         val_set, batch_size=batch_size, shuffle=False, drop_last=False
