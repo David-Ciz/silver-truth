@@ -255,8 +255,8 @@ def build_analysis_databank(qa_dataset_path: str, output_path: str) -> None:
 def build_databank(build_opt: dict, qa_dataset_path: str, output_path: str) -> str:
     if build_opt["version"] == Version.B1:
         return build_databank_B1(build_opt, qa_dataset_path, output_path)
-    elif build_opt["version"] == Version.C1:
-        return build_databank_C1(build_opt, qa_dataset_path, output_path)
+    elif build_opt["version"] in [Version.C1, Version.C2]:
+        return build_databank_C(build_opt, qa_dataset_path, output_path)
 
     raise Exception("Error: Dataset version not yet supported.")
 
@@ -367,7 +367,7 @@ def build_databank_B1(build_opt: dict, qa_dataset_path: str, output_path: str) -
     return parquet_output_path
 
 
-def build_databank_C1(build_opt: dict, qa_dataset_path: str, output_path: str) -> str:
+def build_databank_C(build_opt: dict, qa_dataset_path: str, output_path: str) -> str:
     """
     Generate the databank for dataset C1 versions.
 
@@ -432,6 +432,8 @@ def build_databank_C1(build_opt: dict, qa_dataset_path: str, output_path: str) -
         df_shared_gt = df[df["gt_image"] == gt_image_path]
         # load gt image
         gt_image = tifffile.imread(gt_image_path)
+        # load raw image
+        raw_image = tifffile.imread(df_shared_gt["original_image_path"].values[0])
         # find the different labels in a gt
         labels = np.unique(gt_image)[1:]
 
@@ -513,15 +515,18 @@ def build_databank_C1(build_opt: dict, qa_dataset_path: str, output_path: str) -
             gt_crop_max_x = gt_crop_max_x_raw
 
             gt_temp = gt_image.copy()
+            raw_temp = raw_image.copy()
 
             if gt_crop_min_y < 0:
                 y_inc = -gt_crop_min_y
                 gt_temp = np.vstack((np.zeros((y_inc, gt_temp.shape[1])), gt_temp))
+                raw_temp = np.vstack((np.zeros((y_inc, raw_temp.shape[1])), raw_temp))
                 gt_crop_max_y += y_inc
                 gt_crop_min_y = 0
             if gt_crop_min_x < 0:
                 x_inc = -gt_crop_min_x
                 gt_temp = np.hstack((np.zeros((gt_temp.shape[0], x_inc)), gt_temp))
+                raw_temp = np.hstack((np.zeros((raw_temp.shape[0], x_inc)), raw_temp))
                 gt_crop_max_x += x_inc
                 gt_crop_min_x = 0
             if gt_image.shape[0] < gt_crop_max_y:
@@ -531,6 +536,14 @@ def build_databank_C1(build_opt: dict, qa_dataset_path: str, output_path: str) -
                         np.zeros((gt_crop_max_y - gt_temp.shape[0], gt_temp.shape[1])),
                     )
                 )
+                raw_temp = np.vstack(
+                    (
+                        raw_temp,
+                        np.zeros(
+                            (gt_crop_max_y - raw_temp.shape[0], raw_temp.shape[1])
+                        ),
+                    )
+                )
             if gt_image.shape[1] < gt_crop_max_x:
                 gt_temp = np.hstack(
                     (
@@ -538,14 +551,28 @@ def build_databank_C1(build_opt: dict, qa_dataset_path: str, output_path: str) -
                         np.zeros((gt_temp.shape[0], gt_crop_max_x - gt_temp.shape[1])),
                     )
                 )
+                raw_temp = np.hstack(
+                    (
+                        raw_temp,
+                        np.zeros(
+                            (raw_temp.shape[0], gt_crop_max_x - raw_temp.shape[1])
+                        ),
+                    )
+                )
 
             gt_crop = gt_temp[gt_crop_min_y:gt_crop_max_y, gt_crop_min_x:gt_crop_max_x]
             gt_crop = (gt_crop == label).astype(np.uint8) * 255
 
+            raw_crop = raw_temp[
+                gt_crop_min_y:gt_crop_max_y, gt_crop_min_x:gt_crop_max_x
+            ]
+
             # stack layers
-            # apply_blue_layer:
-            empty_blue_layer = np.zeros((crop_size, crop_size), dtype=np.uint8)
-            stacked_crop = np.stack([canvas_crop, gt_crop, empty_blue_layer], axis=0)
+            blue_layer = raw_crop
+            if build_opt["version"] == Version.C1:
+                blue_layer = np.zeros((crop_size, crop_size), dtype=np.uint8)
+
+            stacked_crop = np.stack([canvas_crop, gt_crop, blue_layer], axis=0)
 
             # set new dataset image path
             campaign, img_id, __, __ = first_row.cell_id.split("_")
