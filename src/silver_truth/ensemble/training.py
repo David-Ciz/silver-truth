@@ -10,7 +10,7 @@ import mlflow
 import matplotlib.pyplot as plt
 from silver_truth.ensemble.model_unet_mult_input import Unet_Mult_Input
 from silver_truth.ensemble.model_unet_dynamic import Unet_Dynamic
-from src.silver_truth.ensemble.datasets import EnsembleDatasetB1, EnsembleDatasetB3, EnsembleDatasetC1, Version
+from src.silver_truth.ensemble.datasets import Version, get_dataset_class
 from src.silver_truth.ensemble.models_loss_type import LossType
 from src.silver_truth.ensemble.models import ModelType, SMP_Model
 import src.silver_truth.ensemble.utils as utils
@@ -155,7 +155,8 @@ def _train_model(
         model_pl = Unet_Dynamic(model_type, device)
 
     else:
-        model_pl = SMP_Model(model_type, device)
+        num_inputs = 1 if is_single_input else 2
+        model_pl = SMP_Model(model_type, device, num_inputs)
 
     mlflow.log_param("model_type", model_type)
     mlflow.log_param("model", model_pl.model)
@@ -276,24 +277,15 @@ def run(run_params: dict, rand_seed: int = 42) -> None:
 
     mlflow.log_param("dataset_transform", transform)
 
-    is_single_input = True
+    is_single_input = databank_opt["version"] == Version.B1 or \
+                      databank_opt["version"] == Version.C1
 
     # get datasets
-    if databank_opt["version"] == Version.B1:
-        train_set = EnsembleDatasetB1(parquet_path, "train", transform)
-        val_set = EnsembleDatasetB1(parquet_path, "validation")
-        test_set = EnsembleDatasetB1(parquet_path, "test")
-    elif databank_opt["version"] == Version.B3:
-        is_single_input = False
-        train_set = EnsembleDatasetB3(parquet_path, "train", transform)
-        val_set = EnsembleDatasetB3(parquet_path, "validation")
-        test_set = EnsembleDatasetB3(parquet_path, "test")
-    elif databank_opt["version"] == Version.C1:
-        train_set = EnsembleDatasetC1(parquet_path, "train", transform)
-        val_set = EnsembleDatasetC1(parquet_path, "validation")
-        test_set = EnsembleDatasetC1(parquet_path, "test")
-    else:
-        raise Exception(f"Error: dataset version '{databank_opt["version"].name}' not implemented!")
+    dataset_class = get_dataset_class(databank_opt["version"])
+    train_set = dataset_class(parquet_path, "train", transform)
+    val_set = dataset_class(parquet_path, "validation")
+    test_set = dataset_class(parquet_path, "test")
+    
     # split dataset
     # dataset_split = [0.7, 0.15, 0.15]
     # train_set, val_set, test_set = torch.utils.data.random_split(ensemble_dataset, dataset_split)
