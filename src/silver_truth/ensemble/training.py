@@ -1,6 +1,5 @@
 # Register the models
 import os
-import re
 import torch
 import torch.utils.data as data
 import torchvision
@@ -11,15 +10,10 @@ import mlflow
 import matplotlib.pyplot as plt
 from silver_truth.ensemble.model_unet_mult_input import Unet_Mult_Input
 from silver_truth.ensemble.model_unet_dynamic import Unet_Dynamic
-from silver_truth.ensemble.datasets import (
-    EnsembleDatasetB1,
-    EnsembleDatasetB3,
-    EnsembleDatasetC1,
-    Version,
-)
-from silver_truth.ensemble.models_loss_type import LossType
-from silver_truth.ensemble.models import ModelType, SMP_Model
-import silver_truth.ensemble.utils as utils
+from src.silver_truth.ensemble.datasets import Version, get_dataset_class
+from src.silver_truth.ensemble.models_loss_type import LossType
+from src.silver_truth.ensemble.models import ModelType, SMP_Model
+import src.silver_truth.ensemble.utils as utils
 import albumentations as A
 
 # TODO: create config pipepline:
@@ -107,14 +101,10 @@ def _get_eval_sets(dataset, is_single_input):
         img, gt = dataset[i]
         imgs.append(img)
         gts.append(gt)
-    imgs_tensor = torch.stack(imgs, dim=0)
-    gts_tensor = torch.stack(gts, dim=0)
-    if not is_single_input:
-        if imgs_tensor.dim() == 5 and imgs_tensor.shape[1] == 1:
-            imgs_tensor = imgs_tensor.squeeze(1)
-        if gts_tensor.dim() == 5 and gts_tensor.shape[1] == 1:
-            gts_tensor = gts_tensor.squeeze(1)
-    return imgs_tensor, gts_tensor
+    if is_single_input:
+        return torch.stack(imgs, dim=0), torch.stack(gts, dim=0)
+    else:
+        return torch.cat(imgs, dim=0), torch.cat(gts, dim=0)
 
 
 def _get_stacked_images(dataset, num, is_single_input):
@@ -123,14 +113,10 @@ def _get_stacked_images(dataset, num, is_single_input):
         img, gt = dataset[i]
         imgs.append(img)
         gts.append(gt)
-    imgs_tensor = torch.stack(imgs, dim=0)
-    gts_tensor = torch.stack(gts, dim=0)
-    if not is_single_input:
-        if imgs_tensor.dim() == 5 and imgs_tensor.shape[1] == 1:
-            imgs_tensor = imgs_tensor.squeeze(1)
-        if gts_tensor.dim() == 5 and gts_tensor.shape[1] == 1:
-            gts_tensor = gts_tensor.squeeze(1)
-    return imgs_tensor, gts_tensor
+    if is_single_input:
+        return torch.stack(imgs, dim=0), torch.stack(gts, dim=0)
+    else:
+        return torch.cat(imgs, dim=0), torch.cat(gts, dim=0)
 
 
 def _train_model(
@@ -144,7 +130,7 @@ def _train_model(
     is_single_input,
 ):
     device = utils.get_device()
-    print("Device (legacy selector):", device)
+    print("Device:", device)
 
     """
     model = Autoencoder32(
@@ -169,10 +155,11 @@ def _train_model(
         model_pl = Unet_Dynamic(model_type, device)
 
     else:
-        model_pl = SMP_Model(model_type, device)
+        num_inputs = 1 if is_single_input else 2
+        model_pl = SMP_Model(model_type, device, num_inputs)
 
     mlflow.log_param("model_type", model_type)
-    mlflow.log_param("model", model_pl.model.__class__.__name__)
+    mlflow.log_param("model", model_pl.model)
     mlflow.log_param("loss_type", model_pl.loss_type)
 
     # Create a PyTorch Lightning trainer with the generation callback
@@ -184,15 +171,6 @@ def _train_model(
 
     checkpoint_filename = f"M{model_type.value}-{databank_suffix}"
 
-    checkpoint_callback = ModelCheckpoint(
-        filename=checkpoint_filename,
-        dirpath=f"{_checkpoint_path}/{databank_name}",
-        monitor="val_loss",
-        mode="min",
-        save_top_k=1,
-        save_weights_only=True,
-    )
-
     trainer = pl.Trainer(
         default_root_dir=os.path.join(os.getcwd(), _checkpoint_path),
         deterministic=True,
@@ -200,7 +178,14 @@ def _train_model(
         devices="auto",
         max_epochs=max_epochs,
         callbacks=[
-            checkpoint_callback,
+            ModelCheckpoint(
+                filename=checkpoint_filename,
+                dirpath=f"{_checkpoint_path}/{databank_name}",
+                monitor="val_loss",
+                mode="min",
+                save_top_k=1,
+                save_weights_only=True,
+            ),
             # LearningRateMonitor("epoch"),
             EvaluationCallback(
                 _get_eval_sets(train_dataset, is_single_input),
@@ -212,86 +197,11 @@ def _train_model(
 
     trainer.fit(model_pl, train_loader, val_loader)
 
-    best_checkpoint_path = checkpoint_callback.best_model_path
-    best_checkpoint_epoch = None
-
-    def _extract_best_epoch(checkpoint_path: str):
-        if not checkpoint_path:
-            return None
-        try:
-            checkpoint_data = torch.load(checkpoint_path, map_location="cpu")
-            epoch = checkpoint_data.get("epoch")
-            if epoch is not None:
-                return int(epoch)
-        except Exception:
-            pass
-
-        match = re.search(r"epoch[=\-_]?(\d+)", checkpoint_path)
-        if match:
-            try:
-                return int(match.group(1))
-            except ValueError:
-                return None
-        return None
-
-    if best_checkpoint_path:
-        best_checkpoint_epoch = _extract_best_epoch(best_checkpoint_path)
-
-    eval_model = model_pl
-    if best_checkpoint_path:
-        mlflow.log_param("best_checkpoint_path", best_checkpoint_path)
-        if best_checkpoint_epoch is not None:
-            mlflow.log_param("best_checkpoint_epoch", int(best_checkpoint_epoch))
-        if os.path.exists(best_checkpoint_path):
-            mlflow.log_artifact(best_checkpoint_path, artifact_path="checkpoints")
-            mlflow.set_tag("best_checkpoint_logged_to_mlflow", "true")
-        else:
-            mlflow.set_tag("best_checkpoint_logged_to_mlflow", "false")
-        try:
-            eval_model = SMP_Model.load_from_checkpoint(
-                best_checkpoint_path, weights_only=False
-            )
-        except Exception:
-            # Fall back to the in-memory model if checkpoint loading fails.
-            eval_model = model_pl
-    else:
-        mlflow.set_tag("best_checkpoint_logged_to_mlflow", "false")
-
-    # Compute final mean metrics on the best checkpoint for val and test.
-    eval_model.to(device)
-    val_mean_loss, val_mean_f1, val_mean_iou = _evaluate_model(
-        eval_model, *_get_eval_sets(val_dataset, is_single_input)
-    )
-    test_mean_loss, test_mean_f1, test_mean_iou = _evaluate_model(
-        eval_model, *_get_eval_sets(test_loader.dataset, is_single_input)
-    )
-    mlflow.log_metric("val_mean_loss", val_mean_loss)
-    mlflow.log_metric("val_mean_f1", val_mean_f1)
-    mlflow.log_metric("val_mean_iou", val_mean_iou)
-    mlflow.log_metric("test_mean_loss", test_mean_loss)
-    mlflow.log_metric("test_mean_f1", test_mean_f1)
-    mlflow.log_metric("test_mean_iou", test_mean_iou)
-    print(
-        f"final metrics: val_mean_iou={val_mean_iou:.4f}, val_mean_f1={val_mean_f1:.4f}, "
-        f"test_mean_iou={test_mean_iou:.4f}, test_mean_f1={test_mean_f1:.4f}"
-    )
-
     # Test best model on validation and test set
-    val_result = trainer.test(eval_model, dataloaders=val_loader, verbose=False)
-    test_result = trainer.test(eval_model, dataloaders=test_loader, verbose=False)
-    result = {
-        "val": val_result,
-        "test": test_result,
-        "best_checkpoint_path": best_checkpoint_path,
-        "best_checkpoint_epoch": best_checkpoint_epoch,
-        "val_mean_loss": val_mean_loss,
-        "val_mean_f1": val_mean_f1,
-        "val_mean_iou": val_mean_iou,
-        "test_mean_loss": test_mean_loss,
-        "test_mean_f1": test_mean_f1,
-        "test_mean_iou": test_mean_iou,
-    }
-    return eval_model, result
+    val_result = trainer.test(model_pl, dataloaders=val_loader, verbose=False)
+    test_result = trainer.test(model_pl, dataloaders=test_loader, verbose=False)
+    result = {"val": val_result, "test": test_result}
+    return model_pl, result
 
 
 def _visualize_reconstructions(model, train_set):
@@ -334,9 +244,7 @@ def _visualize_dataset(subset):
     plt.waitforbuttonpress(0)
 
 
-def run(
-    databank_name: str, run_params: dict, parquet_path: str, rand_seed: int = 42
-) -> None:
+def run(run_params: dict, rand_seed: int = 42) -> None:
     """
     Run a training session.
     With "remote", there's no visual feedback, such as image reconstructions.
@@ -350,7 +258,10 @@ def run(
     # device = torch.device("cuda:0") if torch.cuda.is_available() else torch.device("cpu")
     # print("Device:", device)
     """"""
-    databank_opt = run_params.get("databank_opt")
+    databank_opt = run_params["databank_opt"]
+    databank_name = utils.get_databank_name(databank_opt)
+    relative_parquet_path = f"data/ensemble_data/databanks/{databank_name}.parquet"
+    parquet_path = f"{os.path.join(os.getcwd(), relative_parquet_path)}"
 
     latent_dim = None  # 32
 
@@ -366,28 +277,15 @@ def run(
 
     mlflow.log_param("dataset_transform", transform)
 
-    is_single_input = True
+    is_single_input = databank_opt["version"] == Version.B1 or \
+                      databank_opt["version"] == Version.C1
 
     # get datasets
-    train_set: data.Dataset
-    val_set: data.Dataset
-    test_set: data.Dataset
-    version = databank_opt["version"] if databank_opt else Version.C1
-    if version == Version.B1:
-        train_set = EnsembleDatasetB1(parquet_path, "train", transform)
-        val_set = EnsembleDatasetB1(parquet_path, "validation")
-        test_set = EnsembleDatasetB1(parquet_path, "test")
-    elif version == Version.B3:
-        is_single_input = False
-        train_set = EnsembleDatasetB3(parquet_path, "train", transform)
-        val_set = EnsembleDatasetB3(parquet_path, "validation")
-        test_set = EnsembleDatasetB3(parquet_path, "test")
-    elif version == Version.C1:
-        train_set = EnsembleDatasetC1(parquet_path, "train", transform)
-        val_set = EnsembleDatasetC1(parquet_path, "validation")
-        test_set = EnsembleDatasetC1(parquet_path, "test")
-    else:
-        raise Exception(f"Error: dataset version '{version.name}' not implemented!")
+    dataset_class = get_dataset_class(databank_opt["version"])
+    train_set = dataset_class(parquet_path, "train", transform)
+    val_set = dataset_class(parquet_path, "validation")
+    test_set = dataset_class(parquet_path, "test")
+    
     # split dataset
     # dataset_split = [0.7, 0.15, 0.15]
     # train_set, val_set, test_set = torch.utils.data.random_split(ensemble_dataset, dataset_split)
@@ -398,12 +296,9 @@ def run(
     batch_size = None
     if is_single_input:
         batch_size = 7
-    # dataloaders
+    # dataloaders    
     train_loader = data.DataLoader(
-        train_set,
-        batch_size=batch_size,
-        shuffle=True,
-        drop_last=False,  # True
+        train_set, batch_size=batch_size, shuffle=True, drop_last=False#True
     )
     val_loader = data.DataLoader(
         val_set, batch_size=batch_size, shuffle=False, drop_last=False
@@ -438,32 +333,6 @@ def run(
         is_single_input,
     )
 
-    # Optional local visualization (disabled by default to avoid blocking runs)
-    if run_params.get("visualize", False):
-        _visualize_reconstructions(
-            model, _get_stacked_images(val_set, 16, is_single_input)
-        )
-
-    best_epoch = result.get("best_checkpoint_epoch")
-    best_checkpoint_path = result.get("best_checkpoint_path")
-    checkpoint_dir = os.path.join(os.getcwd(), _checkpoint_path, databank_name)
-    print("\n=== Ensemble Training Summary ===")
-    print(
-        f"Best checkpoint epoch: {best_epoch}"
-        if best_epoch is not None
-        else "Best checkpoint epoch: unavailable"
-    )
-    if best_checkpoint_path:
-        print(f"Best checkpoint saved at: {best_checkpoint_path}")
-    else:
-        print(
-            "Best checkpoint saved at: unavailable (ModelCheckpoint did not provide a best path)"
-        )
-    print(f"Checkpoint directory: {checkpoint_dir}")
-    print(
-        "IMPORTANT: Reported training/validation/test metrics above are CELL-LEVEL only."
-    )
-    print(
-        "Next required step: evaluate reconstructed FULL-IMAGE outputs (image-level evaluation)."
-    )
+    # DEBUG only
+    _visualize_reconstructions(model, _get_stacked_images(val_set, 16, is_single_input))
     print("Done.")
