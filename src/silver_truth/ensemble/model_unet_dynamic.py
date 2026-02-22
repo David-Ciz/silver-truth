@@ -20,16 +20,22 @@ class Unet_Dynamic(pl.LightningModule):
         self.loss_type = LossType.MSE
 
     def forward(self, x):
-        # x = self.model(x)
-        res = 0
-        for x_n in x:
-            if res == 0:
+        # x shape is expected as (B, N, H, W); current dynamic path consumes one sample at a time.
+        res = []
+        for x_n in x[0]:
+            x_n = x_n.unsqueeze(0).unsqueeze(0)
+            if res == []:
                 res = self.model.encoder(x_n)
             else:
-                res += self.model.encoder(x_n)
-        res /= len(x)
+                features_list = self.model.encoder(x_n)
+                for i, feat in enumerate(features_list):
+                    res[i] += feat
+        num_segs = len(x[0])
+        for i, feat in enumerate(res):
+            res[i] /= num_segs
 
-        x = self.model.decoder(res)
+        decoder_output = self.model.decoder(*res)
+        x = self.model.segmentation_head(decoder_output)
         if not self.training:
             # filter out values below high_pass_filter threshold
             x = self.level_trigger(x)
@@ -37,7 +43,7 @@ class Unet_Dynamic(pl.LightningModule):
 
     def _get_reconstruction_loss(self, batch):
         x, y = batch
-        x_hat = self.model(x)
+        x_hat = self(x)
         return self.get_loss(x_hat, y)
 
     def get_loss(self, x, y):
