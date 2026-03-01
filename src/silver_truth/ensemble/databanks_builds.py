@@ -1,3 +1,4 @@
+from enum import Enum
 import os
 from pathlib import Path
 import tifffile
@@ -9,6 +10,10 @@ from src.silver_truth.ensemble import utils
 import src.silver_truth.ensemble.external as ext
 import src.silver_truth.data_processing.utils.parquet_utils as p_utils
 from src.silver_truth.ensemble.datasets import Version
+
+class Databank_type(Enum):
+    Single = 1              # Layer0: single segmentation, Layer1: gt, Layer2: empty
+    Norm = 2                # Layer0: normalized segmentations, Layer1: gt, Layer2: raw image
 
 SPLIT_COL = p_utils.SPLITS_COLUMN
 
@@ -118,17 +123,17 @@ def build_analysis_databank(qa_dataset_path: str, output_path: str) -> None:
 
 
 def build_databank(build_opt: dict, qa_dataset_path: str, output_path: str) -> str:
-    if build_opt["version"] == Version.B1:
-        return build_databank_B1(build_opt, qa_dataset_path, output_path)
-    elif build_opt["version"] in [Version.C1, Version.C2]:
-        return build_databank_C(build_opt, qa_dataset_path, output_path)
+    if build_opt["databank"] == Databank_type.Single:
+        return build_databank_Single(build_opt, qa_dataset_path, output_path)
+    elif build_opt["databank"] == Databank_type.Norm:
+        return build_databank_Norm(build_opt, qa_dataset_path, output_path)
     
     raise Exception("Error: Dataset version not yet supported.")
 
 
-def build_databank_B1(build_opt: dict, qa_dataset_path: str, output_path: str) -> str:
+def build_databank_Single(build_opt: dict, qa_dataset_path: str, output_path: str) -> str:
     """
-    Generate the databank for dataset B1 versions.
+    Generate the Single databank version.
 
     Each image has a competitor's segmentation on the first layer, the corresponding gt image on the second layer, 
     and an empty third layer.
@@ -229,9 +234,9 @@ def build_databank_B1(build_opt: dict, qa_dataset_path: str, output_path: str) -
     return parquet_output_path
 
 
-def build_databank_C(build_opt: dict, qa_dataset_path: str, output_path: str) -> str:
+def build_databank_Norm(build_opt: dict, qa_dataset_path: str, output_path: str) -> str:
     """
-    Generate the databank for dataset C1 versions.
+    Generate the Normalized databank version.
 
     For each gt_image, for each label, all the competitors cropped segmentations (from qa) "votes" (each ON pixel equals 1 vote) /
     are summed into a single image layer, and then normalized by the number of competitors.
@@ -383,11 +388,7 @@ def build_databank_C(build_opt: dict, qa_dataset_path: str, output_path: str) ->
             raw_crop = raw_temp[gt_crop_min_y:gt_crop_max_y, gt_crop_min_x:gt_crop_max_x]
 
             # stack layers
-            blue_layer = raw_crop 
-            if build_opt["version"] == Version.C1:
-                blue_layer = np.zeros((crop_size, crop_size), dtype=np.uint8)
-
-            stacked_crop = np.stack([canvas_crop, gt_crop, blue_layer], axis=0)
+            stacked_crop = np.stack([canvas_crop, gt_crop, raw_crop], axis=0)
 
             # set new dataset image path
             campaign, img_id, __, __ = first_row.cell_id.split("_")
