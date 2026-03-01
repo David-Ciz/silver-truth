@@ -1,4 +1,5 @@
 # from src.data_processing.label_synchronizer import verify_dataset_synchronization_logic
+from src.silver_truth.ensemble.databanks_builds import Databank_type
 from src.silver_truth.ensemble.datasets import Version
 import src.silver_truth.ensemble.external as ext
 import src.silver_truth.ensemble.ensemble as ensemble
@@ -96,9 +97,9 @@ def build_ensemble_databanks(build_opt_list, qa_parquet_dir="data/ensemble_data/
 def train_model(databank_opt, run_sequence):
     ##### 6) train models
     experiment_name = f"{utils.get_databank_name(databank_opt)}_exp1"
-    databank_name = utils.get_databank_name(databank_opt)
-    parquet_file = os.path.join(utils.DATABANKS_DIR, f"{databank_name}.parquet")
-    ensemble.run_experiment(experiment_name, databank_name, parquet_file, run_sequence)
+    ensemble.run_experiment(
+        experiment_name, run_sequence
+    )
 
 
 def evaluate_models(models_paths, build_opt_list):
@@ -113,7 +114,8 @@ def evaluate_models(models_paths, build_opt_list):
 build_opt_list = [
     {
         "name": "BF-C2DL-HSC",
-        "version": Version.C1,
+        "databank": Databank_type.Norm,
+        "dataset": Version.C1,
         "crop_size": 64,
         "split_seed": 42,
         "split_sets": [0.7, 0.15, 0.15],
@@ -121,7 +123,8 @@ build_opt_list = [
     },
     {
         "name": "BF-C2DL-HSC",
-        "version": Version.C1,
+        "databank": Databank_type.Norm,
+        "dataset": Version.C1,
         "crop_size": 64,
         "split_seed": 42,
         "split_sets": [0.7, 0.15, 0.15],
@@ -130,7 +133,8 @@ build_opt_list = [
     },
     {
         "name": "BF-C2DL-HSC",
-        "version": Version.C1,
+        "databank": Databank_type.Norm,
+        "dataset": Version.C1,
         "crop_size": 64,
         "split_seed": 42,
         "split_sets": [0.7, 0.15, 0.15],
@@ -139,7 +143,8 @@ build_opt_list = [
     },
     {
         "name": "BF-C2DL-HSC",
-        "version": Version.C1,
+        "databank": Databank_type.Norm,
+        "dataset": Version.C1,
         "crop_size": 64,
         "split_seed": 42,
         "split_sets": [0.7, 0.15, 0.15],
@@ -148,7 +153,8 @@ build_opt_list = [
     },
     {
         "name": "BF-C2DL-HSC",
-        "version": Version.C1,
+        "databank": Databank_type.Norm,
+        "dataset": Version.C1,
         "crop_size": 64,
         "split_seed": 42,
         "split_sets": [0.7, 0.15, 0.15],
@@ -157,7 +163,8 @@ build_opt_list = [
     },
     {
         "name": "BF-C2DL-HSC",
-        "version": Version.C1,
+        "databank": Databank_type.Norm,
+        "dataset": Version.C1,
         "crop_size": 64,
         "split_seed": 42,
         "split_sets": [0.7, 0.15, 0.15],
@@ -166,7 +173,8 @@ build_opt_list = [
     },
     {
         "name": "BF-C2DL-HSC",
-        "version": Version.C1,
+        "databank": Databank_type.Norm,
+        "dataset": Version.C1,
         "crop_size": 64,
         "split_seed": 42,
         "split_sets": [0.7, 0.15, 0.15],
@@ -175,7 +183,8 @@ build_opt_list = [
     },
     {
         "name": "BF-C2DL-HSC",
-        "version": Version.C1,
+        "databank": Databank_type.Norm,
+        "dataset": Version.C1,
         "crop_size": 64,
         "split_seed": 42,
         "split_sets": [0.7, 0.15, 0.15],
@@ -184,7 +193,8 @@ build_opt_list = [
     },
     {
         "name": "BF-C2DL-HSC",
-        "version": Version.C1,
+        "databank": Databank_type.Norm,
+        "dataset": Version.C1,
         "crop_size": 64,
         "split_seed": 42,
         "split_sets": [0.7, 0.15, 0.15],
@@ -193,49 +203,47 @@ build_opt_list = [
     },
     {
         "name": "BF-C2DL-HSC",
-        "version": Version.C1,
+        "databank": Databank_type.Norm,
+        "dataset": Version.C1,
         "crop_size": 64,
         "split_seed": 42,
         "split_sets": [0.7, 0.15, 0.15],
         "qa": "QA-eb7-1",
         "qa_threshold": 0.90,
     },
-    # {"name": "BF-C2DL-MuSC", "version": Version.C1, "crop_size": 512, "split_seed": 42, "split_sets": [0.7,0.15,0.15], "qa": None},
+    # {"name": "BF-C2DL-MuSC", "dataset": Version.C1, "crop_size": 512, "split_seed": 42, "split_sets": [0.7,0.15,0.15], "qa": None},
 ]
 
 build_opt_list = [
     {
         "name": "BF-C2DL-HSC",
-        "version": Version.B3,
+        "databank": Databank_type.Norm,
+        "dataset": Version.C2,
         "crop_size": 64,
         "split_seed": 42,
         "split_sets": [0.7, 0.15, 0.15],
         "qa": None,
-    },
-]
+    },]
 
-# qa_parquet_path = build_qa_databank(build_opt_list[0])
+#qa_parquet_path = build_qa_databank(build_opt_list[0])
 
 ##### 3) get results from QA
 
 ##### 4)
-# integrate_qa_results(build_opt_list)
+#integrate_qa_results(build_opt_list)
 
 ## OPTIONAL: build analysis databanks in order to better visualize the data
 # ensemble.build_analysis_databanks(build_opt_list[0]["name"], qa_parquet_path, 'all')
-# ensemble_databanks = build_ensemble_databanks(build_opt_list)
+
+#ensemble_databanks = build_ensemble_databanks(build_opt_list)
 
 databank_opt = build_opt_list[0]
 run_sequence = [
-    {
-        "model_type": ModelType.Unet_Mult_Input,
-        "max_epochs": 100,
-        "databank_opt": databank_opt,
-    },
-    # {"model_type": ModelType.Unet, "max_epochs": 100, "databank_opt": databank_opt},
-    # {"model_type": ModelType.Unet_Dynamic, "max_epochs": 2, "databank_opt": databank_opt},
-    # {"model_type": ModelType.UnetPlusPlus, "max_epochs": 100, "qa": databank_opt},
-]
+        #{"model_type": ModelType.Unet_Dynamic, "max_epochs": 2, "databank_opt": databank_opt},
+        #{"model_type": ModelType.Unet_Mult_Input, "max_epochs": 100, "databank_opt": databank_opt},
+        {"model_type": ModelType.Unet, "max_epochs": 100, "databank_opt": databank_opt},
+        #{"model_type": ModelType.UnetPlusPlus, "max_epochs": 100, "qa": databank_opt}
+    ]
 
 train_model(databank_opt, run_sequence)
 
@@ -243,7 +251,7 @@ models_paths = [
     "data/ensemble_data/results/checkpoints/C1_ds1-42-7015_QA--/M1--.ckpt",
     "data/ensemble_data/results/checkpoints/C1_ds1-42-7015_QA--/M2--.ckpt",
 ]
-# evaluate_models(models_paths, build_opt_list)
+#evaluate_models(models_paths, build_opt_list)
 
 a = 0
 
