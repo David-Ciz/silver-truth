@@ -218,7 +218,7 @@ build_opt_list = [
     {
         "name": "BF-C2DL-HSC",
         "databank": Databank_type.Norm,
-        "dataset": Version.C2,
+        "dataset": Version.A1,
         "crop_size": 64,
         "split_seed": 42,
         "split_sets": [0.7, 0.15, 0.15],

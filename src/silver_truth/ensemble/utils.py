@@ -61,7 +61,7 @@ def get_databank_name(build_opt: dict) -> str:
         if build_opt["qa"]
         else "QA--"
     )
-    return f'{build_opt["version"].name}_{ORIGINAL_DATASETS[build_opt["name"]]}-{get_splits_name(build_opt)}_{qa_name}'
+    return f'{build_opt["databank"].name}_{ORIGINAL_DATASETS[build_opt["name"]]}-{get_splits_name(build_opt)}_{qa_name}'
 
 
 def get_splits_name(build_opt: dict) -> str:
