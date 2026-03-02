@@ -30,6 +30,7 @@ For detailed installation instructions and basic usage examples, please refer to
 
 ## Further Documentation
 
+*   [DVC Guide](dvc_guide.md): Complete guide to setting up DVC and downloading datasets.
 *   [Label Synchronization Process](label_synchronizer.md): Detailed explanation of how labels are synchronized.
 *   [Silver Truth Generation Algorithm](Silver-truth-generation.md): Information on how the silver truth is computationally derived.
 *   [Evaluation Strategy](Evaluations.md): Details on the metrics and approach used for evaluating results.

@@ -1,8 +1,13 @@
 import pandas as pd
 import torch
 import torch.nn as nn
-from torch.utils.data import DataLoader, Dataset, Subset, WeightedRandomSampler
-from torchvision.models import resnet50, ResNet50_Weights
+from torch.utils.data import DataLoader, Dataset, Subset
+from torchvision.models import (
+    resnet18, resnet50, resnet101,
+    ResNet18_Weights, ResNet50_Weights, ResNet101_Weights,
+    efficientnet_b1, efficientnet_b4, efficientnet_b7,
+    EfficientNet_B1_Weights, EfficientNet_B4_Weights, EfficientNet_B7_Weights
+)
 from torch.optim.lr_scheduler import ReduceLROnPlateau
 import click
 import tifffile
@@ -11,9 +16,8 @@ from pathlib import Path
 import random
 import mlflow
 import mlflow.pytorch
-from tqdm import tqdm
 
-from silver_truth.metrics.qa_model_evaluation import (
+from src.silver_truth.metrics.qa_model_evaluation import (
     calculate_regression_metrics,
     calculate_tolerance_accuracy,
 )
@@ -107,28 +111,59 @@ class JaccardDataset(Dataset):
 
 
 # Define the model
-class JaccardResNet(nn.Module):
-    def __init__(self, dropout_rate=0.3, use_sigmoid=False):
-        super(JaccardResNet, self).__init__()
-        self.resnet = resnet50(weights=ResNet50_Weights.IMAGENET1K_V1)
-        self.resnet.conv1 = nn.Conv2d(
-            2, 64, kernel_size=7, stride=2, padding=3, bias=False
-        )  # Adjust for 2 channels
-
-        # Replace the final fc layer with dropout + linear
-        in_features = self.resnet.fc.in_features
-        self.resnet.fc = nn.Identity()  # Remove original fc
+class Jaccard(nn.Module):
+    def __init__(self, dropout_rate=0.3, model_type='resnet50'):
+        super(Jaccard, self).__init__()
+        
+        if model_type == 'resnet18':
+            self.model = resnet18(weights=ResNet18_Weights.IMAGENET1K_V1)
+            in_features = self.model.fc.in_features
+            self.model.fc = nn.Identity()
+        elif model_type == 'resnet50':
+            self.model = resnet50(weights=ResNet50_Weights.IMAGENET1K_V1)
+            in_features = self.model.fc.in_features
+            self.model.fc = nn.Identity()
+        elif model_type == 'resnet101':
+            self.model = resnet101(weights=ResNet101_Weights.IMAGENET1K_V1)
+            in_features = self.model.fc.in_features
+            self.model.fc = nn.Identity()
+        elif model_type == 'efficientnet_b1':
+            self.model = efficientnet_b1(weights=EfficientNet_B1_Weights.IMAGENET1K_V1)
+            in_features = self.model.classifier[1].in_features
+            self.model.classifier = nn.Identity()
+            self.model.features[0][0] = nn.Conv2d(
+                2, 32, kernel_size=3, stride=2, padding=1, bias=False
+            )
+        elif model_type == 'efficientnet_b4':
+            self.model = efficientnet_b4(weights=EfficientNet_B4_Weights.IMAGENET1K_V1)
+            in_features = self.model.classifier[1].in_features
+            self.model.classifier = nn.Identity()
+            self.model.features[0][0] = nn.Conv2d(
+                2, 48, kernel_size=3, stride=2, padding=1, bias=False
+            )
+        elif model_type == 'efficientnet_b7':
+            self.model = efficientnet_b7(weights=EfficientNet_B7_Weights.IMAGENET1K_V1)
+            in_features = self.model.classifier[1].in_features
+            self.model.classifier = nn.Identity()
+            self.model.features[0][0] = nn.Conv2d(
+                2, 64, kernel_size=3, stride=2, padding=1, bias=False
+            )
+        else:
+            raise ValueError(f"Unsupported model_type: {model_type}")
+        
+        # Adjust first conv layer for 2 channels
+        if 'resnet' in model_type:
+            self.model.conv1 = nn.Conv2d(
+                2, 64, kernel_size=7, stride=2, padding=3, bias=False
+            )
+        
         self.dropout = nn.Dropout(p=dropout_rate)
         self.fc = nn.Linear(in_features, 1)  # Regression output
-        self.use_sigmoid = use_sigmoid
-        self.sigmoid = nn.Sigmoid()
 
     def forward(self, x):
-        x = self.resnet(x)
+        x = self.model(x)
         x = self.dropout(x)
         x = self.fc(x)
-        if self.use_sigmoid:
-            x = self.sigmoid(x)
         return x
 
 
@@ -139,6 +174,12 @@ def tensor_normalize(tensor, mean, std):
     return tensor
 
 
+class NormalizeTransform:
+    """Transform to normalize tensor to [-1, 1] from [0, 1]."""
+    def __call__(self, x):
+        return tensor_normalize(x, mean=[0.5, 0.5], std=[0.5, 0.5])
+
+
 def get_transform():
     """
     Get the default transform for the dataset.
@@ -146,7 +187,7 @@ def get_transform():
     Assumes input is already normalized to [0, 1] range.
     Maps [0, 1] -> [-1, 1] which is standard for pretrained models.
     """
-    return lambda x: tensor_normalize(x, mean=[0.5, 0.5], std=[0.5, 0.5])
+    return NormalizeTransform()
 
 
 def train_epoch(model, dataloader, criterion, optimizer, device, max_grad_norm=1.0):
@@ -154,13 +195,12 @@ def train_epoch(model, dataloader, criterion, optimizer, device, max_grad_norm=1
     model.train()
     running_loss = 0.0
 
-    pbar = tqdm(dataloader, desc="Training", leave=False)
-    for images, targets in pbar:
+    for images, targets in dataloader:
         images, targets = images.to(device), targets.to(device)
 
         optimizer.zero_grad()
         outputs = model(images)
-        loss = criterion(outputs.squeeze(), targets)
+        loss = criterion(outputs.squeeze(dim=1), targets)
         loss.backward()
 
         # Gradient clipping to prevent exploding gradients
@@ -170,7 +210,6 @@ def train_epoch(model, dataloader, criterion, optimizer, device, max_grad_norm=1
         optimizer.step()
 
         running_loss += loss.item() * images.size(0)
-        pbar.set_postfix({"loss": f"{loss.item():.4f}"})
 
     return running_loss / len(dataloader.dataset)
 
@@ -181,13 +220,11 @@ def validate_epoch(model, dataloader, criterion, device):
     running_loss = 0.0
 
     with torch.no_grad():
-        pbar = tqdm(dataloader, desc="Validating", leave=False)
-        for images, targets in pbar:
+        for images, targets in dataloader:
             images, targets = images.to(device), targets.to(device)
             outputs = model(images)
             loss = criterion(outputs.squeeze(), targets)
             running_loss += loss.item() * images.size(0)
-            pbar.set_postfix({"loss": f"{loss.item():.4f}"})
 
     return running_loss / len(dataloader.dataset)
 
@@ -218,11 +255,10 @@ def evaluate_model_with_ids(model, dataset, indices, batch_size, device):
     eval_loader = DataLoader(eval_subset, batch_size=batch_size, shuffle=False)
 
     with torch.no_grad():
-        pbar = tqdm(eval_loader, desc="Evaluating", leave=False)
-        for batch_idx, (images, targets) in enumerate(pbar):
+        for batch_idx, (images, targets) in enumerate(eval_loader):
             images, targets = images.to(device), targets.to(device)
             outputs = model(images)
-            predictions.extend(outputs.squeeze().cpu().numpy())
+            predictions.extend(outputs.squeeze(dim=1).cpu().numpy())
             actuals.extend(targets.cpu().numpy())
 
             # Get cell_ids for this batch - correctly aligned since shuffle=False
@@ -245,10 +281,6 @@ def save_model(model, path, metadata=None):
         path: Path to save the checkpoint
         metadata: Optional dict with training metadata (epochs, lr, etc.)
     """
-    # Ensure parent directory exists
-    path = Path(path)
-    path.parent.mkdir(parents=True, exist_ok=True)
-
     checkpoint = {"model_state_dict": model.state_dict(), "metadata": metadata or {}}
     torch.save(checkpoint, path)
     print(f"Model saved to {path}")
@@ -267,12 +299,12 @@ def load_model(path, device):
     """
     checkpoint = torch.load(path, map_location=device)
     metadata = checkpoint.get("metadata", {})
-
+    
     # Get model parameters from metadata (with defaults for backward compatibility)
     dropout_rate = metadata.get("dropout_rate", 0.3)
-    use_sigmoid = metadata.get("use_sigmoid", False)
-
-    model = JaccardResNet(dropout_rate=dropout_rate, use_sigmoid=use_sigmoid).to(device)
+    model_type = metadata.get("model_type", "resnet50")
+    
+    model = Jaccard(dropout_rate=dropout_rate, model_type=model_type).to(device)
     model.load_state_dict(checkpoint["model_state_dict"])
     print(f"Model loaded from {path}")
     return model, metadata
@@ -280,10 +312,6 @@ def load_model(path, device):
 
 def save_results_to_excel(train_results, val_results, test_results, output_path):
     """Save evaluation results to Excel with separate sheets per split."""
-    # Ensure parent directory exists
-    output_path = Path(output_path)
-    output_path.parent.mkdir(parents=True, exist_ok=True)
-
     with pd.ExcelWriter(output_path) as writer:
         any_written = False
         if train_results is not None and not train_results.empty:
@@ -310,53 +338,6 @@ def get_split_indices(dataset):
     return train_indices, val_indices, test_indices
 
 
-def compute_sample_weights(dataset, indices, num_bins=10):
-    """
-    Compute sample weights for balanced training based on Jaccard score distribution.
-
-    Samples in underrepresented bins get higher weights to ensure the model
-    sees a balanced distribution of quality scores during training.
-
-    Args:
-        dataset: JaccardDataset instance
-        indices: List of indices for the training split
-        num_bins: Number of bins to divide Jaccard scores into
-
-    Returns:
-        List of weights for each sample in indices
-    """
-    # Get Jaccard scores for training samples
-    jaccard_scores = dataset.data.iloc[indices]["jaccard_score"].values
-
-    # Create bins
-    bins = np.linspace(0, 1, num_bins + 1)
-    bin_indices = np.digitize(jaccard_scores, bins) - 1
-    bin_indices = np.clip(bin_indices, 0, num_bins - 1)  # Handle edge cases
-
-    # Count samples per bin
-    bin_counts = np.bincount(bin_indices, minlength=num_bins)
-
-    # Compute weights: inverse of bin frequency (with smoothing to avoid division by zero)
-    bin_weights = 1.0 / (bin_counts + 1)
-    bin_weights = bin_weights / bin_weights.sum() * num_bins  # Normalize
-
-    # Assign weight to each sample based on its bin
-    sample_weights = bin_weights[bin_indices]
-
-    # Print distribution info
-    print(f"Sample weight distribution across {num_bins} bins:")
-    for i in range(num_bins):
-        bin_start = bins[i]
-        bin_end = bins[i + 1]
-        count = bin_counts[i]
-        weight = bin_weights[i]
-        print(
-            f"  [{bin_start:.1f}-{bin_end:.1f}]: {count:4d} samples, weight={weight:.3f}"
-        )
-
-    return sample_weights.tolist()
-
-
 # ============================================================================
 # CLI Commands
 # ============================================================================
@@ -364,7 +345,7 @@ def compute_sample_weights(dataset, indices, num_bins=10):
 
 @click.group()
 def cli():
-    """ResNet50 Jaccard Index Prediction - Training and Evaluation CLI."""
+    """CNN Jaccard Index Prediction - Training and Evaluation CLI."""
     pass
 
 
@@ -384,13 +365,13 @@ def cli():
 @click.option(
     "--output-model",
     type=click.Path(),
-    default="resnet50_jaccard.pt",
+    default="cnn_jaccard.pt",
     help="Path to save the trained model.",
 )
 @click.option(
     "--output-excel",
     type=click.Path(),
-    default="results_resnet50.xlsx",
+    default="results_cnn.xlsx",
     help="Path to save the evaluation results.",
 )
 @click.option("--batch-size", type=int, default=16, help="Batch size for training.")
@@ -400,7 +381,16 @@ def cli():
     "--weight-decay", type=float, default=1e-4, help="Weight decay (L2 regularization)."
 )
 @click.option(
-    "--dropout-rate", type=float, default=0.3, help="Dropout rate before final layer."
+    "--dropout-rate",
+    type=float,
+    default=0.3,
+    help="Dropout rate for the model.",
+)
+@click.option(
+    "--model-type",
+    type=click.Choice(['resnet18', 'resnet50', 'resnet101', 'efficientnet_b1', 'efficientnet_b4', 'efficientnet_b7']),
+    default='resnet50',
+    help="Model architecture to use.",
 )
 @click.option(
     "--patience", type=int, default=10, help="Early stopping patience (0 to disable)."
@@ -419,16 +409,6 @@ def cli():
     help="Gradient clipping max norm (0 to disable).",
 )
 @click.option(
-    "--use-sigmoid/--no-sigmoid",
-    default=False,
-    help="Use sigmoid activation to constrain output to [0,1].",
-)
-@click.option(
-    "--weighted-sampling/--no-weighted-sampling",
-    default=False,
-    help="Use weighted sampling to balance Jaccard score distribution during training.",
-)
-@click.option(
     "--mlflow-tracking-uri",
     type=str,
     default=None,
@@ -437,7 +417,7 @@ def cli():
 @click.option(
     "--mlflow-experiment",
     type=str,
-    default="resnet50-jaccard",
+    default="cnn-jaccard",
     help="MLflow experiment name.",
 )
 @click.option(
@@ -461,13 +441,12 @@ def train(
     seed,
     num_workers,
     grad_clip,
-    use_sigmoid,
-    weighted_sampling,
+    model_type,
     mlflow_tracking_uri,
     mlflow_experiment,
     mlflow_run_name,
 ):
-    """Train the ResNet50 model for Jaccard index prediction."""
+    """Train the CNN model for Jaccard index prediction."""
     # Set seed for reproducibility
     set_seed(seed)
     print(f"Random seed: {seed}")
@@ -498,32 +477,13 @@ def train(
 
     # DataLoaders
     train_data = Subset(train_dataset, train_indices)
-
-    # Setup weighted sampling if enabled
-    if weighted_sampling:
-        print("Weighted sampling: enabled")
-        sample_weights = compute_sample_weights(
-            train_dataset, train_indices, num_bins=10
-        )
-        sampler = WeightedRandomSampler(
-            weights=sample_weights, num_samples=len(train_indices), replacement=True
-        )
-        train_loader = DataLoader(
-            train_data,
-            batch_size=batch_size,
-            sampler=sampler,  # Use sampler instead of shuffle
-            num_workers=num_workers,
-            pin_memory=True if device.type == "cuda" else False,
-        )
-    else:
-        print("Weighted sampling: disabled")
-        train_loader = DataLoader(
-            train_data,
-            batch_size=batch_size,
-            shuffle=True,
-            num_workers=num_workers,
-            pin_memory=True if device.type == "cuda" else False,
-        )
+    train_loader = DataLoader(
+        train_data,
+        batch_size=batch_size,
+        shuffle=True,
+        num_workers=num_workers,
+        pin_memory=True if device.type == "cuda" else False,
+    )
 
     val_data = Subset(eval_dataset, val_indices)
     val_loader = DataLoader(
@@ -535,8 +495,8 @@ def train(
     )
 
     # Model, criterion, optimizer
-    model = JaccardResNet(dropout_rate=dropout_rate, use_sigmoid=use_sigmoid).to(device)
-    print(f"Sigmoid output: {'enabled' if use_sigmoid else 'disabled'}")
+    model = Jaccard(dropout_rate=dropout_rate, model_type=model_type).to(device)
+    print(f"Using model: {model_type}")
     criterion = nn.MSELoss()
     optimizer = torch.optim.Adam(
         model.parameters(), lr=learning_rate, weight_decay=weight_decay
@@ -567,6 +527,7 @@ def train(
                 "seed": seed,
                 "num_workers": num_workers,
                 "grad_clip": grad_clip,
+                "model_type": model_type,
                 "train_samples": len(train_indices),
                 "val_samples": len(val_indices),
                 "test_samples": len(test_indices),
@@ -581,8 +542,7 @@ def train(
             f"Weight decay: {weight_decay}, Dropout: {dropout_rate}, Early stopping patience: {patience}"
         )
 
-        epoch_pbar = tqdm(range(num_epochs), desc="Epochs", unit="epoch")
-        for epoch in epoch_pbar:
+        for epoch in range(num_epochs):
             train_loss = train_epoch(
                 model, train_loader, criterion, optimizer, device, grad_clip
             )
@@ -602,19 +562,13 @@ def train(
                 step=epoch,
             )
 
-            # Update epoch progress bar with current metrics
-            epoch_pbar.set_postfix(
-                {
-                    "train_loss": f"{train_loss:.4f}",
-                    "val_loss": f"{val_loss:.4f}",
-                    "best_val": f"{best_val_loss:.4f}",
-                    "lr": f"{current_lr:.1e}",
-                }
+            print(
+                f"Epoch {epoch+1}/{num_epochs}, Train Loss: {train_loss:.4f}, Val Loss: {val_loss:.4f}, LR: {current_lr:.2e}"
             )
 
             # Log if LR changed
             if current_lr != last_lr:
-                tqdm.write(f"  -> Learning rate reduced to {current_lr:.2e}")
+                print(f"  -> Learning rate reduced to {current_lr:.2e}")
                 last_lr = current_lr
 
             # Early stopping check
@@ -622,16 +576,14 @@ def train(
                 best_val_loss = val_loss
                 best_model_state = model.state_dict().copy()
                 epochs_without_improvement = 0
-                tqdm.write(
-                    f"  Epoch {epoch+1}: New best validation loss! ({val_loss:.4f})"
-                )
+                print("  -> New best validation loss!")
             else:
                 epochs_without_improvement += 1
 
             final_epoch = epoch + 1
 
             if patience > 0 and epochs_without_improvement >= patience:
-                tqdm.write(f"\nEarly stopping triggered after {epoch+1} epochs")
+                print(f"\nEarly stopping triggered after {epoch+1} epochs")
                 break
 
         # Load best model state
@@ -655,8 +607,8 @@ def train(
             "num_epochs": num_epochs,
             "weight_decay": weight_decay,
             "dropout_rate": dropout_rate,
+            "model_type": model_type,
             "augmentation": augment,
-            "use_sigmoid": use_sigmoid,
             "best_val_loss": best_val_loss,
             "train_samples": len(train_indices),
             "val_samples": len(val_indices),
@@ -712,7 +664,7 @@ def train(
 @click.option(
     "--output-excel",
     type=click.Path(),
-    default="results_resnet50.xlsx",
+    default="results_cnn.xlsx",
     help="Path to save the evaluation results.",
 )
 @click.option("--batch-size", type=int, default=16, help="Batch size for evaluation.")

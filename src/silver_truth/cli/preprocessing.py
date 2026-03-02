@@ -13,7 +13,6 @@ from silver_truth.data_processing.compression import compress_tifs_logic
 from silver_truth.data_processing.utils.dataset_dataframe_creation import (
     create_dataset_dataframe_logic,
 )
-from silver_truth.data_processing.utils.parquet_utils import add_split_type
 
 # Configure logging globally
 logging.basicConfig(
@@ -109,8 +108,25 @@ def synchronize_datasets(datasets_folder, output_directory, debug):
 @click.option(
     "--output_path", type=click.Path(), help="Path to save the dataset dataframe"
 )
+@click.option(
+    "--split-mode",
+    type=click.Choice(["mixed", "fold-1", "fold-2"], case_sensitive=False),
+    default="mixed",
+    help="Split strategy: 'mixed' (stratified) or 'fold-X' (leave-one-sequence-out).",
+)
+@click.option(
+    "--split-ratios",
+    type=str,
+    help="Comma-separated split ratios. Mixed: three values (Train,Val,Test). Fold: two values (Train,Val) for the training sequence.",
+    default=None,
+)
+@click.option("--seed", default=42, help="Random seed for reproducibility.")
 def create_dataset_dataframe(
-    synchronized_dataset_dir: Path | str, output_path: Path | str
+    synchronized_dataset_dir: Path | str,
+    output_path: Path | str,
+    split_mode: str,
+    split_ratios: str,
+    seed: int,
 ) -> None:
     """
     Creates a pandas dataframe with dataset information from synchronized datasets.
@@ -119,7 +135,9 @@ def create_dataset_dataframe(
         SYNCHRONIZED_DATASET_DIR: Path to the synchronized dataset directory.
         OUTPUT_PATH: Path to save the parquet dataset dataframe.
     """
-    create_dataset_dataframe_logic(synchronized_dataset_dir, output_path)
+    create_dataset_dataframe_logic(
+        synchronized_dataset_dir, output_path, split_mode, split_ratios, seed
+    )
 
 
 @click.command(context_settings=dict(help_option_names=["-h", "--help"]))
@@ -183,26 +201,6 @@ def compress_tifs(directory, non_recursive, dry_run, verbose):
         )
 
 
-@click.command()
-@click.argument("parquet_path", type=click.Path(exists=True, dir_okay=False))
-def add_split_column(parquet_path: str):
-    """
-    Adds a 'split' column to a given parquet file.
-
-    The split is done with a 70-15-15 ratio for train-validation-test sets,
-    using a fixed seed of 42 for reproducibility.
-
-    PARQUET_PATH: Path to the input parquet file.
-    """
-    seed = 42
-    splits = [0.7, 0.15, 0.15]
-    logging.info(
-        f"Adding split column to {parquet_path} with seed {seed} and splits {splits}"
-    )
-    output_path = add_split_type(parquet_path, seed, splits)
-    click.echo(f"Successfully added split column. New file saved at: {output_path}")
-
-
 @click.group()
 def cli():
     pass
@@ -214,7 +212,6 @@ cli.add_command(synchronize_datasets)
 cli.add_command(verify_dataset_synchronization)
 cli.add_command(create_dataset_dataframe)
 cli.add_command(compress_tifs)
-cli.add_command(add_split_column)
 
 
 if __name__ == "__main__":

@@ -16,7 +16,6 @@ dependencies = [
     "pandas",
     "Pillow",
     "dvc[ssh]",
-    "Pillow",
     "pytorch_lightning",
     "mlflow",
     "albumentations",

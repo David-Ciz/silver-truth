@@ -8,16 +8,18 @@ import pytorch_lightning as pl
 from pytorch_lightning.callbacks import Callback, EarlyStopping, ModelCheckpoint
 import mlflow
 import matplotlib.pyplot as plt
-from silver_truth.ensemble.datasets import EnsembleDatasetC1
-from silver_truth.ensemble.models_loss_type import LossType
-from silver_truth.ensemble.models import SMP_Model
-import silver_truth.ensemble.utils as utils
+from silver_truth.ensemble.model_unet_mult_input import Unet_Mult_Input
+from silver_truth.ensemble.model_unet_dynamic import Unet_Dynamic
+from src.silver_truth.ensemble.datasets import Version, get_dataset_class
+from src.silver_truth.ensemble.models_loss_type import LossType
+from src.silver_truth.ensemble.models import ModelType, SMP_Model
+import src.silver_truth.ensemble.utils as utils
 import albumentations as A
 
 # TODO: create config pipepline:
 # config dictionary should be provided
-# checkpoint_path = "data/ensemble_data/results/checkpoints222/"
-_checkpoint_path = None
+_checkpoint_path = "data/ensemble_data/results/checkpoints"
+
 
 """
 def get_model(model: str, parameters: dict):
@@ -75,12 +77,16 @@ class EvaluationCallback(Callback):
         self.train_inputs, self.train_targets = train_set[0], train_set[1]
         self.val_inputs, self.val_targets = val_set[0], val_set[1]
         self.every_n_epochs = every_n_epochs
+        self.best_f1 = 0
 
     def on_train_epoch_end(self, trainer, pl_module):
         if trainer.current_epoch % self.every_n_epochs == 0:
             val_loss, val_f1, val_iou = _evaluate_model(
                 pl_module, self.val_inputs, self.val_targets
             )
+            if self.best_f1 < val_f1:
+                self.best_f1 = val_f1
+                mlflow.log_metric("best_val_f1", value=self.best_f1)
             mlflow.log_metric(
                 "val_loss", value=val_loss, step=trainer.current_epoch + 1
             )
@@ -89,31 +95,39 @@ class EvaluationCallback(Callback):
             print(f"val_loss: {val_loss}, val_f1: {val_f1}, val_iou: {val_iou}")
 
 
-def _get_eval_sets(dataset):
+def _get_eval_sets(dataset, is_single_input):
     imgs, gts = [], []
     for i in range(len(dataset)):
         img, gt = dataset[i]
         imgs.append(img)
         gts.append(gt)
-    return torch.stack(imgs, dim=0), torch.stack(gts, dim=0)
+    if is_single_input:
+        return torch.stack(imgs, dim=0), torch.stack(gts, dim=0)
+    else:
+        return torch.cat(imgs, dim=0), torch.cat(gts, dim=0)
 
 
-def _get_stacked_images(dataset, num):
+def _get_stacked_images(dataset, num, is_single_input):
     imgs, gts = [], []
-    for i in range(num):
+    for i in range(min(num, len(dataset))):
         img, gt = dataset[i]
         imgs.append(img)
         gts.append(gt)
-    return torch.stack(imgs, dim=0), torch.stack(gts, dim=0)
+    if is_single_input:
+        return torch.stack(imgs, dim=0), torch.stack(gts, dim=0)
+    else:
+        return torch.cat(imgs, dim=0), torch.cat(gts, dim=0)
 
 
 def _train_model(
+    databank_name,
     run_params,
     train_dataset,
     val_dataset,
     train_loader,
     val_loader,
     test_loader,
+    is_single_input,
 ):
     device = utils.get_device()
     print("Device:", device)
@@ -135,25 +149,38 @@ def _train_model(
 
     model_type = run_params["model_type"]
     max_epochs = run_params["max_epochs"]
-    model_pl = SMP_Model(model_type, device)
+    if model_type == ModelType.Unet_Mult_Input:
+        model_pl = Unet_Mult_Input(device)
+    elif model_type == ModelType.Unet_Dynamic:
+        model_pl = Unet_Dynamic(model_type, device)
+
+    else:
+        num_inputs = 1 if is_single_input else 2
+        model_pl = SMP_Model(model_type, device, num_inputs)
 
     mlflow.log_param("model_type", model_type)
     mlflow.log_param("model", model_pl.model)
     mlflow.log_param("loss_type", model_pl.loss_type)
 
     # Create a PyTorch Lightning trainer with the generation callback
+    # Build safe filename for checkpoint to avoid nested quotes in f-string
+    try:
+        databank_suffix = databank_name.split("QA-")[1]
+    except Exception:
+        databank_suffix = databank_name
+
+    checkpoint_filename = f"M{model_type.value}-{databank_suffix}"
+
     trainer = pl.Trainer(
-        default_root_dir=os.path.join(
-            os.getcwd(),
-            f"data/ensemble_data/results/checkpoints/model_{model_pl.loss_type.name}",
-        ),
+        default_root_dir=os.path.join(os.getcwd(), _checkpoint_path),
         deterministic=True,
         accelerator="auto",
         devices="auto",
         max_epochs=max_epochs,
         callbacks=[
             ModelCheckpoint(
-                dirpath=_checkpoint_path,
+                filename=checkpoint_filename,
+                dirpath=f"{_checkpoint_path}/{databank_name}",
                 monitor="val_loss",
                 mode="min",
                 save_top_k=1,
@@ -161,8 +188,8 @@ def _train_model(
             ),
             # LearningRateMonitor("epoch"),
             EvaluationCallback(
-                _get_eval_sets(train_dataset),
-                _get_eval_sets(val_dataset),
+                _get_eval_sets(train_dataset, is_single_input),
+                _get_eval_sets(val_dataset, is_single_input),
             ),
             EarlyStopping(monitor="val_loss", patience=10),
         ],
@@ -179,6 +206,7 @@ def _train_model(
 
 def _visualize_reconstructions(model, train_set):
     train_imgs, gt_images = train_set[0], train_set[1]
+    model.to(utils.get_device())  # bypass LevelTrigger issue
     # Reconstruct images
     model.eval()
     with torch.no_grad():
@@ -216,7 +244,7 @@ def _visualize_dataset(subset):
     plt.waitforbuttonpress(0)
 
 
-def run(run_params: dict, parquet_path: str, rand_seed: int = 42) -> None:
+def run(run_params: dict, rand_seed: int = 42) -> None:
     """
     Run a training session.
     With "remote", there's no visual feedback, such as image reconstructions.
@@ -230,6 +258,10 @@ def run(run_params: dict, parquet_path: str, rand_seed: int = 42) -> None:
     # device = torch.device("cuda:0") if torch.cuda.is_available() else torch.device("cpu")
     # print("Device:", device)
     """"""
+    databank_opt = run_params["databank_opt"]
+    databank_name = utils.get_databank_name(databank_opt)
+    relative_parquet_path = f"data/ensemble_data/databanks/{databank_name}.parquet"
+    parquet_path = f"{os.path.join(os.getcwd(), relative_parquet_path)}"
 
     latent_dim = None  # 32
 
@@ -245,11 +277,16 @@ def run(run_params: dict, parquet_path: str, rand_seed: int = 42) -> None:
 
     mlflow.log_param("dataset_transform", transform)
 
-    # get dataset
-    # ensemble_dataset = EnsembleDatasetC1(parquet_path, transform)
-    train_set = EnsembleDatasetC1(parquet_path, "train", transform)
-    val_set = EnsembleDatasetC1(parquet_path, "validation")
-    test_set = EnsembleDatasetC1(parquet_path, "test")
+    is_single_input = databank_opt["dataset"] == Version.A1 or \
+                      databank_opt["dataset"] == Version.B1 or \
+                      databank_opt["dataset"] == Version.C1
+
+    # get datasets
+    dataset_class = get_dataset_class(databank_opt["dataset"])
+    train_set = dataset_class(parquet_path, "train", transform)
+    val_set = dataset_class(parquet_path, "validation")
+    test_set = dataset_class(parquet_path, "test")
+    
     # split dataset
     # dataset_split = [0.7, 0.15, 0.15]
     # train_set, val_set, test_set = torch.utils.data.random_split(ensemble_dataset, dataset_split)
@@ -257,21 +294,18 @@ def run(run_params: dict, parquet_path: str, rand_seed: int = 42) -> None:
     # TODO: note: use this to see the difference in learning with and without data augmentation
     # train_set.dataset = EnsembleDatasetC1(parquet_path, None)
 
-    # dataloaders
-    batch_size = 20
+    batch_size = None
+    if is_single_input:
+        batch_size = 7
+    # dataloaders    
     train_loader = data.DataLoader(
-        train_set,
-        batch_size=batch_size,
-        shuffle=True,
-        drop_last=True,
-        pin_memory=True,
-        num_workers=4,
+        train_set, batch_size=batch_size, shuffle=True, drop_last=False#True
     )
     val_loader = data.DataLoader(
-        val_set, batch_size=batch_size, shuffle=False, drop_last=False, num_workers=4
+        val_set, batch_size=batch_size, shuffle=False, drop_last=False
     )
     test_loader = data.DataLoader(
-        test_set, batch_size=batch_size, shuffle=False, drop_last=False, num_workers=4
+        test_set, batch_size=batch_size, shuffle=False, drop_last=False
     )
 
     # DEBUG only
@@ -290,14 +324,16 @@ def run(run_params: dict, parquet_path: str, rand_seed: int = 42) -> None:
 
     # train model
     model, result = _train_model(
+        databank_name,
         run_params,
         train_set,
         val_set,
         train_loader,
         val_loader,
         test_loader,
+        is_single_input,
     )
 
     # DEBUG only
-    # _visualize_reconstructions(model, _get_stacked_images(val_set, 16))
+    _visualize_reconstructions(model, _get_stacked_images(val_set, 16, is_single_input))
     print("Done.")

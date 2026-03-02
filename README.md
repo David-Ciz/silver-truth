@@ -43,14 +43,32 @@ Or run individual steps using the installed system commands:
 
 ## DVC (Data Version Control)
 
-This project uses DVC to manage large data files.
-- **Pull data**: `dvc pull`
-- **Add new data**:
-  ```bash
-  dvc add data/new_dataset.parquet
-  git add data/new_dataset.parquet.dvc .gitignore
-  git commit -m "Add new dataset"
-  ```
+This project uses DVC to manage large data files and datasets.
+
+### Quick Setup
+
+1. **Install dependencies**:
+   ```bash
+   pip install -e .[dev]
+   ```
+
+2. **Configure DVC remote** (one-time setup):
+   ```bash
+   dvc remote add hpc_storage ssh://karolina.it4i.cz/mnt/proj1/eu-25-40/innovaite/dvc_store
+   dvc remote default hpc_storage
+   dvc config cache.shared group
+   ```
+
+3. **Pull data**:
+   ```bash
+   # Pull all data
+   dvc pull
+   
+   # Or pull specific QA dataset
+   dvc pull data/qa_crops/BF-C2DL-HSC/mixed_sz64/
+   ```
+
+📚 **For detailed DVC setup, SSH configuration, and working with QA datasets, see the [DVC Guide](docs/dvc_guide.md) in the wiki.**
 
 ---
 
