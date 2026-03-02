@@ -277,11 +277,12 @@ def run(run_params: dict, rand_seed: int = 42) -> None:
 
     mlflow.log_param("dataset_transform", transform)
 
-    is_single_input = databank_opt["version"] == Version.B1 or \
-                      databank_opt["version"] == Version.C1
+    is_single_input = databank_opt["dataset"] == Version.A1 or \
+                      databank_opt["dataset"] == Version.B1 or \
+                      databank_opt["dataset"] == Version.C1
 
     # get datasets
-    dataset_class = get_dataset_class(databank_opt["version"])
+    dataset_class = get_dataset_class(databank_opt["dataset"])
     train_set = dataset_class(parquet_path, "train", transform)
     val_set = dataset_class(parquet_path, "validation")
     test_set = dataset_class(parquet_path, "test")

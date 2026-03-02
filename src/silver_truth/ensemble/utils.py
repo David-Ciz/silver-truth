@@ -13,11 +13,7 @@ DATABANKS_DIR = "data/ensemble_data/databanks"
 
 
 def get_device():
-    if torch.cuda.is_available():
-        return torch.device("cuda:0")
-    if torch.backends.mps.is_available():
-        return torch.device("mps")
-    return torch.device("cpu")
+    return torch.device("cuda:0") if torch.cuda.is_available() else torch.device("cpu")
 
 
 def find_largest_gt_cell_size(dataset_dataframe_path: str) -> tuple[int, str]:
@@ -65,12 +61,7 @@ def get_databank_name(build_opt: dict) -> str:
         if build_opt["qa"]
         else "QA--"
     )
-    aggregation_level = build_opt.get("aggregation_level", "cell")
-    level_suffix = "_IMG" if aggregation_level == "image" else ""
-    return (
-        f'{build_opt["version"].name}_{ORIGINAL_DATASETS[build_opt["name"]]}-'
-        f'{get_splits_name(build_opt)}_{qa_name}{level_suffix}'
-    )
+    return f'{build_opt["databank"].name}_{ORIGINAL_DATASETS[build_opt["name"]]}-{get_splits_name(build_opt)}_{qa_name}'
 
 
 def get_splits_name(build_opt: dict) -> str:
