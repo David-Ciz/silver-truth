@@ -65,7 +65,12 @@ def get_databank_name(build_opt: dict) -> str:
         if build_opt["qa"]
         else "QA--"
     )
-    return f'{build_opt["version"].name}_{ORIGINAL_DATASETS[build_opt["name"]]}-{get_splits_name(build_opt)}_{qa_name}'
+    aggregation_level = build_opt.get("aggregation_level", "cell")
+    level_suffix = "_IMG" if aggregation_level == "image" else ""
+    return (
+        f'{build_opt["version"].name}_{ORIGINAL_DATASETS[build_opt["name"]]}-'
+        f'{get_splits_name(build_opt)}_{qa_name}{level_suffix}'
+    )
 
 
 def get_splits_name(build_opt: dict) -> str:

@@ -167,11 +167,18 @@ def run_qa_evaluation(
                     continue
 
                 try:
-                    # Load stacked image (2 channels: raw + mask)
+                    # Load stacked image; mask is always expected at channel 1.
                     stacked_image = tifffile.imread(stacked_path)
-                    if stacked_image.ndim != 3 or stacked_image.shape[0] != 2:
+                    if stacked_image.ndim != 3:
                         logging.warning(
-                            f"    {cell_id}: Invalid stacked image format. Expected 2 channels, got shape: {stacked_image.shape}"
+                            f"    {cell_id}: Invalid stacked image format. Expected 3D array, got shape: {stacked_image.shape}"
+                        )
+                        skipped_count += 1
+                        continue
+
+                    if stacked_image.shape[0] <= 1:
+                        logging.warning(
+                            f"    {cell_id}: Invalid stacked image format. Need at least 2 channels, got shape: {stacked_image.shape}"
                         )
                         skipped_count += 1
                         continue

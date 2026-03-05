@@ -3,24 +3,32 @@ import torch
 import torch.nn as nn
 from torch.utils.data import DataLoader, Dataset, Subset
 from torchvision.models import (
-    resnet18, resnet50, resnet101,
-    ResNet18_Weights, ResNet50_Weights, ResNet101_Weights,
-    efficientnet_b1, efficientnet_b4, efficientnet_b7,
-    EfficientNet_B1_Weights, EfficientNet_B4_Weights, EfficientNet_B7_Weights
+    resnet18,
+    resnet50,
+    resnet101,
+    ResNet18_Weights,
+    ResNet50_Weights,
+    ResNet101_Weights,
+    efficientnet_b1,
+    efficientnet_b4,
+    efficientnet_b7,
+    EfficientNet_B1_Weights,
+    EfficientNet_B4_Weights,
+    EfficientNet_B7_Weights,
 )
 from torch.optim.lr_scheduler import ReduceLROnPlateau
-import click
 import tifffile
 import numpy as np
 from pathlib import Path
 import random
 import mlflow
-import mlflow.pytorch
+from typing import Optional, Sequence
 
-from src.silver_truth.metrics.qa_model_evaluation import (
+from silver_truth.metrics.qa_model_evaluation import (
     calculate_regression_metrics,
     calculate_tolerance_accuracy,
 )
+from silver_truth.experiment_tracking import DEFAULT_MLFLOW_TRACKING_URI
 
 
 def set_seed(seed: int):
@@ -37,12 +45,75 @@ def set_seed(seed: int):
 
 
 class JaccardDataset(Dataset):
-    def __init__(self, parquet_file, data_root=None, transform=None, augment=False):
+    DEFAULT_TARGET_CANDIDATES = (
+        "jaccard_score",
+        "qa_jaccard",
+        "Jaccard index",
+    )
+    DEFAULT_INPUT_CHANNELS = (0, 1)
+
+    def __init__(
+        self,
+        parquet_file,
+        data_root=None,
+        transform=None,
+        augment=False,
+        target_column=None,
+        input_channels: Optional[Sequence[int] | str] = None,
+    ):
         self.data = pd.read_parquet(parquet_file)
         # If data_root is provided, convert to Path, else None
         self.data_root = Path(data_root) if data_root else None
         self.transform = transform
         self.augment = augment
+        self.target_column = self._resolve_target_column(target_column)
+        self.input_channels = self._resolve_input_channels(input_channels)
+
+    def _resolve_target_column(self, target_column):
+        if target_column:
+            if target_column not in self.data.columns:
+                raise ValueError(
+                    f"Requested target column '{target_column}' not found in parquet. "
+                    f"Available columns: {sorted(self.data.columns.tolist())}"
+                )
+            return target_column
+
+        for candidate in self.DEFAULT_TARGET_CANDIDATES:
+            if candidate in self.data.columns:
+                return candidate
+
+        raise ValueError(
+            "Could not infer target column for training/evaluation. "
+            f"Tried {list(self.DEFAULT_TARGET_CANDIDATES)}. "
+            f"Available columns: {sorted(self.data.columns.tolist())}. "
+            "Pass a column explicitly via --target-column."
+        )
+
+    def _resolve_input_channels(
+        self, input_channels: Optional[Sequence[int] | str]
+    ) -> tuple[int, int]:
+        if input_channels is None:
+            return self.DEFAULT_INPUT_CHANNELS
+
+        if isinstance(input_channels, str):
+            parts = [part.strip() for part in input_channels.split(",") if part.strip()]
+            parsed = tuple(int(part) for part in parts)
+        else:
+            parsed = tuple(int(value) for value in input_channels)
+
+        if len(parsed) != 2:
+            raise ValueError(
+                f"input_channels must contain exactly 2 channels, got {parsed}."
+            )
+        if len(set(parsed)) != 2:
+            raise ValueError(
+                f"input_channels must contain two distinct channel indices, got {parsed}."
+            )
+        if any(channel < 0 for channel in parsed):
+            raise ValueError(
+                f"input_channels must be non-negative indices, got {parsed}."
+            )
+        return parsed
 
     def __len__(self):
         return len(self.data)
@@ -58,33 +129,39 @@ class JaccardDataset(Dataset):
         else:
             image_path = rel_path
 
-        jaccard = row["jaccard_score"]
+        jaccard = row[self.target_column]
 
-        # Read the stacked TIFF with tifffile (PIL doesn't handle multi-frame TIFFs correctly)
-        # Shape: (2, H, W) - channel-first
-        # Dtype: uint8 (0-255)
-        # Channel 0: Raw microscope image (grayscale)
-        # Channel 1: Segmentation mask (binary: 0 or 255)
+        # Read the stacked TIFF with tifffile (PIL doesn't handle multi-frame TIFFs correctly).
+        # QA crops can be 2-channel (raw, seg) or 4-channel (raw, seg, gt, tra).
         img_np = tifffile.imread(image_path)
 
         if img_np.ndim == 2:
-            # If there is only one channel, expand to 2 channels (for testing)
+            # Single-channel fallback (mostly for synthetic testing).
             img_np = np.stack([img_np, img_np], axis=0)
         elif img_np.ndim == 3:
-            # Handle different channel arrangements
-            if img_np.shape[0] == 2:
-                pass  # already (2, H, W) - correct format
-            elif img_np.shape[-1] == 2:
-                # (H, W, 2) -> transpose to (2, H, W)
+            # Accept both CHW and HWC layouts.
+            if img_np.shape[0] <= 8:
+                pass  # already CHW
+            elif img_np.shape[-1] <= 8:
                 img_np = np.transpose(img_np, (2, 0, 1))
             else:
                 raise ValueError(
-                    f"Image at {image_path} does not have 2 channels. Shape: {img_np.shape}"
+                    f"Could not infer channel axis for image at {image_path}. Shape: {img_np.shape}"
                 )
         else:
             raise ValueError(
                 f"Image at {image_path} has unsupported shape {img_np.shape}."
             )
+
+        available_channels = img_np.shape[0]
+        max_requested_channel = max(self.input_channels)
+        if max_requested_channel >= available_channels:
+            raise ValueError(
+                f"Image at {image_path} has {available_channels} channels, "
+                f"but requested input_channels={self.input_channels}."
+            )
+
+        img_np = img_np[list(self.input_channels), :, :]
 
         # Apply augmentation if enabled (for training)
         if self.augment:
@@ -112,36 +189,36 @@ class JaccardDataset(Dataset):
 
 # Define the model
 class Jaccard(nn.Module):
-    def __init__(self, dropout_rate=0.3, model_type='resnet50'):
+    def __init__(self, dropout_rate=0.3, model_type="resnet50"):
         super(Jaccard, self).__init__()
-        
-        if model_type == 'resnet18':
+
+        if model_type == "resnet18":
             self.model = resnet18(weights=ResNet18_Weights.IMAGENET1K_V1)
             in_features = self.model.fc.in_features
             self.model.fc = nn.Identity()
-        elif model_type == 'resnet50':
+        elif model_type == "resnet50":
             self.model = resnet50(weights=ResNet50_Weights.IMAGENET1K_V1)
             in_features = self.model.fc.in_features
             self.model.fc = nn.Identity()
-        elif model_type == 'resnet101':
+        elif model_type == "resnet101":
             self.model = resnet101(weights=ResNet101_Weights.IMAGENET1K_V1)
             in_features = self.model.fc.in_features
             self.model.fc = nn.Identity()
-        elif model_type == 'efficientnet_b1':
+        elif model_type == "efficientnet_b1":
             self.model = efficientnet_b1(weights=EfficientNet_B1_Weights.IMAGENET1K_V1)
             in_features = self.model.classifier[1].in_features
             self.model.classifier = nn.Identity()
             self.model.features[0][0] = nn.Conv2d(
                 2, 32, kernel_size=3, stride=2, padding=1, bias=False
             )
-        elif model_type == 'efficientnet_b4':
+        elif model_type == "efficientnet_b4":
             self.model = efficientnet_b4(weights=EfficientNet_B4_Weights.IMAGENET1K_V1)
             in_features = self.model.classifier[1].in_features
             self.model.classifier = nn.Identity()
             self.model.features[0][0] = nn.Conv2d(
                 2, 48, kernel_size=3, stride=2, padding=1, bias=False
             )
-        elif model_type == 'efficientnet_b7':
+        elif model_type == "efficientnet_b7":
             self.model = efficientnet_b7(weights=EfficientNet_B7_Weights.IMAGENET1K_V1)
             in_features = self.model.classifier[1].in_features
             self.model.classifier = nn.Identity()
@@ -150,13 +227,13 @@ class Jaccard(nn.Module):
             )
         else:
             raise ValueError(f"Unsupported model_type: {model_type}")
-        
+
         # Adjust first conv layer for 2 channels
-        if 'resnet' in model_type:
+        if "resnet" in model_type:
             self.model.conv1 = nn.Conv2d(
                 2, 64, kernel_size=7, stride=2, padding=3, bias=False
             )
-        
+
         self.dropout = nn.Dropout(p=dropout_rate)
         self.fc = nn.Linear(in_features, 1)  # Regression output
 
@@ -176,6 +253,7 @@ def tensor_normalize(tensor, mean, std):
 
 class NormalizeTransform:
     """Transform to normalize tensor to [-1, 1] from [0, 1]."""
+
     def __call__(self, x):
         return tensor_normalize(x, mean=[0.5, 0.5], std=[0.5, 0.5])
 
@@ -299,11 +377,11 @@ def load_model(path, device):
     """
     checkpoint = torch.load(path, map_location=device)
     metadata = checkpoint.get("metadata", {})
-    
+
     # Get model parameters from metadata (with defaults for backward compatibility)
     dropout_rate = metadata.get("dropout_rate", 0.3)
     model_type = metadata.get("model_type", "resnet50")
-    
+
     model = Jaccard(dropout_rate=dropout_rate, model_type=model_type).to(device)
     model.load_state_dict(checkpoint["model_state_dict"])
     print(f"Model loaded from {path}")
@@ -338,113 +416,27 @@ def get_split_indices(dataset):
     return train_indices, val_indices, test_indices
 
 
-# ============================================================================
-# CLI Commands
-# ============================================================================
-
-
-@click.group()
-def cli():
-    """CNN Jaccard Index Prediction - Training and Evaluation CLI."""
-    pass
-
-
-@cli.command()
-@click.option(
-    "--parquet-file",
-    type=click.Path(exists=True),
-    required=True,
-    help="Path to the input Parquet file with split column.",
-)
-@click.option(
-    "--data-root",
-    type=click.Path(exists=True),
-    default=None,
-    help="Root directory for data (prepended to stacked_path). Use for HPC scratch.",
-)
-@click.option(
-    "--output-model",
-    type=click.Path(),
-    default="cnn_jaccard.pt",
-    help="Path to save the trained model.",
-)
-@click.option(
-    "--output-excel",
-    type=click.Path(),
-    default="results_cnn.xlsx",
-    help="Path to save the evaluation results.",
-)
-@click.option("--batch-size", type=int, default=16, help="Batch size for training.")
-@click.option("--learning-rate", type=float, default=1e-4, help="Learning rate.")
-@click.option("--num-epochs", type=int, default=50, help="Number of training epochs.")
-@click.option(
-    "--weight-decay", type=float, default=1e-4, help="Weight decay (L2 regularization)."
-)
-@click.option(
-    "--dropout-rate",
-    type=float,
-    default=0.3,
-    help="Dropout rate for the model.",
-)
-@click.option(
-    "--model-type",
-    type=click.Choice(['resnet18', 'resnet50', 'resnet101', 'efficientnet_b1', 'efficientnet_b4', 'efficientnet_b7']),
-    default='resnet50',
-    help="Model architecture to use.",
-)
-@click.option(
-    "--patience", type=int, default=10, help="Early stopping patience (0 to disable)."
-)
-@click.option(
-    "--augment/--no-augment", default=True, help="Enable/disable data augmentation."
-)
-@click.option("--seed", type=int, default=42, help="Random seed for reproducibility.")
-@click.option(
-    "--num-workers", type=int, default=4, help="Number of DataLoader workers."
-)
-@click.option(
-    "--grad-clip",
-    type=float,
-    default=1.0,
-    help="Gradient clipping max norm (0 to disable).",
-)
-@click.option(
-    "--mlflow-tracking-uri",
-    type=str,
-    default=None,
-    help="MLflow tracking URI (default: ./mlruns).",
-)
-@click.option(
-    "--mlflow-experiment",
-    type=str,
-    default="cnn-jaccard",
-    help="MLflow experiment name.",
-)
-@click.option(
-    "--mlflow-run-name",
-    type=str,
-    default=None,
-    help="MLflow run name (default: auto-generated).",
-)
 def train(
     parquet_file,
-    data_root,
-    output_model,
-    output_excel,
-    batch_size,
-    learning_rate,
-    num_epochs,
-    weight_decay,
-    dropout_rate,
-    patience,
-    augment,
-    seed,
-    num_workers,
-    grad_clip,
-    model_type,
-    mlflow_tracking_uri,
-    mlflow_experiment,
-    mlflow_run_name,
+    data_root=None,
+    target_column=None,
+    input_channels: Optional[Sequence[int] | str] = None,
+    output_model="cnn_jaccard.pt",
+    output_excel="results_cnn.xlsx",
+    batch_size=16,
+    learning_rate=1e-4,
+    num_epochs=50,
+    weight_decay=1e-4,
+    dropout_rate=0.3,
+    patience=10,
+    augment=True,
+    seed=42,
+    num_workers=4,
+    grad_clip=1.0,
+    model_type="resnet50",
+    mlflow_tracking_uri=DEFAULT_MLFLOW_TRACKING_URI,
+    mlflow_experiment="cnn-jaccard",
+    mlflow_run_name=None,
 ):
     """Train the CNN model for Jaccard index prediction."""
     # Set seed for reproducibility
@@ -461,12 +453,25 @@ def train(
 
     # Training dataset with augmentation
     train_dataset = JaccardDataset(
-        parquet_file, data_root=data_root, transform=get_transform(), augment=augment
+        parquet_file,
+        data_root=data_root,
+        transform=get_transform(),
+        augment=augment,
+        target_column=target_column,
+        input_channels=input_channels,
     )
     # Validation/test dataset without augmentation
     eval_dataset = JaccardDataset(
-        parquet_file, data_root=data_root, transform=get_transform(), augment=False
+        parquet_file,
+        data_root=data_root,
+        transform=get_transform(),
+        augment=False,
+        target_column=target_column,
+        input_channels=input_channels,
     )
+
+    print(f"Using target column: {train_dataset.target_column}")
+    print(f"Using input channels: {train_dataset.input_channels}")
 
     train_indices, val_indices, test_indices = get_split_indices(train_dataset)
 
@@ -532,6 +537,10 @@ def train(
                 "val_samples": len(val_indices),
                 "test_samples": len(test_indices),
                 "parquet_file": str(parquet_file),
+                "target_column": str(train_dataset.target_column),
+                "input_channels": ",".join(
+                    str(channel) for channel in train_dataset.input_channels
+                ),
                 "device": str(device),
             }
         )
@@ -613,6 +622,10 @@ def train(
             "train_samples": len(train_indices),
             "val_samples": len(val_indices),
             "test_samples": len(test_indices),
+            "target_column": str(train_dataset.target_column),
+            "input_channels": ",".join(
+                str(channel) for channel in train_dataset.input_channels
+            ),
         }
         save_model(model, output_model, metadata)
 
@@ -639,48 +652,48 @@ def train(
         # Log results excel as artifact
         mlflow.log_artifact(output_excel)
 
-        print(f"\nMLflow run ID: {mlflow.active_run().info.run_id}")
+        active = mlflow.active_run()
+        if active is not None:
+            print(f"\nMLflow run ID: {active.info.run_id}")
 
 
-@cli.command()
-@click.option(
-    "--parquet-file",
-    type=click.Path(exists=True),
-    required=True,
-    help="Path to the input Parquet file with split column.",
-)
-@click.option(
-    "--data-root",
-    type=click.Path(exists=True),
-    default=None,
-    help="Root directory for data (prepended to stacked_path). Use for HPC scratch.",
-)
-@click.option(
-    "--model-path",
-    type=click.Path(exists=True),
-    required=True,
-    help="Path to the trained model checkpoint.",
-)
-@click.option(
-    "--output-excel",
-    type=click.Path(),
-    default="results_cnn.xlsx",
-    help="Path to save the evaluation results.",
-)
-@click.option("--batch-size", type=int, default=16, help="Batch size for evaluation.")
-def evaluate(parquet_file, data_root, model_path, output_excel, batch_size):
+def evaluate(
+    parquet_file,
+    data_root=None,
+    target_column=None,
+    input_channels: Optional[Sequence[int] | str] = None,
+    model_path=None,
+    output_excel="results_cnn.xlsx",
+    batch_size=16,
+):
     """Evaluate a trained model on the dataset and save results."""
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"Using device: {device}")
 
     # Load model
+    if model_path is None:
+        raise ValueError("model_path is required for evaluation.")
+
     model, metadata = load_model(model_path, device)
     print(f"Model metadata: {metadata}")
 
+    effective_target_column = (
+        target_column if target_column is not None else metadata.get("target_column")
+    )
+    effective_input_channels = (
+        input_channels if input_channels is not None else metadata.get("input_channels")
+    )
+
     # Dataset
     dataset = JaccardDataset(
-        parquet_file, data_root=data_root, transform=get_transform()
+        parquet_file,
+        data_root=data_root,
+        transform=get_transform(),
+        target_column=effective_target_column,
+        input_channels=effective_input_channels,
     )
+    print(f"Using target column: {dataset.target_column}")
+    print(f"Using input channels: {dataset.input_channels}")
     train_indices, val_indices, test_indices = get_split_indices(dataset)
 
     print(
@@ -785,7 +798,3 @@ def _run_evaluation(
             )
 
     return metrics
-
-
-if __name__ == "__main__":
-    cli()

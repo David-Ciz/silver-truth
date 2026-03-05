@@ -12,6 +12,7 @@ from silver_truth.fusion.fusion import (
 )
 from silver_truth.fusion.crops_experiment import (
     ALL_MODELS as CROP_EXPERIMENT_MODELS,
+    MLFLOW_TRACKING_PATH as DEFAULT_MLFLOW_TRACKING_PATH,
     run_crops_fusion_experiment,
 )
 from silver_truth.job_file_generator import generate_job_file
@@ -331,7 +332,7 @@ def add_fused_images(
 )
 @click.option(
     "--mlflow-tracking-path",
-    default="data/fusion_experiments/mlruns",
+    default=DEFAULT_MLFLOW_TRACKING_PATH,
     show_default=True,
     help="MLflow tracking directory.",
 )

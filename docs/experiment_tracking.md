@@ -19,6 +19,48 @@ This project uses a combination of DVC (Data Version Control) and MLflow to ensu
 
 **Key principle**: DVC handles deterministic, reproducible data transformations. MLflow handles experimental runs where you're comparing different approaches/hyperparameters.
 
+## MLflow Storage Strategy
+
+Use a **single shared local MLflow tracking store** for the whole project:
+
+- Canonical path: `data/mlflow/mlruns`
+- All experiment families share this store
+- Separation happens by **MLflow experiment name**, not by different storage folders
+
+Why:
+- one UI endpoint for all runs
+- easier cross-comparison across QA/fusion/ablation
+- less confusion for future reruns
+
+### Naming Convention
+
+Use experiment names with clear prefixes:
+
+- `qa-cnn-<dataset>-<fold>`
+- `qa-filtering-<dataset>-<fold>`
+- `fusion-<dataset>-<fold>`
+- `paper-ablation-<dataset>`
+- `paper-threshold-sweep-<dataset>`
+
+### Current Defaults
+
+Primary CLIs now default to the shared local store (`data/mlflow/mlruns`).
+You can still override with CLI flags when needed (for isolated runs or remote MLflow servers).
+
+### One-Time Setup Per Shell
+
+```bash
+source .venv/bin/activate
+export MLFLOW_TRACKING_URI=file:$(pwd)/data/mlflow/mlruns
+mkdir -p data/mlflow/mlruns
+```
+
+### MLflow UI
+
+```bash
+mlflow ui --backend-store-uri data/mlflow/mlruns
+```
+
 ## Workflow
 
 ### 1. Data Preparation (DVC)
@@ -44,26 +86,12 @@ This will:
 Compare different fusion strategies using the experiment script:
 
 ```bash
-# Run all flat models (no weights required)
-python scripts/run_fusion_experiment.py \
-    --dataset BF-C2DL-HSC \
-    --campaign 02 \
-    --time-points "46,56,287,448,799,879,1585,1748" \
-    --flat-models-only
-
-# Run specific models
-python scripts/run_fusion_experiment.py \
-    --dataset BF-C2DL-HSC \
-    --campaign 02 \
-    --time-points "0-1000" \
-    --models THRESHOLD_FLAT --models MAJORITY_FLAT --models BIC_FLAT_VOTING
-
-# Run all models (requires weight files for some)
-python scripts/run_fusion_experiment.py \
-    --dataset BF-C2DL-HSC \
-    --campaign 02 \
-    --time-points "0-1000" \
-    --all-models
+# Run crop-based fusion experiment with shared MLflow store
+silver-fusion run-fusion-crops \
+    --qa-parquet data/dataframes/BF-C2DL-HSC/qa_crops/fold-1_sz64_qa_dataset.parquet \
+    --flat-models-only \
+    --mlflow-experiment fusion-BF-C2DL-HSC-fold1 \
+    --mlflow-tracking-path data/mlflow/mlruns
 ```
 
 ### 3. CNN Training (MLflow)
@@ -71,13 +99,15 @@ python scripts/run_fusion_experiment.py \
 Train QA models with MLflow tracking:
 
 ```bash
-python cnn.py train \
-    --parquet-file data/qa_crops/BF-C2DL-HSC/mixed_sz64/qa_dataset.parquet \
+silver-qa cnn train \
+    --parquet-file data/dataframes/BF-C2DL-HSC/qa_crops/mixed_sz64_qa_dataset.parquet \
+    --input-channels "0,1" \
     --model-type efficientnet_b4 \
     --dropout-rate 0.5 \
     --batch-size 16 \
     --num-epochs 50 \
-    --mlflow-experiment "cnn-jaccard"
+    --mlflow-experiment "qa-cnn-BF-C2DL-HSC-mixed" \
+    --mlflow-tracking-uri data/mlflow/mlruns
 ```
 
 ### 4. Viewing Results
@@ -85,7 +115,7 @@ python cnn.py train \
 To launch the MLflow UI and view the results of your experiments:
 
 ```bash
-mlflow ui
+mlflow ui --backend-store-uri data/mlflow/mlruns
 ```
 
 This will start a local web server. Navigate to `http://127.0.0.1:5000` in your browser to see the tracking dashboard.

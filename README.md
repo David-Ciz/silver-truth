@@ -70,6 +70,28 @@ This project uses DVC to manage large data files and datasets.
 
 📚 **For detailed DVC setup, SSH configuration, and working with QA datasets, see the [DVC Guide](docs/dvc_guide.md) in the wiki.**
 
+## MLflow Tracking Store
+
+Use one shared tracking folder for the project:
+
+- `data/mlflow/mlruns`
+
+Set it once per shell:
+
+```bash
+source .venv/bin/activate
+export MLFLOW_TRACKING_URI=file:$(pwd)/data/mlflow/mlruns
+mkdir -p data/mlflow/mlruns
+```
+
+Open UI:
+
+```bash
+mlflow ui --backend-store-uri data/mlflow/mlruns
+```
+
+See [docs/experiment_tracking.md](docs/experiment_tracking.md) for command-specific overrides and naming conventions.
+
 ---
 
 ## Detailed Workflows

@@ -1,6 +1,12 @@
 import click
 import mlflow
 import subprocess
+from pathlib import Path
+
+from silver_truth.experiment_tracking import (
+    infer_dataset_name_from_text,
+    set_common_mlflow_tags,
+)
 
 
 @click.command()
@@ -43,8 +49,12 @@ def run_experiment(
     Main entry point for running a silver-truth QA experiment.
     """
     mlflow.set_experiment(experiment_name)
+    dataset_tag = infer_dataset_name_from_text([job_file, output_pattern])
 
     with mlflow.start_run() as run:
+        set_common_mlflow_tags(
+            dataset=dataset_tag, split="unknown", repo_root=Path(__file__).parent.parent
+        )
         run_id = run.info.run_id
         print(f"MLflow run started with ID: {run_id}")
 

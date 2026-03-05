@@ -1,5 +1,6 @@
 # Register the models
 import os
+import re
 import torch
 import torch.utils.data as data
 import torchvision
@@ -184,9 +185,40 @@ def _train_model(
     trainer.fit(model_pl, train_loader, val_loader)
 
     best_checkpoint_path = checkpoint_callback.best_model_path
+    best_checkpoint_epoch = None
+
+    def _extract_best_epoch(checkpoint_path: str):
+        if not checkpoint_path:
+            return None
+        try:
+            checkpoint_data = torch.load(checkpoint_path, map_location="cpu")
+            epoch = checkpoint_data.get("epoch")
+            if epoch is not None:
+                return int(epoch)
+        except Exception:
+            pass
+
+        match = re.search(r"epoch[=\-_]?(\d+)", checkpoint_path)
+        if match:
+            try:
+                return int(match.group(1))
+            except ValueError:
+                return None
+        return None
+
+    if best_checkpoint_path:
+        best_checkpoint_epoch = _extract_best_epoch(best_checkpoint_path)
+
     eval_model = model_pl
     if best_checkpoint_path:
         mlflow.log_param("best_checkpoint_path", best_checkpoint_path)
+        if best_checkpoint_epoch is not None:
+            mlflow.log_param("best_checkpoint_epoch", int(best_checkpoint_epoch))
+        if os.path.exists(best_checkpoint_path):
+            mlflow.log_artifact(best_checkpoint_path, artifact_path="checkpoints")
+            mlflow.set_tag("best_checkpoint_logged_to_mlflow", "true")
+        else:
+            mlflow.set_tag("best_checkpoint_logged_to_mlflow", "false")
         try:
             eval_model = SMP_Model.load_from_checkpoint(
                 best_checkpoint_path, weights_only=False
@@ -194,6 +226,8 @@ def _train_model(
         except Exception:
             # Fall back to the in-memory model if checkpoint loading fails.
             eval_model = model_pl
+    else:
+        mlflow.set_tag("best_checkpoint_logged_to_mlflow", "false")
 
     # Compute final mean metrics on the best checkpoint for val and test.
     eval_model.to(device)
@@ -221,6 +255,7 @@ def _train_model(
         "val": val_result,
         "test": test_result,
         "best_checkpoint_path": best_checkpoint_path,
+        "best_checkpoint_epoch": best_checkpoint_epoch,
         "val_mean_loss": val_mean_loss,
         "val_mean_f1": val_mean_f1,
         "val_mean_iou": val_mean_iou,
@@ -354,4 +389,27 @@ def run(
     # Optional local visualization (disabled by default to avoid blocking runs)
     if run_params.get("visualize", False):
         _visualize_reconstructions(model, _get_stacked_images(val_set, 16))
+
+    best_epoch = result.get("best_checkpoint_epoch")
+    best_checkpoint_path = result.get("best_checkpoint_path")
+    checkpoint_dir = os.path.join(os.getcwd(), _checkpoint_path, databank_name)
+    print("\n=== Ensemble Training Summary ===")
+    print(
+        f"Best checkpoint epoch: {best_epoch}"
+        if best_epoch is not None
+        else "Best checkpoint epoch: unavailable"
+    )
+    if best_checkpoint_path:
+        print(f"Best checkpoint saved at: {best_checkpoint_path}")
+    else:
+        print(
+            "Best checkpoint saved at: unavailable (ModelCheckpoint did not provide a best path)"
+        )
+    print(f"Checkpoint directory: {checkpoint_dir}")
+    print(
+        "IMPORTANT: Reported training/validation/test metrics above are CELL-LEVEL only."
+    )
+    print(
+        "Next required step: evaluate reconstructed FULL-IMAGE outputs (image-level evaluation)."
+    )
     print("Done.")

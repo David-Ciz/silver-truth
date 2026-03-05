@@ -120,6 +120,16 @@ def ensemble_experiment(
     show_default=True,
     help="QA threshold used when --qa-column is provided.",
 )
+@click.option(
+    "--aggregation-level",
+    type=click.Choice(["cell", "image"], case_sensitive=False),
+    default="cell",
+    show_default=True,
+    help=(
+        "Build per-cell crops ('cell', existing behavior) or one full-image sample per GT image "
+        "('image', requires QA parquet generated with crop=False)."
+    ),
+)
 def build_databank(
     dataset_name: str,
     qa_parquet_path: str,
@@ -129,6 +139,7 @@ def build_databank(
     split_sets: str,
     qa_column: Optional[str],
     qa_threshold: float,
+    aggregation_level: str,
 ) -> None:
     """Build an Ensemble databank parquet and image folder from a QA parquet."""
     build_opt = {
@@ -139,6 +150,7 @@ def build_databank(
         "split_sets": _parse_split_sets(split_sets),
         "qa": qa_column if qa_column else None,
         "qa_threshold": qa_threshold if qa_column else None,
+        "aggregation_level": aggregation_level.lower(),
     }
     output_parquet = ensemble.build_databank(build_opt, qa_parquet_path)
     click.echo(output_parquet)

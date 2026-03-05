@@ -3,6 +3,10 @@ import mlflow
 from pathlib import Path
 
 from silver_truth.fusion.fusion import FusionModel, fuse_segmentations
+from silver_truth.experiment_tracking import (
+    infer_dataset_name_from_text,
+    set_common_mlflow_tags,
+)
 from silver_truth.metrics.evaluation_logic import run_evaluation
 
 
@@ -65,8 +69,12 @@ def run_experiment_and_evaluate(
     Main entry point for running a silver-truth QA experiment and evaluating the results.
     """
     mlflow.set_experiment(experiment_name)
+    dataset_tag = infer_dataset_name_from_text([dataset_dataframe_path, output_pattern])
 
     with mlflow.start_run() as run:
+        set_common_mlflow_tags(
+            dataset=dataset_tag, split="unknown", repo_root=Path(__file__).parent.parent
+        )
         run_id = run.info.run_id
         print(f"MLflow run started with ID: {run_id}")
 

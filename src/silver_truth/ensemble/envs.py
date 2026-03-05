@@ -1,2 +1,3 @@
-# mlflow_mlruns_path = f"file://{os.path.join(os.getcwd(), 'data/ensemble_data/results/mlruns')}"
-mlflow_mlruns_path = "data/ensemble_data/results/mlruns"
+from silver_truth.experiment_tracking import DEFAULT_MLFLOW_TRACKING_URI
+
+mlflow_mlruns_path = DEFAULT_MLFLOW_TRACKING_URI

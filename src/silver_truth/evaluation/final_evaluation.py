@@ -1,8 +1,9 @@
 import mlflow
 import src.ensemble.external as ext
+from silver_truth.experiment_tracking import DEFAULT_MLFLOW_TRACKING_URI
 
 # TODO: add to env
-_mlflow_mlruns_path = "data/ensemble_data/results/mlruns"
+_mlflow_mlruns_path = DEFAULT_MLFLOW_TRACKING_URI
 
 
 # TODO: it's almost copy&paste from ensemble/ensemble.py (except the return)

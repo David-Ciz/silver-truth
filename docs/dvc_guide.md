@@ -78,8 +78,17 @@ The QA datasets are organized by:
 - **Crop size**: Defined in `params.yaml` (e.g., `sz64` for 64x64 crops)
 
 Each QA dataset contains:
-- Cropped images organized by split
-- A parquet file (`qa_dataset.parquet`) with metadata and labels
+- Cropped images in:
+  - `data/qa_crops/{DATASET}/sz{CROP_SIZE}/`
+- Split-specific QA parquet files in:
+  - `data/dataframes/{DATASET}/qa_crops/*_sz{CROP_SIZE}_qa_dataset.parquet`
+  - These contain metadata, `split`, and evaluation labels (`jaccard_score`, `f1_score`).
+
+QA crop TIFF channel layout is `(4, H, W)`:
+- `0`: raw image
+- `1`: competitor segmentation mask
+- `2`: GT mask
+- `3`: tracking marker mask
 
 ### Pull All Data
 
@@ -96,11 +105,13 @@ dvc pull
 To download QA data for a specific dataset:
 
 ```bash
-# For BF-C2DL-HSC with 64x64 crops (mixed split)
-dvc pull data/qa_crops/BF-C2DL-HSC/mixed_sz64/
+# For BF-C2DL-HSC with 64x64 crops (images + dataframes)
+dvc pull data/qa_crops/BF-C2DL-HSC/sz64/
+dvc pull data/dataframes/BF-C2DL-HSC/qa_crops/mixed_sz64_qa_dataset.parquet
 
-# For BF-C2DL-MuSC with 64x64 crops (mixed split)
-dvc pull data/qa_crops/BF-C2DL-MuSC/mixed_sz64/
+# For BF-C2DL-MuSC with 64x64 crops (images + dataframes)
+dvc pull data/qa_crops/BF-C2DL-MuSC/sz64/
+dvc pull data/dataframes/BF-C2DL-MuSC/qa_crops/mixed_sz64_qa_dataset.parquet
 ```
 
 **Note**: Check `params.yaml` to see the configured crop size for each dataset:
@@ -118,12 +129,12 @@ datasets:
 After pulling, the parquet file will be available at:
 
 ```
-data/qa_crops/{DATASET_NAME}/mixed_sz{CROP_SIZE}/qa_dataset.parquet
+data/dataframes/{DATASET_NAME}/qa_crops/mixed_sz{CROP_SIZE}_qa_dataset.parquet
 ```
 
 Example:
 ```
-data/qa_crops/BF-C2DL-HSC/mixed_sz64/qa_dataset.parquet
+data/dataframes/BF-C2DL-HSC/qa_crops/mixed_sz64_qa_dataset.parquet
 ```
 
 You can load this in Python:
@@ -132,7 +143,7 @@ You can load this in Python:
 import pandas as pd
 
 # Load the QA dataset
-df = pd.read_parquet('data/qa_crops/BF-C2DL-HSC/mixed_sz64/qa_dataset.parquet')
+df = pd.read_parquet('data/dataframes/BF-C2DL-HSC/qa_crops/mixed_sz64_qa_dataset.parquet')
 print(df.head())
 ```
 
@@ -170,8 +181,11 @@ To regenerate data by running DVC stages:
 dvc repro
 
 # Reproduce specific stage
-dvc repro create_qa_crops_mixed
+dvc repro create_qa_crops_split_mixed
 ```
+
+`create_qa_crops_split_*` stages run both split attachment and QA label generation
+(`jaccard_score`, `f1_score`) for cropped data.
 
 ### Check Pipeline Status
 
@@ -234,23 +248,18 @@ dvc push data/new_dataset.parquet.dvc
 
 ### Complete Workflow Example
 
-Here's the complete workflow for adding a new dataset:
+Here is a typical workflow for refreshing QA crops and labels:
 
 ```bash
-# 1. Generate or create your data
-python scripts/create_qa_dataset.py --dataset BF-C2DL-HSC
+# 1. Reproduce QA split parquet + labels through DVC
+dvc repro create_qa_crops_split_mixed
 
-# 2. Add the data to DVC
-dvc add data/qa_crops/BF-C2DL-HSC/mixed_sz64/qa_dataset.parquet
-
-# 3. Commit the .dvc file to Git
-git add data/qa_crops/BF-C2DL-HSC/mixed_sz64/qa_dataset.parquet.dvc .gitignore
-git commit -m "Add QA dataset for BF-C2DL-HSC with mixed split"
-
-# 4. Push the actual data to remote storage
+# 2. Push pipeline outputs to DVC remote
 dvc push
 
-# 5. Push Git changes to share with team
+# 3. Commit pipeline state
+git add dvc.lock
+git commit -m "Update QA crops split/labels"
 git push origin your-branch
 ```
 
@@ -337,7 +346,9 @@ dvc pull
 
 If a file is missing after `dvc pull`:
 
-1. Check if the `.dvc` file exists: `ls data/qa_crops/BF-C2DL-HSC/mixed_sz64.dvc`
+1. Check expected output paths:
+   - `ls data/qa_crops/BF-C2DL-HSC/sz64/`
+   - `ls data/dataframes/BF-C2DL-HSC/qa_crops/mixed_sz64_qa_dataset.parquet`
 2. Verify remote configuration: `dvc remote list`
 3. Check if file exists on remote: Contact team lead
 
@@ -362,4 +373,3 @@ If you encounter issues not covered here:
 1. Check the [DVC documentation](https://dvc.org/doc)
 2. Contact your team lead
 3. Open an issue in the repository
-

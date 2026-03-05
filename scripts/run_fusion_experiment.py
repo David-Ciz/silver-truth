@@ -40,6 +40,9 @@ from silver_truth.fusion.fusion import (
     fuse_segmentations,
     FusionModel,
 )
+from silver_truth.experiment_tracking import (
+    set_common_mlflow_tags,
+)
 from silver_truth.metrics.evaluation_logic import evaluate_by_split
 
 
@@ -416,9 +419,12 @@ def main(
     output_base = PROJECT_ROOT / output_dir
 
     # Start parent MLflow run
-    run_name = f"{dataset}_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+    run_name = f"{dataset}_{split}_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
 
     with mlflow.start_run(run_name=run_name) as parent_run:
+        set_common_mlflow_tags(dataset=dataset, split=split, repo_root=PROJECT_ROOT)
+        mlflow.set_tag("run_kind", "experiment_parent")
+        mlflow.set_tag("parent_scope", "dataset_split")
         mlflow.log_params(
             {
                 "dataset": dataset,
@@ -440,6 +446,10 @@ def main(
             logger.info("=" * 60)
 
             with mlflow.start_run(run_name=model, nested=True) as model_run:
+                set_common_mlflow_tags(
+                    dataset=dataset, split=split, repo_root=PROJECT_ROOT
+                )
+                mlflow.set_tag("run_kind", "model_run")
                 mlflow.log_params(
                     {
                         "model": model,

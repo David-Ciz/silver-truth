@@ -43,7 +43,12 @@ def create_qa_dataset(
         output_parquet_path: The path to save the resulting dataframe.parquet file.
         crop: Whether to crop individual cells or use the full image.
         crop_size: If cropping, the size of the bounding box for the cell crops.
-        centering: Strategy for centering crops ('competitor', 'gt_mask', 'tracking_marker').
+        centering: Strategy for centering crops. Supported values:
+            - competitor: alias of competitor_consensus (default).
+            - competitor_consensus: center using agreement across all competitors.
+            - competitor_individual: center independently per competitor crop.
+            - gt_mask: center from GT mask.
+            - tracking_marker: center from tracking marker mask (TRA), fallback to GT.
         exclude_competitors: List of competitor names to exclude from the dataset.
     """
     logging.info("Starting QA dataset creation.")
@@ -51,9 +56,23 @@ def create_qa_dataset(
     logging.info(f"  - Output directory: {output_dir}")
     logging.info(f"  - Output parquet path: {output_parquet_path}")
     logging.info(f"  - Crop: {crop}")
+    centering_alias = {"competitor": "competitor_consensus"}
+    centering_mode = centering_alias.get(centering, centering)
+    supported_centering = {
+        "competitor_consensus",
+        "competitor_individual",
+        "gt_mask",
+        "tracking_marker",
+    }
+    if centering_mode not in supported_centering:
+        raise ValueError(
+            f"Unsupported centering='{centering}'. "
+            f"Use one of: {sorted(list(supported_centering | set(centering_alias.keys())))}"
+        )
+
     if crop:
         logging.info(f"  - Crop size: {crop_size}")
-        logging.info(f"  - Centering: {centering}")
+        logging.info(f"  - Centering: {centering_mode}")
 
     df = load_dataframe_from_parquet_with_metadata(dataset_dataframe_path)
     output_path = Path(output_dir).resolve()
@@ -125,6 +144,69 @@ def create_qa_dataset(
         logging.warning("No images with valid Ground Truth found. Exiting.")
         return
 
+    def _center_from_binary_mask(mask: np.ndarray) -> Optional[tuple[int, int]]:
+        if mask.size == 0 or not np.any(mask):
+            return None
+
+        try:
+            cy, cx = center_of_mass(mask)
+            if np.isnan(cy) or np.isnan(cx):
+                raise ValueError("center_of_mass returned NaN")
+            return int(round(float(cy))), int(round(float(cx)))
+        except Exception:
+            objects = find_objects(mask.astype(np.uint8))
+            if not objects or objects[0] is None:
+                return None
+            slice_y, slice_x = objects[0]
+            return (slice_y.start + slice_y.stop) // 2, (
+                slice_x.start + slice_x.stop
+            ) // 2
+
+    def _build_raw_image_path(
+        gt_path: Path, campaign: str, frame: str
+    ) -> Optional[Path]:
+        try:
+            gt_parts = gt_path.parts
+            synchronized_data_idx = gt_parts.index("synchronized_data")
+            base_path = Path(*gt_parts[: synchronized_data_idx + 2])
+        except ValueError:
+            logging.error(
+                "Path %s does not contain 'synchronized_data'. Cannot infer raw image path.",
+                gt_path,
+            )
+            return None
+
+        frame_int = int(frame)
+        candidates = [
+            base_path / campaign / f"t{frame_int:03d}.tif",
+            base_path / campaign / f"t{frame_int:04d}.tif",
+            base_path / campaign / f"t{frame}.tif",
+        ]
+        for candidate in candidates:
+            if candidate.exists():
+                return candidate
+        return None
+
+    def _load_tracking_image(
+        row_data: pd.Series, gt_path: Path, gt_image: np.ndarray
+    ) -> np.ndarray:
+        if "tracking_markers" in row_data:
+            marker_path = row_data["tracking_markers"]
+            if marker_path and not pd.isna(marker_path) and Path(marker_path).exists():
+                return tifffile.imread(marker_path)
+
+        marker_inferred = (
+            str(gt_path).replace("SEG", "TRA").replace("man_seg", "man_track")
+        )
+        if Path(marker_inferred).exists():
+            return tifffile.imread(marker_inferred)
+
+        logging.warning(
+            "Tracking marker missing for %s. Using empty TRA mask.",
+            row_data.get("composite_key"),
+        )
+        return np.zeros_like(gt_image)
+
     # Use tqdm to create a progress bar for the main loop
     for __, row in tqdm(
         df_filtered.iterrows(), total=df_filtered.shape[0], desc="Processing images"
@@ -136,359 +218,274 @@ def create_qa_dataset(
         # Extract time frame number from composite_key (e.g., "0061" from "01_0061.tif")
         time_frame = composite_key.split("_")[1].split(".")[0]  # "0061"
 
-        # Construct the path to the raw image by deriving it from GT image path
         gt_image_path = Path(row["gt_image"])
-        # GT path: .../synchronized_data/DIC-C2DH-HeLa/01_GT/SEG/man_seg002.tif
-        # Raw path should be: .../synchronized_data/DIC-C2DH-HeLa/01/t002.tif or t0002.tif
-        gt_parts = gt_image_path.parts
-        synchronized_data_idx = gt_parts.index("synchronized_data")
-        _ = gt_parts[synchronized_data_idx + 1]  # e.g., "DIC-C2DH-HeLa"
-        base_path = Path(
-            *gt_parts[: synchronized_data_idx + 2]
-        )  # e.g., "C:\Users\wei0068\Desktop\Cell_Tracking\synchronized_data\DIC-C2DH-HeLa"
-
-        # Try different formats for raw image files
-        time_frame_int = int(time_frame)
-        raw_image_path = None
-        for format_str in [
-            f"t{time_frame_int:03d}.tif",
-            f"t{time_frame_int:04d}.tif",
-            f"t{time_frame}.tif",
-        ]:
-            candidate_path = base_path / campaign_number / format_str
-            if candidate_path.exists():
-                raw_image_path = candidate_path
-                break
+        raw_image_path = _build_raw_image_path(
+            gt_image_path, campaign_number, time_frame
+        )
 
         if raw_image_path is None:
             logger.error(
-                f"Raw image file not found for time frame {time_frame} in {base_path / campaign_number}"
+                "Raw image file not found for time frame %s (campaign=%s, gt=%s)",
+                time_frame,
+                campaign_number,
+                gt_image_path,
             )
             continue
 
-        # Helper to get crop center
-        def get_crop_center(label, segmentation, gt_image, row_data):
-            if centering == "gt_mask":
-                # Center on GT mask
-                try:
-                    gt_labeled = (gt_image == label).astype(int)
-                    cy, cx = center_of_mass(gt_labeled)
-                    return int(cy), int(cx)
-                except Exception:
-                    # Fallback to bounding box center if center_of_mass fails
-                    try:
-                        slice_y, slice_x = find_objects(gt_labeled)[0]
-                        return (slice_y.start + slice_y.stop) // 2, (
-                            slice_x.start + slice_x.stop
-                        ) // 2
-                    except IndexError:
-                        logging.warning(
-                            f"Could not find GT object for label {label}. Skipping."
-                        )
-                        return None
+        try:
+            raw_image = tifffile.imread(raw_image_path)
+            gt_image = tifffile.imread(gt_image_path)
+            tra_image = _load_tracking_image(row, gt_image_path, gt_image)
+        except Exception as e:
+            logging.error("Error reading raw/gt/tra for %s: %s", raw_image_path.stem, e)
+            continue
 
-            elif centering == "tracking_marker":
-                # Center on Tracking Marker
-                marker_path_str = row_data.get("tracking_markers")
-                if (
-                    not marker_path_str
-                    or pd.isna(marker_path_str)
-                    or not Path(marker_path_str).exists()
-                ):
-                    # Fallback to GT mask if marker missing
-                    logging.warning(
-                        f"Tracking marker missing for {row_data['composite_key']}, using GT mask center."
-                    )
-                    return get_crop_center(
-                        label, segmentation, gt_image, row_data
-                    )  # Recursive call with GT fallback - potential infinite loop if logic wrong, but simplified here:
-                    # Actually better to just inline the fallback logic to avoid recursion issues or change centering var.
-                    # Let's just duplicate the GT logic for robustness or use a flag.
+        gt_labels = np.unique(gt_image)[1:]
+        gt_label_set = set(int(value) for value in gt_labels.tolist())
 
-                try:
-                    # Only read if we haven't already (optimization opportunity, but fine for now)
-                    tra_image = tifffile.imread(marker_path_str)
-                    tra_labeled = (tra_image == label).astype(int)
-                    cy, cx = center_of_mass(tra_labeled)
-
-                    if np.isnan(cy) or np.isnan(cx):
-                        # If marker for this specific label is missing?
-                        # TRA usually has markers for all cells.
-                        # Check if label exists in TRA
-                        if label not in tra_image:
-                            logging.warning(
-                                f"Label {label} not found in tracking marker image. Using GT center."
-                            )
-                            # FALLBACK TO GT
-                            gt_labeled = (gt_image == label).astype(int)
-                            cy, cx = center_of_mass(gt_labeled)
-                            return int(cy), int(cx)
-
-                    return int(cy), int(cx)
-                except Exception as e:
-                    logging.warning(
-                        f"Error reading/processing tracking marker: {e}. Using GT center."
-                    )
-                    # FALLBACK TO GT
-                    try:
-                        gt_labeled = (gt_image == label).astype(int)
-                        cy, cx = center_of_mass(gt_labeled)
-                        return int(cy), int(cx)
-                    except (ValueError, TypeError):
-                        return None
-
-            else:  # "competitor" (default)
-                try:
-                    labeled_segmentation = (segmentation == label).astype(int)
-                    slice_y, slice_x = find_objects(labeled_segmentation)[0]
-                    return (slice_y.start + slice_y.stop) // 2, (
-                        slice_x.start + slice_x.stop
-                    ) // 2
-                except IndexError:
-                    return None
-
-        # Optimization: Pre-load/Pre-calculate shared centers if using a shared reference frame
-        # If centering is NOT 'competitor', the center depends only on (GT or TRA) + Label, not the competitor.
-        # We can calculate it once per label.
-        shared_centers = {}
-        if centering != "competitor":
-            try:
-                gt_image = tifffile.imread(gt_image_path)
-                gt_labels = np.unique(gt_image)[1:]
-
-                # We need to process labels that are in GT.
-                # Note: The main loop iterates competitors, then finds intersection(seg, gt).
-                # So we will only ever process labels present in GT. Good.
-                pass
-            except Exception as e:
-                logging.error(f"Error pre-loading GT for centering: {e}")
-                continue
-
+        segmentations_by_competitor: dict[str, np.ndarray] = {}
+        labels_by_competitor: dict[str, set[int]] = {}
         for competitor in competitor_columns:
             segmentation_path_str = row[competitor]
-
-            if segmentation_path_str and Path(segmentation_path_str).exists():
-                segmentation_path = Path(segmentation_path_str)
-                try:
-                    raw_image = tifffile.imread(raw_image_path)
-                    segmentation = tifffile.imread(segmentation_path)
-                    gt_image = tifffile.imread(gt_image_path)
-
-                    # Load TRA image (Tracking Truth) using column
-                    if "tracking_markers" in row:
-                        tra_image_path = row["tracking_markers"]
-                        if tra_image_path and Path(tra_image_path).exists():
-                            tra_image = tifffile.imread(tra_image_path)
-                        else:
-                            logging.warning(
-                                f"TRA image not found at {tra_image_path} or path empty. Using empty."
-                            )
-                            tra_image = np.zeros_like(gt_image)
-                    else:
-                        # Fallback to inference if column missing
-                        tra_image_path = (
-                            str(gt_image_path)
-                            .replace("SEG", "TRA")
-                            .replace("man_seg", "man_track")
-                        )
-                        if Path(tra_image_path).exists():
-                            tra_image = tifffile.imread(tra_image_path)
-                        else:
-                            tra_image = np.zeros_like(gt_image)
-                except Exception as e:
-                    logging.error(
-                        f"Error reading image, segmentation or ground truth file for {raw_image_path.stem}: {e}"
-                    )
-                    continue
-
-                segmentation_labels = np.unique(segmentation)[1:]  # Exclude background
-                gt_labels = np.unique(gt_image)[1:]
-
-                # Process only the labels that are present in both the segmentation and the ground truth
-                labels_to_process = np.intersect1d(
-                    segmentation_labels, gt_labels, assume_unique=True
-                )
-
-                # Log a warning for labels present in the segmentation but not in the ground truth
-                extra_labels = np.setdiff1d(
-                    segmentation_labels, gt_labels, assume_unique=True
-                )
-                if extra_labels.size > 0:
-                    logging.warning(
-                        f"Segmentation {segmentation_path.name} contains labels not in ground truth: {extra_labels.tolist()}. These will be ignored."
-                    )
-
-                for label in labels_to_process:
-                    if crop:
-                        # Determine Center
-                        if centering == "competitor":
-                            # Use this specific segmentation's center
-                            center_coords = get_crop_center(
-                                label, segmentation, gt_image, row
-                            )
-                        else:
-                            # Use shared center (GT or TRA)
-                            if label not in shared_centers:
-                                shared_centers[label] = get_crop_center(
-                                    label, None, gt_image, row
-                                )
-                            center_coords = shared_centers[label]
-
-                        if center_coords is None:
-                            logging.warning(
-                                f"Could not determine center for label {label} in {segmentation_path.name} with strategy {centering}. Skipping."
-                            )
-                            continue
-
-                        center_y, center_x = center_coords
-                        half_size = crop_size // 2
-
-                        y_start, y_end = center_y - half_size, center_y + half_size
-                        x_start, x_end = center_x - half_size, center_x + half_size
-
-                        # 1. Calculate how much "out of bounds" we are on every side
-                        pad_top = max(0, -y_start)
-                        pad_bottom = max(0, y_end - raw_image.shape[0])
-                        pad_left = max(0, -x_start)
-                        pad_right = max(0, x_end - raw_image.shape[1])
-
-                        # 2. Define the valid slice coordinates within the image
-                        img_y_start = max(0, y_start)
-                        img_y_end = min(raw_image.shape[0], y_end)
-                        img_x_start = max(0, x_start)
-                        img_x_end = min(raw_image.shape[1], x_end)
-
-                        # 3. Crop the valid part of the image
-                        raw_crop = raw_image[
-                            img_y_start:img_y_end, img_x_start:img_x_end
-                        ]
-                        seg_crop = (
-                            segmentation[img_y_start:img_y_end, img_x_start:img_x_end]
-                            == label
-                        ).astype(np.uint8) * 255
-
-                        # 4. Pad symmetrically using the calculated offsets
-                        # format: ((top, bottom), (left, right))
-                        raw_crop = np.pad(
-                            raw_crop,
-                            ((pad_top, pad_bottom), (pad_left, pad_right)),
-                            mode="constant",
-                        )
-                        seg_crop = np.pad(
-                            seg_crop,
-                            ((pad_top, pad_bottom), (pad_left, pad_right)),
-                            mode="constant",
-                        )
-
-                        # Stack [Raw, Seg, GT] if aligning (or always? Let's add GT for reference if not competitor centering)
-                        # Actually, for fusion we need the GT crop saved somewhere to evaluate against.
-                        # The current format is 2 channels: [Raw, Seg].
-                        # If we change it, it might break existing tools.
-                        # But for the fusion experiment, we absolutely need the GT crop.
-
-                        # Let's save a separate "GT" crop for each cell if it doesn't exist?
-                        # Or just include it as a 3rd channel?
-                        # Existing tools like `stacked_jaccard_logic` read channels 0 and 1.
-                        # Adding a 3rd channel shouldn't break reading if they just read [0] and [1].
-
-                        # Extract GT crop using same coordinates
-                        gt_crop = (
-                            gt_image[img_y_start:img_y_end, img_x_start:img_x_end]
-                            == label
-                        ).astype(np.uint8) * 255
-                        gt_crop = np.pad(
-                            gt_crop,
-                            ((pad_top, pad_bottom), (pad_left, pad_right)),
-                            mode="constant",
-                        )
-
-                        # Extract TRA crop
-                        tra_crop = (
-                            tra_image[img_y_start:img_y_end, img_x_start:img_x_end]
-                            == label
-                        ).astype(np.uint8) * 255
-                        tra_crop = np.pad(
-                            tra_crop,
-                            ((pad_top, pad_bottom), (pad_left, pad_right)),
-                            mode="constant",
-                        )
-
-                        # We will save as 4 channels: Raw, Seg, GT_Mask, TRA_Mask
-                        stacked_crop = np.stack(
-                            [raw_crop, seg_crop, gt_crop, tra_crop], axis=0
-                        )
-
-                        # Verify
-                        assert stacked_crop.shape == (
-                            4,
-                            crop_size,
-                            crop_size,
-                        ), f"Shape mismatch: {stacked_crop.shape}"
-
-                        # Save the stacked image
-                        # Include campaign number in cell_id to distinguish between campaigns
-                        cell_id = f"c{campaign_number}_{raw_image_path.stem}_{competitor}_{label}"
-                        stacked_path = output_path / f"{cell_id}.tif"
-                        tifffile.imwrite(stacked_path, stacked_crop)
-
-                        # Collect metadata including crop coordinates
-                        data_list.append(
-                            {
-                                "cell_id": cell_id,
-                                "stacked_path": to_relative_path(stacked_path),
-                                "original_image_key": raw_image_path.stem,
-                                "campaign_number": campaign_number,
-                                "competitor": competitor,
-                                "label": label,
-                                "crop_y_start": y_start,
-                                "crop_y_end": y_end,
-                                "crop_x_start": x_start,
-                                "crop_x_end": x_end,
-                                "original_center_y": center_y,
-                                "original_center_x": center_x,
-                                "crop_size": crop_size,
-                                "centering": centering,
-                                "original_image_path": to_relative_path(raw_image_path),
-                                "gt_image": to_relative_path(row["gt_image"]),
-                            }
-                        )
-                    else:  # not cropping
-                        # Create a mask for the individual cell
-                        cell_mask = (segmentation == label).astype(np.uint8) * 255
-
-                        # Stack the raw image and the cell mask
-                        stacked_image = np.stack([raw_image, cell_mask], axis=0)
-
-                        # Save the stacked image
-                        # Include campaign number in cell_id to distinguish between campaigns
-                        cell_id = f"c{campaign_number}_{raw_image_path.stem}_{competitor}_{label}"
-                        stacked_path = output_path / f"{cell_id}.tif"
-                        tifffile.imwrite(stacked_path, stacked_image)
-
-                        # Collect metadata (no cropping, so full image dimensions)
-                        data_list.append(
-                            {
-                                "cell_id": cell_id,
-                                "stacked_path": to_relative_path(stacked_path),
-                                "original_image_key": raw_image_path.stem,
-                                "campaign_number": campaign_number,
-                                "competitor": competitor,
-                                "label": label,
-                                "crop_y_start": 0,
-                                "crop_y_end": raw_image.shape[0],
-                                "crop_x_start": 0,
-                                "crop_x_end": raw_image.shape[1],
-                                "original_center_y": raw_image.shape[0] // 2,
-                                "original_center_x": raw_image.shape[1] // 2,
-                                "crop_size": None,  # No cropping applied
-                                "original_image_path": to_relative_path(raw_image_path),
-                                "gt_image": to_relative_path(row["gt_image"]),
-                            }
-                        )
-            else:
+            if not segmentation_path_str or not Path(segmentation_path_str).exists():
                 logging.warning(
-                    f"Segmentation file not found for {raw_image_path.stem} and competitor {competitor}. Skipping."
+                    "Segmentation file not found for %s and competitor %s. Skipping.",
+                    raw_image_path.stem,
+                    competitor,
                 )
+                continue
+
+            try:
+                segmentation = tifffile.imread(segmentation_path_str)
+            except Exception as e:
+                logging.error(
+                    "Error reading segmentation for %s and competitor %s: %s",
+                    raw_image_path.stem,
+                    competitor,
+                    e,
+                )
+                continue
+
+            segmentation_labels = np.unique(segmentation)[1:]
+            segmentation_label_set = set(
+                int(value) for value in segmentation_labels.tolist()
+            )
+            extra_labels = sorted(segmentation_label_set - gt_label_set)
+            if extra_labels:
+                logging.warning(
+                    "Segmentation %s contains labels not in GT: %s. These are ignored.",
+                    Path(segmentation_path_str).name,
+                    extra_labels,
+                )
+
+            labels_by_competitor[competitor] = segmentation_label_set & gt_label_set
+            segmentations_by_competitor[competitor] = segmentation
+
+        if not segmentations_by_competitor:
+            continue
+
+        shared_centers: dict[int, Optional[tuple[int, int]]] = {}
+        center_agreement_count: dict[int, int] = {}
+        if crop and centering_mode in {
+            "competitor_consensus",
+            "gt_mask",
+            "tracking_marker",
+        }:
+            labels_with_any_seg = set()
+            for label_set in labels_by_competitor.values():
+                labels_with_any_seg.update(label_set)
+
+            for label in sorted(labels_with_any_seg):
+                center_value: Optional[tuple[int, int]] = None
+                center_count = 0
+
+                if centering_mode == "gt_mask":
+                    center_value = _center_from_binary_mask(
+                        (gt_image == label).astype(np.uint8)
+                    )
+                    center_count = 1 if center_value is not None else 0
+                elif centering_mode == "tracking_marker":
+                    center_value = _center_from_binary_mask(
+                        (tra_image == label).astype(np.uint8)
+                    )
+                    if center_value is None:
+                        center_value = _center_from_binary_mask(
+                            (gt_image == label).astype(np.uint8)
+                        )
+                    center_count = 1 if center_value is not None else 0
+                else:  # competitor_consensus
+                    centers = []
+                    for (
+                        competitor_name,
+                        segmentation,
+                    ) in segmentations_by_competitor.items():
+                        if label not in labels_by_competitor.get(
+                            competitor_name, set()
+                        ):
+                            continue
+                        center = _center_from_binary_mask(
+                            (segmentation == label).astype(np.uint8)
+                        )
+                        if center is not None:
+                            centers.append(center)
+
+                    if centers:
+                        ys = [value[0] for value in centers]
+                        xs = [value[1] for value in centers]
+                        center_value = (
+                            int(round(float(np.median(ys)))),
+                            int(round(float(np.median(xs)))),
+                        )
+                        center_count = len(centers)
+                    else:
+                        center_value = _center_from_binary_mask(
+                            (gt_image == label).astype(np.uint8)
+                        )
+                        center_count = 1 if center_value is not None else 0
+
+                shared_centers[label] = center_value
+                center_agreement_count[label] = center_count
+
+        for competitor, segmentation in segmentations_by_competitor.items():
+            labels_to_process = sorted(labels_by_competitor.get(competitor, set()))
+            if not labels_to_process:
+                continue
+
+            for label in labels_to_process:
+                if crop:
+                    if centering_mode == "competitor_individual":
+                        center_coords = _center_from_binary_mask(
+                            (segmentation == label).astype(np.uint8)
+                        )
+                        agreement_count = 1 if center_coords is not None else 0
+                    else:
+                        center_coords = shared_centers.get(label)
+                        agreement_count = center_agreement_count.get(label, 0)
+
+                    if center_coords is None:
+                        logging.warning(
+                            "Could not determine center for label %s in %s with strategy %s.",
+                            label,
+                            raw_image_path.stem,
+                            centering_mode,
+                        )
+                        continue
+
+                    center_y, center_x = center_coords
+                    half_size = crop_size // 2
+                    y_start, y_end = center_y - half_size, center_y + half_size
+                    x_start, x_end = center_x - half_size, center_x + half_size
+
+                    pad_top = max(0, -y_start)
+                    pad_bottom = max(0, y_end - raw_image.shape[0])
+                    pad_left = max(0, -x_start)
+                    pad_right = max(0, x_end - raw_image.shape[1])
+
+                    img_y_start = max(0, y_start)
+                    img_y_end = min(raw_image.shape[0], y_end)
+                    img_x_start = max(0, x_start)
+                    img_x_end = min(raw_image.shape[1], x_end)
+
+                    raw_crop = raw_image[img_y_start:img_y_end, img_x_start:img_x_end]
+                    seg_crop = (
+                        segmentation[img_y_start:img_y_end, img_x_start:img_x_end]
+                        == label
+                    ).astype(np.uint8) * 255
+                    gt_crop = (
+                        gt_image[img_y_start:img_y_end, img_x_start:img_x_end] == label
+                    ).astype(np.uint8) * 255
+                    tra_crop = (
+                        tra_image[img_y_start:img_y_end, img_x_start:img_x_end] == label
+                    ).astype(np.uint8) * 255
+
+                    raw_crop = np.pad(
+                        raw_crop,
+                        ((pad_top, pad_bottom), (pad_left, pad_right)),
+                        mode="constant",
+                    )
+                    seg_crop = np.pad(
+                        seg_crop,
+                        ((pad_top, pad_bottom), (pad_left, pad_right)),
+                        mode="constant",
+                    )
+                    gt_crop = np.pad(
+                        gt_crop,
+                        ((pad_top, pad_bottom), (pad_left, pad_right)),
+                        mode="constant",
+                    )
+                    tra_crop = np.pad(
+                        tra_crop,
+                        ((pad_top, pad_bottom), (pad_left, pad_right)),
+                        mode="constant",
+                    )
+
+                    stacked_crop = np.stack(
+                        [raw_crop, seg_crop, gt_crop, tra_crop], axis=0
+                    )
+                    assert stacked_crop.shape == (
+                        4,
+                        crop_size,
+                        crop_size,
+                    ), f"Shape mismatch: {stacked_crop.shape}"
+
+                    cell_id = (
+                        f"c{campaign_number}_{raw_image_path.stem}_{competitor}_{label}"
+                    )
+                    stacked_path = output_path / f"{cell_id}.tif"
+                    tifffile.imwrite(stacked_path, stacked_crop)
+
+                    data_list.append(
+                        {
+                            "cell_id": cell_id,
+                            "stacked_path": to_relative_path(stacked_path),
+                            "original_image_key": raw_image_path.stem,
+                            "campaign_number": campaign_number,
+                            "competitor": competitor,
+                            "label": label,
+                            "crop_y_start": y_start,
+                            "crop_y_end": y_end,
+                            "crop_x_start": x_start,
+                            "crop_x_end": x_end,
+                            "original_center_y": center_y,
+                            "original_center_x": center_x,
+                            "center_agreement_count": agreement_count,
+                            "crop_size": crop_size,
+                            "centering": centering_mode,
+                            "original_image_path": to_relative_path(raw_image_path),
+                            "gt_image": to_relative_path(row["gt_image"]),
+                        }
+                    )
+                else:
+                    cell_mask = (segmentation == label).astype(np.uint8) * 255
+                    stacked_image = np.stack([raw_image, cell_mask], axis=0)
+
+                    cell_id = (
+                        f"c{campaign_number}_{raw_image_path.stem}_{competitor}_{label}"
+                    )
+                    stacked_path = output_path / f"{cell_id}.tif"
+                    tifffile.imwrite(stacked_path, stacked_image)
+
+                    data_list.append(
+                        {
+                            "cell_id": cell_id,
+                            "stacked_path": to_relative_path(stacked_path),
+                            "original_image_key": raw_image_path.stem,
+                            "campaign_number": campaign_number,
+                            "competitor": competitor,
+                            "label": label,
+                            "crop_y_start": 0,
+                            "crop_y_end": raw_image.shape[0],
+                            "crop_x_start": 0,
+                            "crop_x_end": raw_image.shape[1],
+                            "original_center_y": raw_image.shape[0] // 2,
+                            "original_center_x": raw_image.shape[1] // 2,
+                            "center_agreement_count": len(segmentations_by_competitor),
+                            "crop_size": None,
+                            "centering": centering_mode,
+                            "original_image_path": to_relative_path(raw_image_path),
+                            "gt_image": to_relative_path(row["gt_image"]),
+                        }
+                    )
 
     output_df = pd.DataFrame(data_list)
     output_df.to_parquet(output_parquet_path)

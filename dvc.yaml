@@ -56,6 +56,7 @@ stages:
         --output-parquet-path data/dataframes/${key}/qa_crops/base_sz${item.crop_size}_qa_dataset.parquet 
         --crop
         --crop-size ${item.crop_size}
+        --centering competitor_consensus
 
       deps:
         - data/dataframes/${key}/whole_image/${key}_split_mixed.parquet
@@ -76,11 +77,16 @@ stages:
         silver-qa attach-split
         --qa-base-parquet data/dataframes/${key}/qa_crops/base_sz${item.crop_size}_qa_dataset.parquet
         --dataset-dataframe-path data/dataframes/${key}/whole_image/${key}_split_mixed.parquet
-        --output-parquet-path data/dataframes/${key}/qa_crops/mixed_sz${item.crop_size}_qa_dataset.parquet
+        --output-parquet-path data/dataframes/${key}/qa_crops/mixed_sz${item.crop_size}_qa_dataset.parquet &&
+        silver-evaluation calculate-evaluation-metrics-cli
+        --mode cropped
+        data/dataframes/${key}/qa_crops/mixed_sz${item.crop_size}_qa_dataset.parquet
       deps:
         - data/dataframes/${key}/qa_crops/base_sz${item.crop_size}_qa_dataset.parquet
         - data/dataframes/${key}/whole_image/${key}_split_mixed.parquet
         - src/silver_truth/cli/qa.py
+        - src/silver_truth/cli/evaluation.py
+        - src/silver_truth/evaluation/stacked_jaccard_logic.py
         - src/silver_truth/qa/preprocessing.py
       params:
         - datasets.${key}.crop_size
@@ -94,11 +100,16 @@ stages:
         silver-qa attach-split
         --qa-base-parquet data/dataframes/${key}/qa_crops/base_sz${item.crop_size}_qa_dataset.parquet
         --dataset-dataframe-path data/dataframes/${key}/whole_image/${key}_split_fold-1.parquet
-        --output-parquet-path data/dataframes/${key}/qa_crops/fold-1_sz${item.crop_size}_qa_dataset.parquet
+        --output-parquet-path data/dataframes/${key}/qa_crops/fold-1_sz${item.crop_size}_qa_dataset.parquet &&
+        silver-evaluation calculate-evaluation-metrics-cli
+        --mode cropped
+        data/dataframes/${key}/qa_crops/fold-1_sz${item.crop_size}_qa_dataset.parquet
       deps:
         - data/dataframes/${key}/qa_crops/base_sz${item.crop_size}_qa_dataset.parquet
         - data/dataframes/${key}/whole_image/${key}_split_fold-1.parquet
         - src/silver_truth/cli/qa.py
+        - src/silver_truth/cli/evaluation.py
+        - src/silver_truth/evaluation/stacked_jaccard_logic.py
         - src/silver_truth/qa/preprocessing.py
       params:
         - datasets.${key}.crop_size
@@ -112,11 +123,16 @@ stages:
         silver-qa attach-split
         --qa-base-parquet data/dataframes/${key}/qa_crops/base_sz${item.crop_size}_qa_dataset.parquet
         --dataset-dataframe-path data/dataframes/${key}/whole_image/${key}_split_fold-2.parquet
-        --output-parquet-path data/dataframes/${key}/qa_crops/fold-2_sz${item.crop_size}_qa_dataset.parquet
+        --output-parquet-path data/dataframes/${key}/qa_crops/fold-2_sz${item.crop_size}_qa_dataset.parquet &&
+        silver-evaluation calculate-evaluation-metrics-cli
+        --mode cropped
+        data/dataframes/${key}/qa_crops/fold-2_sz${item.crop_size}_qa_dataset.parquet
       deps:
         - data/dataframes/${key}/qa_crops/base_sz${item.crop_size}_qa_dataset.parquet
         - data/dataframes/${key}/whole_image/${key}_split_fold-2.parquet
         - src/silver_truth/cli/qa.py
+        - src/silver_truth/cli/evaluation.py
+        - src/silver_truth/evaluation/stacked_jaccard_logic.py
         - src/silver_truth/qa/preprocessing.py
       params:
         - datasets.${key}.crop_size
@@ -152,7 +168,7 @@ stages:
   # Note: CNN training/evaluation are NOT included in DVC because they are
   # experimental in nature (hyperparameter tuning, model selection).
   # Use MLflow for experiment tracking instead:
-  #   python cnn.py train --mlflow-experiment "cnn-jaccard" [OPTIONS]
+  #   silver-qa cnn train --mlflow-experiment "cnn-jaccard" [OPTIONS]
   #
   # For fusion experiments comparing different strategies, use:
   #   python scripts/run_fusion_experiment.py --help
