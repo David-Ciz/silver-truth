@@ -71,23 +71,31 @@ def fuse_segmentations(
         command.append(seg_eval_folder)
 
     logging.info(f"Executing command: {' '.join(command)}")
-    stdout_pipe = None if debug else subprocess.PIPE
-    stderr_pipe = None if debug else subprocess.PIPE
+
+    # Always capture output for debugging, but also print to console in debug mode
     result = subprocess.run(
-        command, stdout=stdout_pipe, stderr=stderr_pipe, text=True, check=False
+        command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, check=False
     )
+
+    # Always log the output for debugging
+    if debug or result.returncode != 0:
+        logging.info(f"Return Code: {result.returncode}")
+        if result.stdout:
+            logging.info(f"STDOUT:\n{result.stdout}")
+        if result.stderr:
+            logging.info(f"STDERR:\n{result.stderr}")
 
     if result.returncode != 0:
         logging.error("The Fusers Java process failed.")
-        if not debug:
-            logging.error(f"Return Code: {result.returncode}")
-            logging.error(f"STDOUT:\n{result.stdout}")
-            logging.error(f"STDERR:\n{result.stderr}")
-        raise RuntimeError("Execution of Fusers (RunFusersCli) Java tool failed.")
-    else:
         logging.error(f"Return Code: {result.returncode}")
-        logging.error(f"STDOUT:\n{result.stdout}")
-        logging.error(f"STDERR:\n{result.stderr}")
+        if result.stdout:
+            logging.error(f"STDOUT:\n{result.stdout}")
+        if result.stderr:
+            logging.error(f"STDERR:\n{result.stderr}")
+        raise RuntimeError(
+            f"Execution of Fusers (RunFusersCli) Java tool failed with return code {result.returncode}"
+        )
+    else:
         logging.info("Fusers Java process completed successfully.")
 
 
@@ -97,8 +105,18 @@ def add_fused_images_to_dataframe_logic(
     fused_results_dir: Optional[str] = None,
     output_parquet_path: Optional[str] = None,
     base_dir: Optional[str] = None,
+    model_name: Optional[str] = None,
 ):
-    """Process a single dataset to add fused image paths."""
+    """Process a single dataset to add fused image paths.
+
+    Args:
+        dataset_name: Name of the dataset
+        input_parquet_path: Path to input parquet file
+        fused_results_dir: Directory containing fused results
+        output_parquet_path: Path to output parquet file
+        base_dir: Base directory containing dataframes/ and fused_results/
+        model_name: Name of the fusion model (for column naming). If not provided, will be inferred from directory structure.
+    """
 
     def _resolve_input_path() -> Path:
         if input_parquet_path:
@@ -155,33 +173,99 @@ def add_fused_images_to_dataframe_logic(
         return campaign, int(time_part)
 
     def _build_fused_lookup(
-        fused_dir: Path, dataset: str
+        fused_dir: Path, dataset: str, model: Optional[str] = None
     ) -> Dict[Tuple[str, int], Path]:
         pattern = re.compile(
             rf"^{re.escape(dataset)}_(?P<campaign>[^_]+)_fused_(?P<time>\d+)\.tif$"
         )
         lookup: Dict[Tuple[str, int], Path] = {}
-        for path in fused_dir.glob(f"{dataset}_*_fused_*.tif"):
-            match = pattern.match(path.name)
-            if not match:
-                continue
-            key = (match.group("campaign"), int(match.group("time")))
-            if key in lookup:
-                logging.warning(
-                    "Duplicate fused image detected for %s campaign %s time %s; keeping first",
-                    dataset,
-                    key[0],
-                    key[1],
-                )
-                continue
-            lookup[key] = path
+
+        # If a specific model is provided, only search in that model's subdirectories
+        if model:
+            # Search in: fused_dir/01/model/, fused_dir/02/model/, etc.
+            for campaign_dir in fused_dir.iterdir():
+                if campaign_dir.is_dir() and campaign_dir.name in ["01", "02"]:
+                    model_dir = campaign_dir / model
+                    if model_dir.exists():
+                        for path in model_dir.glob(f"{dataset}_*_fused_*.tif"):
+                            match = pattern.match(path.name)
+                            if not match:
+                                continue
+                            key = (match.group("campaign"), int(match.group("time")))
+                            if key in lookup:
+                                logging.warning(
+                                    "Duplicate fused image detected for %s campaign %s time %s; keeping first",
+                                    dataset,
+                                    key[0],
+                                    key[1],
+                                )
+                                continue
+                            lookup[key] = path
+        else:
+            # Search recursively in all subdirectories for fused images (old behavior)
+            for path in fused_dir.rglob(f"{dataset}_*_fused_*.tif"):
+                match = pattern.match(path.name)
+                if not match:
+                    continue
+                key = (match.group("campaign"), int(match.group("time")))
+                if key in lookup:
+                    logging.warning(
+                        "Duplicate fused image detected for %s campaign %s time %s; keeping first",
+                        dataset,
+                        key[0],
+                        key[1],
+                    )
+                    continue
+                lookup[key] = path
         return lookup
+
+    def _infer_model_name(fused_dir: Path, dataset: str) -> str:
+        """
+        Try to infer the model name from the directory structure by looking for
+        model-specific subdirectories in the fused results.
+        Pattern: dataset/split/campaign/model_name/ or dataset/campaign/model_name/
+        """
+        # If fused_dir itself is a model directory, use that name
+        if fused_dir.name not in [
+            dataset,
+            "fusion_results",
+            "fused_results",
+            "mixed",
+            "fold-1",
+            "fold-2",
+        ]:
+            return fused_dir.name
+
+        # Look for model subdirectories under campaign directories
+        # e.g., fused_dir/01/threshold_flat, fused_dir/02/majority_flat
+        model_names = set()
+        for campaign_dir in fused_dir.iterdir():
+            if campaign_dir.is_dir() and campaign_dir.name in ["01", "02"]:
+                # Found a campaign directory, look for model subdirectories
+                for model_dir in campaign_dir.iterdir():
+                    if model_dir.is_dir():
+                        model_names.add(model_dir.name)
+
+        if model_names:
+            # Return the most common model name (or first if only one)
+            return sorted(model_names)[0]
+
+        # Final fallback to dataset name
+        return dataset
 
     input_path = _resolve_input_path()
     if not dataset_name:
         dataset_name = _infer_dataset_name(input_path)
     fused_dir = _resolve_fused_dir()
     output_path = _resolve_output_path(input_path)
+
+    # Use explicit model_name if provided, otherwise try to infer it from directory structure
+    if model_name:
+        # Use the explicitly provided model name
+        fused_col_name = model_name
+    else:
+        # Try to infer from directory structure as fallback
+        fused_col_name = _infer_model_name(fused_dir, dataset_name)
 
     if not input_path.exists():
         print(f"Warning: Parquet file not found: {input_path}")
@@ -193,9 +277,11 @@ def add_fused_images_to_dataframe_logic(
 
     print(f"Processing dataset: {dataset_name}")
     df = pd.read_parquet(input_path).copy()
-    fused_lookup = _build_fused_lookup(fused_dir, dataset_name)
+    fused_lookup = _build_fused_lookup(fused_dir, dataset_name, fused_col_name)
     if not fused_lookup:
-        print(f"No fused images found for dataset '{dataset_name}' in {fused_dir}")
+        print(
+            f"No fused images found for dataset '{dataset_name}' in {fused_dir} with model '{fused_col_name}'"
+        )
 
     def _lookup_path(composite_key: str) -> Optional[str]:
         campaign, time_idx = _extract_campaign_time(composite_key)
@@ -204,8 +290,7 @@ def add_fused_images_to_dataframe_logic(
         path = fused_lookup.get((campaign, time_idx))
         return str(path) if path else None
 
-    # TODO: rewrite this abomination
-    fused_col_name = fused_dir.name
+    # Add the fused column with the properly determined model name
     df[fused_col_name] = df["composite_key"].astype(str).map(_lookup_path)
 
     campaign_numbers = df.get("campaign_number")

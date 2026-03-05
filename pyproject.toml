@@ -16,11 +16,10 @@ dependencies = [
     "pandas",
     "Pillow",
     "dvc[ssh]",
-    "Pillow",
     "pytorch_lightning",
     "mlflow",
     "albumentations",
-    "segmentation-models-pytorch"
+    "segmentation-models-pytorch",
 ]
 
 [project.scripts]

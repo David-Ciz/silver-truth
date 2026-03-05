@@ -3,6 +3,7 @@ from pathlib import Path
 from typing import Optional, Dict, Any
 
 import pandas as pd
+import numpy as np
 import tifffile
 
 from silver_truth.data_processing.utils.dataset_dataframe_creation import (
@@ -13,6 +14,134 @@ from silver_truth.metrics.utils import print_results
 
 # Setup basic logging
 logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
+
+
+def evaluate_by_split(
+    parquet_path: Path,
+    segmentation_column: str,
+    gt_column: str = "gt_image",
+) -> Dict[str, Dict[str, float]]:
+    """
+    Evaluate segmentation results broken down by train/val/test split.
+
+    This function computes Jaccard (IoU) and F1 (Dice) scores for segmentation
+    results against ground truth, grouped by the 'split' column.
+
+    Args:
+        parquet_path: Path to parquet file containing the data
+        segmentation_column: Column name containing segmentation image paths
+        gt_column: Column name containing ground truth image paths
+
+    Returns:
+        Dictionary with metrics per split and overall:
+        {
+            "train": {"mean_jaccard": 0.85, "std_jaccard": 0.05, "mean_f1": 0.90, ...},
+            "validation": {...},
+            "test": {...},
+            "overall": {...},
+        }
+    """
+    df = pd.read_parquet(parquet_path)
+
+    # Filter to rows with both segmentation and GT images
+    eval_df = df[df[segmentation_column].notna() & df[gt_column].notna()].copy()
+
+    # Further filter to existing files
+    def file_exists(path):
+        if pd.isna(path):
+            return False
+        try:
+            return Path(path).exists()
+        except (TypeError, OSError):
+            return False
+
+    eval_df = eval_df[
+        eval_df[segmentation_column].apply(file_exists)
+        & eval_df[gt_column].apply(file_exists)
+    ]
+
+    if eval_df.empty:
+        logging.warning(
+            f"No rows with both {segmentation_column} and {gt_column} images found"
+        )
+        return {}
+
+    logging.info(f"Evaluating {len(eval_df)} images...")
+
+    # Calculate metrics for each row
+    def calc_metrics(row):
+        try:
+            seg = tifffile.imread(row[segmentation_column])
+            gt = tifffile.imread(row[gt_column])
+
+            # Binarize (any non-zero pixel is foreground)
+            seg_binary = (seg > 0).astype(np.uint8)
+            gt_binary = (gt > 0).astype(np.uint8)
+
+            # Calculate Jaccard (IoU)
+            intersection = np.logical_and(seg_binary, gt_binary).sum()
+            union = np.logical_or(seg_binary, gt_binary).sum()
+            jaccard = intersection / union if union > 0 else 1.0
+
+            # Calculate F1 (Dice)
+            tp = intersection
+            fp = np.logical_and(seg_binary, ~gt_binary.astype(bool)).sum()
+            fn = np.logical_and(~seg_binary.astype(bool), gt_binary).sum()
+
+            precision = tp / (tp + fp) if (tp + fp) > 0 else 0.0
+            recall = tp / (tp + fn) if (tp + fn) > 0 else 0.0
+            f1 = (
+                2 * precision * recall / (precision + recall)
+                if (precision + recall) > 0
+                else 0.0
+            )
+
+            return pd.Series({"jaccard": jaccard, "f1": f1})
+        except Exception as e:
+            logging.warning(
+                f"Error calculating metrics for {row.get(segmentation_column, 'unknown')}: {e}"
+            )
+            return pd.Series({"jaccard": np.nan, "f1": np.nan})
+
+    # Calculate metrics
+    metrics_df = eval_df.apply(calc_metrics, axis=1)
+    eval_df = pd.concat([eval_df, metrics_df], axis=1)
+
+    # Drop rows where calculation failed
+    eval_df = eval_df.dropna(subset=["jaccard", "f1"])
+
+    results = {}
+
+    # Compute per-split metrics
+    if "split" in eval_df.columns:
+        for split in ["train", "validation", "test"]:
+            split_df = eval_df[eval_df["split"] == split]
+            if not split_df.empty:
+                results[split] = {
+                    "mean_jaccard": float(split_df["jaccard"].mean()),
+                    "std_jaccard": float(split_df["jaccard"].std()),
+                    "median_jaccard": float(split_df["jaccard"].median()),
+                    "min_jaccard": float(split_df["jaccard"].min()),
+                    "max_jaccard": float(split_df["jaccard"].max()),
+                    "mean_f1": float(split_df["f1"].mean()),
+                    "std_f1": float(split_df["f1"].std()),
+                    "count": len(split_df),
+                }
+
+    # Compute overall metrics
+    if not eval_df.empty:
+        results["overall"] = {
+            "mean_jaccard": float(eval_df["jaccard"].mean()),
+            "std_jaccard": float(eval_df["jaccard"].std()),
+            "median_jaccard": float(eval_df["jaccard"].median()),
+            "min_jaccard": float(eval_df["jaccard"].min()),
+            "max_jaccard": float(eval_df["jaccard"].max()),
+            "mean_f1": float(eval_df["f1"].mean()),
+            "std_f1": float(eval_df["f1"].std()),
+            "count": len(eval_df),
+        }
+
+    return results
 
 
 def run_evaluation(

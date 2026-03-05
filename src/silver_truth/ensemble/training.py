@@ -1,5 +1,6 @@
 # Register the models
 import os
+import re
 import torch
 import torch.utils.data as data
 import torchvision
@@ -16,8 +17,8 @@ import albumentations as A
 
 # TODO: create config pipepline:
 # config dictionary should be provided
-# checkpoint_path = "data/ensemble_data/results/checkpoints222/"
-_checkpoint_path = None
+_checkpoint_path = "data/ensemble_data/results/checkpoints"
+
 
 """
 def get_model(model: str, parameters: dict):
@@ -75,12 +76,16 @@ class EvaluationCallback(Callback):
         self.train_inputs, self.train_targets = train_set[0], train_set[1]
         self.val_inputs, self.val_targets = val_set[0], val_set[1]
         self.every_n_epochs = every_n_epochs
+        self.best_f1 = 0
 
     def on_train_epoch_end(self, trainer, pl_module):
         if trainer.current_epoch % self.every_n_epochs == 0:
             val_loss, val_f1, val_iou = _evaluate_model(
                 pl_module, self.val_inputs, self.val_targets
             )
+            if self.best_f1 < val_f1:
+                self.best_f1 = val_f1
+                mlflow.log_metric("best_val_f1", value=self.best_f1)
             mlflow.log_metric(
                 "val_loss", value=val_loss, step=trainer.current_epoch + 1
             )
@@ -108,6 +113,7 @@ def _get_stacked_images(dataset, num):
 
 
 def _train_model(
+    databank_name,
     run_params,
     train_dataset,
     val_dataset,
@@ -116,7 +122,7 @@ def _train_model(
     test_loader,
 ):
     device = utils.get_device()
-    print("Device:", device)
+    print("Device (legacy selector):", device)
 
     """
     model = Autoencoder32(
@@ -135,30 +141,38 @@ def _train_model(
 
     model_type = run_params["model_type"]
     max_epochs = run_params["max_epochs"]
-    model_pl = SMP_Model(model_type, device)
+    model_pl = SMP_Model(model_type)
 
     mlflow.log_param("model_type", model_type)
-    mlflow.log_param("model", model_pl.model)
+    mlflow.log_param("model", model_pl.model.__class__.__name__)
     mlflow.log_param("loss_type", model_pl.loss_type)
 
     # Create a PyTorch Lightning trainer with the generation callback
+    # Build safe filename for checkpoint to avoid nested quotes in f-string
+    try:
+        databank_suffix = databank_name.split("QA-")[1]
+    except Exception:
+        databank_suffix = databank_name
+
+    checkpoint_filename = f"M{model_type.value}-{databank_suffix}"
+
+    checkpoint_callback = ModelCheckpoint(
+        filename=checkpoint_filename,
+        dirpath=f"{_checkpoint_path}/{databank_name}",
+        monitor="val_loss",
+        mode="min",
+        save_top_k=1,
+        save_weights_only=True,
+    )
+
     trainer = pl.Trainer(
-        default_root_dir=os.path.join(
-            os.getcwd(),
-            f"data/ensemble_data/results/checkpoints/model_{model_pl.loss_type.name}",
-        ),
+        default_root_dir=os.path.join(os.getcwd(), _checkpoint_path),
         deterministic=True,
         accelerator="auto",
         devices="auto",
         max_epochs=max_epochs,
         callbacks=[
-            ModelCheckpoint(
-                dirpath=_checkpoint_path,
-                monitor="val_loss",
-                mode="min",
-                save_top_k=1,
-                save_weights_only=True,
-            ),
+            checkpoint_callback,
             # LearningRateMonitor("epoch"),
             EvaluationCallback(
                 _get_eval_sets(train_dataset),
@@ -170,15 +184,91 @@ def _train_model(
 
     trainer.fit(model_pl, train_loader, val_loader)
 
+    best_checkpoint_path = checkpoint_callback.best_model_path
+    best_checkpoint_epoch = None
+
+    def _extract_best_epoch(checkpoint_path: str):
+        if not checkpoint_path:
+            return None
+        try:
+            checkpoint_data = torch.load(checkpoint_path, map_location="cpu")
+            epoch = checkpoint_data.get("epoch")
+            if epoch is not None:
+                return int(epoch)
+        except Exception:
+            pass
+
+        match = re.search(r"epoch[=\-_]?(\d+)", checkpoint_path)
+        if match:
+            try:
+                return int(match.group(1))
+            except ValueError:
+                return None
+        return None
+
+    if best_checkpoint_path:
+        best_checkpoint_epoch = _extract_best_epoch(best_checkpoint_path)
+
+    eval_model = model_pl
+    if best_checkpoint_path:
+        mlflow.log_param("best_checkpoint_path", best_checkpoint_path)
+        if best_checkpoint_epoch is not None:
+            mlflow.log_param("best_checkpoint_epoch", int(best_checkpoint_epoch))
+        if os.path.exists(best_checkpoint_path):
+            mlflow.log_artifact(best_checkpoint_path, artifact_path="checkpoints")
+            mlflow.set_tag("best_checkpoint_logged_to_mlflow", "true")
+        else:
+            mlflow.set_tag("best_checkpoint_logged_to_mlflow", "false")
+        try:
+            eval_model = SMP_Model.load_from_checkpoint(
+                best_checkpoint_path, weights_only=False
+            )
+        except Exception:
+            # Fall back to the in-memory model if checkpoint loading fails.
+            eval_model = model_pl
+    else:
+        mlflow.set_tag("best_checkpoint_logged_to_mlflow", "false")
+
+    # Compute final mean metrics on the best checkpoint for val and test.
+    eval_model.to(device)
+    val_mean_loss, val_mean_f1, val_mean_iou = _evaluate_model(
+        eval_model, *_get_eval_sets(val_dataset)
+    )
+    test_mean_loss, test_mean_f1, test_mean_iou = _evaluate_model(
+        eval_model, *_get_eval_sets(test_loader.dataset)
+    )
+    mlflow.log_metric("val_mean_loss", val_mean_loss)
+    mlflow.log_metric("val_mean_f1", val_mean_f1)
+    mlflow.log_metric("val_mean_iou", val_mean_iou)
+    mlflow.log_metric("test_mean_loss", test_mean_loss)
+    mlflow.log_metric("test_mean_f1", test_mean_f1)
+    mlflow.log_metric("test_mean_iou", test_mean_iou)
+    print(
+        f"final metrics: val_mean_iou={val_mean_iou:.4f}, val_mean_f1={val_mean_f1:.4f}, "
+        f"test_mean_iou={test_mean_iou:.4f}, test_mean_f1={test_mean_f1:.4f}"
+    )
+
     # Test best model on validation and test set
-    val_result = trainer.test(model_pl, dataloaders=val_loader, verbose=False)
-    test_result = trainer.test(model_pl, dataloaders=test_loader, verbose=False)
-    result = {"val": val_result, "test": test_result}
-    return model_pl, result
+    val_result = trainer.test(eval_model, dataloaders=val_loader, verbose=False)
+    test_result = trainer.test(eval_model, dataloaders=test_loader, verbose=False)
+    result = {
+        "val": val_result,
+        "test": test_result,
+        "best_checkpoint_path": best_checkpoint_path,
+        "best_checkpoint_epoch": best_checkpoint_epoch,
+        "val_mean_loss": val_mean_loss,
+        "val_mean_f1": val_mean_f1,
+        "val_mean_iou": val_mean_iou,
+        "test_mean_loss": test_mean_loss,
+        "test_mean_f1": test_mean_f1,
+        "test_mean_iou": test_mean_iou,
+    }
+    return eval_model, result
 
 
 def _visualize_reconstructions(model, train_set):
     train_imgs, gt_images = train_set[0], train_set[1]
+    model.to(utils.get_device())  # bypass LevelTrigger issue
     # Reconstruct images
     model.eval()
     with torch.no_grad():
@@ -216,7 +306,9 @@ def _visualize_dataset(subset):
     plt.waitforbuttonpress(0)
 
 
-def run(run_params: dict, parquet_path: str, rand_seed: int = 42) -> None:
+def run(
+    databank_name: str, run_params: dict, parquet_path: str, rand_seed: int = 42
+) -> None:
     """
     Run a training session.
     With "remote", there's no visual feedback, such as image reconstructions.
@@ -258,20 +350,15 @@ def run(run_params: dict, parquet_path: str, rand_seed: int = 42) -> None:
     # train_set.dataset = EnsembleDatasetC1(parquet_path, None)
 
     # dataloaders
-    batch_size = 20
+    batch_size = 7
     train_loader = data.DataLoader(
-        train_set,
-        batch_size=batch_size,
-        shuffle=True,
-        drop_last=True,
-        pin_memory=True,
-        num_workers=4,
+        train_set, batch_size=batch_size, shuffle=True, drop_last=True
     )
     val_loader = data.DataLoader(
-        val_set, batch_size=batch_size, shuffle=False, drop_last=False, num_workers=4
+        val_set, batch_size=batch_size, shuffle=False, drop_last=False
     )
     test_loader = data.DataLoader(
-        test_set, batch_size=batch_size, shuffle=False, drop_last=False, num_workers=4
+        test_set, batch_size=batch_size, shuffle=False, drop_last=False
     )
 
     # DEBUG only
@@ -290,6 +377,7 @@ def run(run_params: dict, parquet_path: str, rand_seed: int = 42) -> None:
 
     # train model
     model, result = _train_model(
+        databank_name,
         run_params,
         train_set,
         val_set,
@@ -298,6 +386,30 @@ def run(run_params: dict, parquet_path: str, rand_seed: int = 42) -> None:
         test_loader,
     )
 
-    # DEBUG only
-    # _visualize_reconstructions(model, _get_stacked_images(val_set, 16))
+    # Optional local visualization (disabled by default to avoid blocking runs)
+    if run_params.get("visualize", False):
+        _visualize_reconstructions(model, _get_stacked_images(val_set, 16))
+
+    best_epoch = result.get("best_checkpoint_epoch")
+    best_checkpoint_path = result.get("best_checkpoint_path")
+    checkpoint_dir = os.path.join(os.getcwd(), _checkpoint_path, databank_name)
+    print("\n=== Ensemble Training Summary ===")
+    print(
+        f"Best checkpoint epoch: {best_epoch}"
+        if best_epoch is not None
+        else "Best checkpoint epoch: unavailable"
+    )
+    if best_checkpoint_path:
+        print(f"Best checkpoint saved at: {best_checkpoint_path}")
+    else:
+        print(
+            "Best checkpoint saved at: unavailable (ModelCheckpoint did not provide a best path)"
+        )
+    print(f"Checkpoint directory: {checkpoint_dir}")
+    print(
+        "IMPORTANT: Reported training/validation/test metrics above are CELL-LEVEL only."
+    )
+    print(
+        "Next required step: evaluate reconstructed FULL-IMAGE outputs (image-level evaluation)."
+    )
     print("Done.")
