@@ -9,11 +9,12 @@ from scipy.ndimage import find_objects
 from src.silver_truth.ensemble import utils
 import src.silver_truth.ensemble.external as ext
 import src.silver_truth.data_processing.utils.parquet_utils as p_utils
-from src.silver_truth.ensemble.datasets import Version
+
 
 class Databank_type(Enum):
-    Single = 1              # Layer0: single segmentation, Layer1: gt, Layer2: empty
-    Norm = 2                # Layer0: normalized segmentations, Layer1: gt, Layer2: raw image
+    Single = 1  # Layer0: single segmentation, Layer1: gt, Layer2: empty
+    Norm = 2  # Layer0: normalized segmentations, Layer1: gt, Layer2: raw image
+
 
 SPLIT_COL = p_utils.SPLITS_COLUMN
 
@@ -91,7 +92,7 @@ def build_analysis_databank(qa_dataset_path: str, output_path: str) -> None:
             gt_image = np.hstack((np.zeros((gt_image.shape[0], x_inc)), gt_image))
             crop_x_end += x_inc
             crop_x_start = 0
-        if gt_image.shape[0] < crop_y_end: # type: ignore
+        if gt_image.shape[0] < crop_y_end:  # type: ignore
             gt_image = np.vstack(
                 (
                     gt_image,
@@ -127,15 +128,17 @@ def build_databank(build_opt: dict, qa_dataset_path: str, output_path: str) -> s
         return build_databank_Single(build_opt, qa_dataset_path, output_path)
     elif build_opt["databank"] == Databank_type.Norm:
         return build_databank_Norm(build_opt, qa_dataset_path, output_path)
-    
+
     raise Exception("Error: Dataset version not yet supported.")
 
 
-def build_databank_Single(build_opt: dict, qa_dataset_path: str, output_path: str) -> str:
+def build_databank_Single(
+    build_opt: dict, qa_dataset_path: str, output_path: str
+) -> str:
     """
     Generate the Single databank version.
 
-    Each image has a competitor's segmentation on the first layer, the corresponding gt image on the second layer, 
+    Each image has a competitor's segmentation on the first layer, the corresponding gt image on the second layer,
     and an empty third layer.
     """
     # destination path of the created images
@@ -153,7 +156,7 @@ def build_databank_Single(build_opt: dict, qa_dataset_path: str, output_path: st
     for row in tqdm(df.itertuples(), total=len(df), desc="Processing images"):
         qa_jaccard = 0
         if build_opt["qa"]:
-            qa_jaccard = getattr(row, row.qa)   # type: ignore
+            qa_jaccard = getattr(row, row.qa)  # type: ignore
             if row.qa_threshold < qa_jaccard:
                 continue
 
@@ -200,7 +203,9 @@ def build_databank_Single(build_opt: dict, qa_dataset_path: str, output_path: st
         gt_crop = gt_image[crop_y_start:crop_y_end, crop_x_start:crop_x_end]
 
         # contains the rest of the gt segmentations, shown in blue
-        empty_blue_layer = np.zeros((build_opt["crop_size"], build_opt["crop_size"]), dtype=np.uint8)
+        empty_blue_layer = np.zeros(
+            (build_opt["crop_size"], build_opt["crop_size"]), dtype=np.uint8
+        )
         gt_crop = (gt_crop == row.label).astype(np.uint8) * 255
         stacked_crop = np.stack([seg_crop, gt_crop, empty_blue_layer], axis=0)
 
@@ -218,9 +223,10 @@ def build_databank_Single(build_opt: dict, qa_dataset_path: str, output_path: st
                 "image_path": new_img_path,
                 "gt_image": row.gt_image,
                 SPLIT_COL: getattr(row, SPLIT_COL),
-                #TODO: add jaccard?
-                #"qa_jaccard": qa_jaccard,
-            })
+                # TODO: add jaccard?
+                # "qa_jaccard": qa_jaccard,
+            }
+        )
 
     # convert list to dataframe
     output_df = pd.DataFrame(data_list)
@@ -271,7 +277,9 @@ def build_databank_Norm(build_opt: dict, qa_dataset_path: str, output_path: str)
     num_removed_segs = 0
 
     # go through the gt images
-    for gt_image_path in tqdm(unique_gt_images, total=len(unique_gt_images), desc="Iterating over gt"):
+    for gt_image_path in tqdm(
+        unique_gt_images, total=len(unique_gt_images), desc="Iterating over gt"
+    ):
         # get the competitors segmentation for the given gt image
         df_shared_gt = df[df["gt_image"] == gt_image_path]
         # load gt image
@@ -376,16 +384,42 @@ def build_databank_Norm(build_opt: dict, qa_dataset_path: str, output_path: str)
                 gt_crop_max_x += x_inc
                 gt_crop_min_x = 0
             if gt_image.shape[0] < gt_crop_max_y:
-                gt_temp = np.vstack((gt_temp, np.zeros((gt_crop_max_y - gt_temp.shape[0], gt_temp.shape[1])),))
-                raw_temp = np.vstack((raw_temp, np.zeros((gt_crop_max_y - raw_temp.shape[0], raw_temp.shape[1])),))
+                gt_temp = np.vstack(
+                    (
+                        gt_temp,
+                        np.zeros((gt_crop_max_y - gt_temp.shape[0], gt_temp.shape[1])),
+                    )
+                )
+                raw_temp = np.vstack(
+                    (
+                        raw_temp,
+                        np.zeros(
+                            (gt_crop_max_y - raw_temp.shape[0], raw_temp.shape[1])
+                        ),
+                    )
+                )
             if gt_image.shape[1] < gt_crop_max_x:
-                gt_temp = np.hstack((gt_temp, np.zeros((gt_temp.shape[0], gt_crop_max_x - gt_temp.shape[1])),))
-                raw_temp = np.hstack((raw_temp, np.zeros((raw_temp.shape[0], gt_crop_max_x - raw_temp.shape[1])),))
+                gt_temp = np.hstack(
+                    (
+                        gt_temp,
+                        np.zeros((gt_temp.shape[0], gt_crop_max_x - gt_temp.shape[1])),
+                    )
+                )
+                raw_temp = np.hstack(
+                    (
+                        raw_temp,
+                        np.zeros(
+                            (raw_temp.shape[0], gt_crop_max_x - raw_temp.shape[1])
+                        ),
+                    )
+                )
 
             gt_crop = gt_temp[gt_crop_min_y:gt_crop_max_y, gt_crop_min_x:gt_crop_max_x]
             gt_crop = (gt_crop == label).astype(np.uint8) * 255
 
-            raw_crop = raw_temp[gt_crop_min_y:gt_crop_max_y, gt_crop_min_x:gt_crop_max_x]
+            raw_crop = raw_temp[
+                gt_crop_min_y:gt_crop_max_y, gt_crop_min_x:gt_crop_max_x
+            ]
 
             # stack layers
             stacked_crop = np.stack([canvas_crop, gt_crop, raw_crop], axis=0)

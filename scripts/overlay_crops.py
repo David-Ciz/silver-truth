@@ -231,7 +231,7 @@ def parse_color_override(values: List[str] | None) -> Dict[str, Tuple[int, int, 
         parts = rgb_str.split(",")
         if len(parts) != 3:
             raise ValueError(f"Invalid RGB '{rgb_str}', expected R,G,B")
-        overrides[name] = tuple(int(p) for p in parts)
+        overrides[name] = (int(parts[0]), int(parts[1]), int(parts[2]))
     return overrides
 
 
@@ -282,7 +282,10 @@ def main() -> None:
     )
     args = parser.parse_args()
 
-    background = tuple(int(p) for p in args.background.split(","))
+    bg_parts = [int(p) for p in args.background.split(",")]
+    if len(bg_parts) != 3:
+        raise ValueError("Invalid --background format, expected R,G,B")
+    background: Tuple[int, int, int] = (bg_parts[0], bg_parts[1], bg_parts[2])
     color_overrides = parse_color_override(args.color)
     variants = [v.strip() for v in args.variants.split(",") if v.strip()]
     order = (

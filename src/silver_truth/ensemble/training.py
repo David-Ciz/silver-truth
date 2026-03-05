@@ -277,16 +277,18 @@ def run(run_params: dict, rand_seed: int = 42) -> None:
 
     mlflow.log_param("dataset_transform", transform)
 
-    is_single_input = databank_opt["dataset"] == Version.A1 or \
-                      databank_opt["dataset"] == Version.B1 or \
-                      databank_opt["dataset"] == Version.C1
+    is_single_input = (
+        databank_opt["dataset"] == Version.A1
+        or databank_opt["dataset"] == Version.B1
+        or databank_opt["dataset"] == Version.C1
+    )
 
     # get datasets
     dataset_class = get_dataset_class(databank_opt["dataset"])
     train_set = dataset_class(parquet_path, "train", transform)
     val_set = dataset_class(parquet_path, "validation")
     test_set = dataset_class(parquet_path, "test")
-    
+
     # split dataset
     # dataset_split = [0.7, 0.15, 0.15]
     # train_set, val_set, test_set = torch.utils.data.random_split(ensemble_dataset, dataset_split)
@@ -297,9 +299,12 @@ def run(run_params: dict, rand_seed: int = 42) -> None:
     batch_size = None
     if is_single_input:
         batch_size = 7
-    # dataloaders    
+    # dataloaders
     train_loader = data.DataLoader(
-        train_set, batch_size=batch_size, shuffle=True, drop_last=False#True
+        train_set,
+        batch_size=batch_size,
+        shuffle=True,
+        drop_last=False,  # True
     )
     val_loader = data.DataLoader(
         val_set, batch_size=batch_size, shuffle=False, drop_last=False

@@ -417,6 +417,7 @@ def add_stratified_split(df: pd.DataFrame, split_ratios: str) -> pd.DataFrame:
 
     return df_final
 
+
 def add_fold_split(df: pd.DataFrame, mode: str, split_ratios: str) -> pd.DataFrame:
     """
     Add 'split' column based on Fold strategy (Leave-One-Sequence-Out).

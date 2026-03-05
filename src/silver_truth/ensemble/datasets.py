@@ -2,7 +2,6 @@ from typing import Callable, Optional
 import tifffile
 from tqdm import tqdm
 from enum import Enum
-import torch
 from torch.utils.data import Dataset
 import src.silver_truth.ensemble.external as ext
 import albumentations as A
@@ -81,7 +80,6 @@ class EnsembleDatasetA1(Dataset):
             self.data.append(raw_image)
             self.gts.append(gt_image)
 
-
     def __len__(self) -> int:
         return len(self.data)
 
@@ -159,7 +157,7 @@ class EnsembleDatasetB3(Dataset):
         ensemble_parquet_path,
         split,
         transform: Optional[Callable] = None,
-        num_inputs: int = 8
+        num_inputs: int = 8,
     ) -> None:
         super().__init__()
 
@@ -188,14 +186,18 @@ class EnsembleDatasetB3(Dataset):
                 # load the image
                 composed_image = tifffile.imread(row.image_path)  # type: ignore
                 # albumentations require (H, W, C) for images
-                segmentations.append(composed_image[0].astype(dtype=np.float32) / 255)  # scale down to [0,1]
-                gt_image = (composed_image[1].astype(dtype=np.float32) / 255)  # scale down to [0,1]
+                segmentations.append(
+                    composed_image[0].astype(dtype=np.float32) / 255
+                )  # scale down to [0,1]
+                gt_image = (
+                    composed_image[1].astype(dtype=np.float32) / 255
+                )  # scale down to [0,1]
 
             if len(segmentations) > 0:
-                h,w = segmentations[0].shape
+                h, w = segmentations[0].shape
                 # add empty images to fill all input channels
                 for _ in range(num_inputs - len(segmentations)):
-                    segmentations.append(np.zeros((h,w), dtype=np.float32))
+                    segmentations.append(np.zeros((h, w), dtype=np.float32))
                 self.data.append(np.array(segmentations))
                 self.gts.append(gt_image)
 
@@ -203,11 +205,11 @@ class EnsembleDatasetB3(Dataset):
         return len(self.data)
 
     def __getitem__(self, index):
-        c,h,w = self.data[index].shape
-        data = np.reshape(self.data[index], (1,h,w,c))
+        c, h, w = self.data[index].shape
+        data = np.reshape(self.data[index], (1, h, w, c))
         augmented = self.transform(images=data, mask=self.gts[index])
         return augmented["images"], augmented["mask"].unsqueeze(-3).unsqueeze(-3)
-        
+
 
 class EnsembleDatasetC1(Dataset):
     """
@@ -311,21 +313,20 @@ class EnsembleDatasetC2(Dataset):
             raw_image = (
                 composed_image[2].astype(dtype=np.float32) / 255
             )  # scale down to [0,1]
-            self.data.append(np.array([segmentation,raw_image]))
+            self.data.append(np.array([segmentation, raw_image]))
             self.gts.append(gt_image)
-
 
     def __len__(self) -> int:
         return len(self.data)
 
     def __getitem__(self, index):
-        c,h,w = self.data[index].shape
-        data = np.reshape(self.data[index], (1,h,w,c))
+        c, h, w = self.data[index].shape
+        data = np.reshape(self.data[index], (1, h, w, c))
         augmented = self.transform(images=data, mask=self.gts[index])
         return augmented["images"], augmented["mask"].unsqueeze(-3).unsqueeze(-3)
 
-        #augmented = self.transform(image=self.data[index], mask=self.gts[index])
-        #return augmented["image"], augmented["mask"].unsqueeze(-3)
+        # augmented = self.transform(image=self.data[index], mask=self.gts[index])
+        # return augmented["image"], augmented["mask"].unsqueeze(-3)
 
 
 def benchmark_EnsembleDataset(path, epochs=1000):
