@@ -42,22 +42,22 @@ def generate_job_file(
         output_dir (str): Directory where the job file will be saved.
         tracking_marker_column (str): The column name in the parquet file that contains the tracking marker paths.
         competitor_columns (list[str]): A list of column names in the parquet file that contain competitor result paths.
-                                        If None, will use configuration file or all available competitors.
+                                        If None, will use parquet metadata, configuration file, or all available competitors.
         config_path (str): Path to the competitor configuration JSON file. If None, will auto-determine based on campaign.
     """
     df = load_dataframe_from_parquet_with_metadata(parquet_file_path)
 
     # Extract dataset name from parquet file path
+    # Handle various naming patterns: *_dataset_dataframe.parquet, *_split_mixed.parquet, *_split_fold-1.parquet, etc.
     parquet_path = os.path.basename(parquet_file_path)
-    dataset_name = parquet_path.replace("_dataset_dataframe.parquet", "")
+    import re
 
-    # Auto-determine config path if not provided
-    if config_path is None:
-        config_path = f"configs/competitor_config_campaign{campaign_number}.json"
-        print(f"Auto-selected configuration file: {config_path}")
-
-    # Load competitor configuration
-    competitor_config = load_competitor_config(config_path)
+    # Remove common suffixes to extract dataset name
+    dataset_name = re.sub(
+        r"(_dataset_dataframe|_split_mixed|_split_fold-\d+|_split)\.parquet$",
+        "",
+        parquet_path,
+    )
 
     # Filter for the specific campaign number
     filtered_df = df[df["campaign_number"] == campaign_number]
@@ -68,28 +68,43 @@ def generate_job_file(
 
     # Determine competitor columns if not provided
     if competitor_columns is None:
-        # First try to get from configuration
-        if dataset_name in competitor_config:
-            competitor_columns = competitor_config[dataset_name]
-            print(
-                f"Using configured competitors for {dataset_name}: {competitor_columns}"
-            )
+        # First try to get from parquet metadata
+        if "competitor_columns" in df.attrs and df.attrs["competitor_columns"]:
+            competitor_columns = df.attrs["competitor_columns"]
+            print(f"Using competitors from parquet metadata: {competitor_columns}")
         else:
-            # Fallback to all available competitors
-            all_columns = df.columns.tolist()
-            exclude_columns = [
-                "composite_key",
-                "gt_image",
-                "source_image",
-                tracking_marker_column,
-                "campaign_number",
-            ]
-            competitor_columns = [
-                col for col in all_columns if col not in exclude_columns
-            ]
-            print(
-                f"No configuration found for {dataset_name}, using all available competitors: {competitor_columns}"
-            )
+            # Fall back to config file
+            if config_path is None:
+                config_path = (
+                    f"configs/competitor_config_campaign{campaign_number}.json"
+                )
+                print(f"Auto-selected configuration file: {config_path}")
+
+            competitor_config = load_competitor_config(config_path)
+
+            if dataset_name in competitor_config:
+                competitor_columns = competitor_config[dataset_name]
+                print(
+                    f"Using configured competitors for {dataset_name}: {competitor_columns}"
+                )
+            else:
+                # Fallback to all available competitors
+                all_columns = df.columns.tolist()
+                exclude_columns = [
+                    "composite_key",
+                    "gt_image",
+                    "source_image",
+                    tracking_marker_column,
+                    "campaign_number",
+                    "time_frame",
+                    "split",
+                ]
+                competitor_columns = [
+                    col for col in all_columns if col not in exclude_columns
+                ]
+                print(
+                    f"No configuration found for {dataset_name}, using all available competitors: {competitor_columns}"
+                )
 
     # Validate that configured competitors exist in the dataframe
     available_competitors = [col for col in competitor_columns if col in df.columns]

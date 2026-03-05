@@ -1,85 +1,65 @@
 # QA Model Data Preparation and Splitting Strategy
 
-For the Quality Assurance (QA) model, a specific data preparation and splitting strategy is required to ensure valid, reproducible results.
+This document describes the current QA crop pipeline used in this repository.
 
-### 1. Data Preparation: From Whole Images to Cell Crops
+## 1. QA Crop Creation
 
-The QA model is trained at the cell level, not the whole-image level. A preprocessing script is used to convert the raw images and competitor segmentations into a dataset suitable for training.
+QA crops are generated from whole-image dataset dataframes using `silver-qa create-dataset`.
 
-This script performs the following steps:
-1.  It iterates through every competitor segmentation for every raw image.
-2.  For each individual cell in a segmentation, it calculates a bounding box (e.g., 64x64 pixels).
-3.  It uses this same bounding box to create two corresponding image crops: one from the **raw image** and one from the **competitor's segmentation mask**.
-4.  These two crops are **stacked into a single, 2-channel image file** and saved. This stacked image is the direct input for the QA model.
-5.  A `cell_level_dataframe.parquet` file is generated to hold the metadata for every stacked crop.
+For each cell, the pipeline writes a stacked TIFF crop with shape `(4, H, W)`:
 
-The resulting dataframe has the following structure:
+- `channel 0`: raw image crop
+- `channel 1`: competitor segmentation crop (binary mask)
+- `channel 2`: GT mask crop (binary mask)
+- `channel 3`: TRA/tracking marker crop (binary mask)
 
-| `cell_id` | `stacked_crop_path` | `original_image_key` | `competitor` | `cell_jaccard` |
-| :--- | :--- | :--- | :--- | :--- |
-| 00001 | `data/cell_crops/00001.tif` | `BF-C2DL-HSC/01` | `competitor_A` | 0.92 |
-| 00002 | `data/cell_crops/00002.tif` | `BF-C2DL-HSC/01` | `competitor_B` | 0.65 |
-| ... | ... | ... | ... | ... |
+Artifacts:
 
-### Dataflow Diagram
+- Crop images directory:
+  - `data/qa_crops/{DATASET}/sz{CROP_SIZE}/`
+- Base QA parquet (no split column):
+  - `data/dataframes/{DATASET}/qa_crops/base_sz{CROP_SIZE}_qa_dataset.parquet`
 
-```mermaid
-graph TD
-    A[Raw Images] --> C{Preprocessing Script};
-    B[Competitor Segmentations] --> C;
-    C --> D[Cell-Level Crops];
-    D --> E[2-Channel Stacked Images];
-    E --> F[cell_level_dataframe.parquet];
+## 2. Split Attachment
 
-    subgraph "Data Preparation"
-        A
-        B
-        C
-        D
-        E
-        F
-    end
+Split assignment is performed with `silver-qa attach-split`.
+It joins the base QA parquet against a whole-image dataframe (mixed/fold-1/fold-2)
+and writes a split-specific QA parquet.
 
-    G[cell_level_dataframe.parquet] --> H{Splitting Script};
-    H --> I[train/validation/test splits];
-    I --> J[cell_level_dataframe_with_splits.parquet];
+Outputs:
 
-    subgraph "Data Splitting"
-        G
-        H
-        I
-        J
-    end
+- `data/dataframes/{DATASET}/qa_crops/mixed_sz{CROP_SIZE}_qa_dataset.parquet`
+- `data/dataframes/{DATASET}/qa_crops/fold-1_sz{CROP_SIZE}_qa_dataset.parquet`
+- `data/dataframes/{DATASET}/qa_crops/fold-2_sz{CROP_SIZE}_qa_dataset.parquet`
 
-    K[cell_level_dataframe_with_splits.parquet] --> L(QA Model Training);
-    M[Stacked Crop Images] --> L;
+## 3. Label Generation (`jaccard_score`)
 
-    subgraph "Model Training"
-        K
-        M
-        L
-    end
-```
-
-### 2. Data Splitting: Ensuring No Data Leakage
-
-To create valid training, validation, and test sets, we must prevent data leakage. The golden rule is: **all cells that come from the same original source image must belong to the same split.**
-
-The splitting process is as follows:
-1.  Generate the `cell_level_dataframe.parquet` as described above.
-2.  Get a list of all unique `original_image_key` values from the dataframe.
-3.  Shuffle this list of keys using a fixed random seed.
-4.  Split the **shuffled list of keys** into training, validation, and test sets (e.g., 70%/15%/15%).
-5.  Create a new `split` column in the dataframe. Assign `'train'`, `'validation'`, or `'test'` to each cell based on which set its `original_image_key` belongs to.
-
-### 3. Data Versioning with DVC
-
-The final, split dataframe (`cell_level_dataframe_with_splits.parquet`) and the directory of stacked crop images are versioned with DVC.
+CNN training requires a regression target (usually `jaccard_score`).
+This is generated from QA crops via:
 
 ```bash
-dvc add data/cell_crops data/cell_level_dataframe_with_splits.parquet
-git add .
-git commit -m "feat: Create versioned QA dataset with splits"
+silver-evaluation calculate-evaluation-metrics-cli --mode cropped <qa_parquet>
 ```
 
-This ensures that every experiment can be rerun on the exact same data by checking out the corresponding Git commit and running `dvc pull`.
+This writes the following columns back into the same parquet:
+
+- `jaccard_score`
+- `f1_score`
+
+In the DVC pipeline, this step is now run automatically in the split QA stages.
+
+## 4. CNN Input Expectations
+
+The QA CNN model consumes exactly 2 input channels.
+
+- Default channels: `0,1` (`raw`, `segmentation`)
+- Override with:
+  - `silver-qa cnn train --input-channels "0,1" ...`
+  - `silver-qa cnn evaluate --input-channels "0,1" ...`
+
+This allows training from 4-channel crops while keeping model input fixed to two channels.
+
+Use caution when changing channels:
+
+- `channel 2` is GT and can leak target information into training.
+- `channel 3` is tracking marker information and changes the modeling assumption.

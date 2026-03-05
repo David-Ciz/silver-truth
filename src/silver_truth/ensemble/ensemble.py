@@ -1,15 +1,26 @@
 import logging
+from datetime import datetime
 import mlflow
 from silver_truth.ensemble.datasets import EnsembleDatasetC1
-from silver_truth.ensemble.databanks_builds import build_databank, Version
+import silver_truth.ensemble.databanks_builds as db_builds
 import silver_truth.ensemble.envs as envs
 import silver_truth.ensemble.external as ext
+import silver_truth.ensemble.reconstruction as reconstruction
 import silver_truth.ensemble.training as training
-from silver_truth.ensemble.model_unet import Unet
+from silver_truth.ensemble.models import SMP_Model
 import silver_truth.ensemble.utils as utils
+from silver_truth.experiment_tracking import (
+    infer_dataset_name_from_text,
+    infer_split_from_dataframe,
+    set_common_mlflow_tags,
+)
+from silver_truth.data_processing.utils.parquet_utils import same_splits
 import segmentation_models_pytorch as smp
 import torch
 import pandas as pd
+import os
+from typing import Dict, Union
+from pathlib import Path
 
 
 # Basic Logging Setup
@@ -21,31 +32,52 @@ logging.basicConfig(
 _logger = logging.getLogger(__name__)
 
 
-def build_ensemble_databanks(datasets: list[str], from_qa: bool):
-    original_dataset = "BF-C2DL-HSC"
-    dataset_dataframe_path = (
-        f"data/dataframes/{original_dataset}_dataset_dataframe.parquet"
-    )
-    qa_output_path = f"data/ensemble_data/qa/qa_images_{original_dataset}"
-    qa_parquet_path = f"data/ensemble_data/qa/qa_{original_dataset}.parquet"
-
-    # build required qa dataset
-    ext.build_qa_dataset(dataset_dataframe_path, qa_output_path, qa_parquet_path)
-    # compress images to save space
-    ext.compress_images(qa_output_path)
+def build_databank(build_opt: dict, qa_parquet_path: str) -> str:
+    """
+    Builds the Ensemble databank.
+    """
     # build ensemble dataset
-    ensemble_datasets_path = "data/ensemble_data/datasets"
-    build_databank(original_dataset, qa_parquet_path, ensemble_datasets_path)
+    ensemble_parquet_path = db_builds.build_databank(
+        build_opt, qa_parquet_path, utils.DATABANKS_DIR
+    )
+
+    # confirm that the splits are the same (cell-level only; image-level has one row per image)
+    if build_opt.get("aggregation_level", "cell") == "cell":
+        same_splits_result = same_splits(qa_parquet_path, ensemble_parquet_path)
+        print("Same splits: ", same_splits_result)
+        assert same_splits_result
+
+    return ensemble_parquet_path
 
 
+def build_analysis_databanks(
+    dataset_name: str, qa_parquet_path: str, mode: str
+) -> None:
+    """
+    Build databanks that allow data visualization.
+    Requires previous call to build_databanks().
+    Parameter <mode> can be 'all', 'crop' or 'full'.
+    """
+    if mode == "all" or mode == "crop":
+        db_builds.build_analysis_databank(
+            qa_parquet_path, f"data/ensemble_data/qa/qa_{dataset_name}_viz"
+        )
+    if mode == "all" or mode == "full":
+        db_builds.build_analysis_databank_full(
+            qa_parquet_path, f"data/ensemble_data/qa/qa_{dataset_name}_vizfull"
+        )
+
+
+"""
 def build_databanks(datasets: list[str]):
     # build origin databanks
-    # qa
-    # non-qa (copy most code from silver_truth.qa)
+        # qa
+        # non-qa (copy most code from qa)
     # build ensemble databanks
-    # qa
-    # non-qa
+        # qa
+        # non-qa
     pass
+"""
 
 
 def _set_mlflow_experiment(name: str) -> None:
@@ -60,26 +92,63 @@ def _set_mlflow_experiment(name: str) -> None:
         mlflow.set_experiment(name)
 
 
-def run_experiment(name: str, parquet_file: str, run_sequence: list[dict]):
+def run_experiment(
+    name: str, databank_name: str, parquet_file: str, run_sequence: list[dict]
+):
     "Entry point for new Ensemble experiment."
 
     _set_mlflow_experiment(name)
 
     # TODO: prepare here database loading because lots of models use the same
     #      add parameter to pass train and val datasets
+    dataset_tag = infer_dataset_name_from_text([parquet_file, databank_name])
+    split_tag = "unknown"
+    try:
+        split_df = pd.read_parquet(parquet_file, columns=["split"])
+        split_tag = infer_split_from_dataframe(split_df)
+    except Exception:
+        pass
 
-    for run_params in run_sequence:
-        try:
-            # start mlflow run
-            with mlflow.start_run() as mlflow_run:
-                run_id = mlflow_run.info.run_id
-                _logger.info(
-                    f'MLflow experiment "{name}": a run started with ID "{run_id}".'
-                )
-                training.run(run_params, parquet_file)
-        except Exception as ex:
-            print(f"Error during Ensemble experiment: {ex}")
-            mlflow.set_tag("status", "failed")
+    parent_run_name = (
+        f"{name}_{dataset_tag}_{split_tag}_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+    )
+    with mlflow.start_run(run_name=parent_run_name) as parent_run:
+        set_common_mlflow_tags(dataset=dataset_tag, split=split_tag)
+        mlflow.set_tag("run_kind", "experiment_parent")
+        mlflow.set_tag("parent_scope", "dataset_split")
+        mlflow.log_params(
+            {
+                "databank_name": databank_name,
+                "parquet_file": parquet_file,
+                "run_count": len(run_sequence),
+            }
+        )
+        _logger.info(
+            'MLflow experiment "%s": parent run started with ID "%s".',
+            name,
+            parent_run.info.run_id,
+        )
+
+        for run_index, run_params in enumerate(run_sequence, start=1):
+            child_name = f"attempt_{run_index}"
+            model_type = run_params.get("model_type")
+            if model_type is not None:
+                child_name = f"{child_name}_{model_type}"
+
+            try:
+                with mlflow.start_run(run_name=child_name, nested=True) as mlflow_run:
+                    set_common_mlflow_tags(dataset=dataset_tag, split=split_tag)
+                    mlflow.set_tag("run_kind", "model_run")
+                    run_id = mlflow_run.info.run_id
+                    _logger.info(
+                        'MLflow experiment "%s": child run started with ID "%s".',
+                        name,
+                        run_id,
+                    )
+                    training.run(databank_name, run_params, parquet_file)
+            except Exception as ex:
+                print(f"Error during Ensemble experiment: {ex}")
+                mlflow.set_tag("status", "failed")
 
 
 def find_best_ensemble(models_path, val_set):
@@ -96,19 +165,35 @@ def _get_eval_sets(dataset):
     return torch.stack(imgs, dim=0), torch.stack(gts, dim=0)
 
 
-def generate_evaluation(model_path: str, dataset_path: str) -> str:
+def generate_evaluation(
+    model_path: str, databank_path: str, split_type: str = "test"
+) -> str:
     """
-    Generate a parquet file with the evaluation of the given model checkpoint against the test set of the given dataset.
+    Generate a parquet file with the evaluation of the given model checkpoint against the given set of a databank.
+    If split_type is "all", it creates a copy of the parquet file with the metrics added.
     """
 
     # load model
     # TODO: what about if it's other models
-    model = Unet.load_from_checkpoint(model_path, device=utils.get_device())
+    # torch.serialization.add_safe_globals([ModelType])
+    model = SMP_Model.load_from_checkpoint(
+        model_path, device=utils.get_device(), weights_only=False
+    )
 
-    # load test set
+    model_dir = os.path.dirname(model_path)
+    model_name = os.path.basename(model_path).split(".ckpt")[0]
+    dataset_name = os.path.basename(databank_path).split(".parquet")[0]
+    output_parquet_path = os.path.join(
+        model_dir, f"{dataset_name}_{model_name}_set-{split_type}.parquet"
+    )
+    cell_level_output_parquet_path = os.path.join(
+        model_dir, f"{dataset_name}_{model_name}_set-{split_type}_cell.parquet"
+    )
+
+    # load dataset
     # TODO: what if it's other dataset?
-    test_dataset = EnsembleDatasetC1(dataset_path, "test")
-    input_set, target_set = _get_eval_sets(test_dataset)
+    dataset = EnsembleDatasetC1(databank_path, split_type)
+    input_set, target_set = _get_eval_sets(dataset)
     input_set = input_set.to(model.device)
     target_set = target_set.to(model.device)
 
@@ -119,7 +204,7 @@ def generate_evaluation(model_path: str, dataset_path: str) -> str:
 
     # calculate metrics
     tp, fp, fn, tn = smp.metrics.get_stats(
-        reconst_imgs.long(), target_set.long(), mode="binary", threshold=0.5
+        reconst_imgs, target_set.long(), mode="binary", threshold=0.5
     )  # type: ignore
     iou = smp.metrics.iou_score(tp, fp, fn, tn)
     f1 = smp.metrics.f1_score(tp, fp, fn, tn)
@@ -129,44 +214,82 @@ def generate_evaluation(model_path: str, dataset_path: str) -> str:
     # create dataframe
     data_list = []
     # load dataframe
-    df = ext.load_parquet(dataset_path)
-    df = df[df["split"] == "test"]
+    df = ext.load_parquet(databank_path)
+    if split_type != "all":
+        df = df[df["split"] == split_type]
+        for index, row in enumerate(df.itertuples()):
+            data_list.append(
+                {
+                    "image_path": row.image_path,
+                    "tp": tp[index].item(),
+                    "fp": fp[index].item(),
+                    "fn": fn[index].item(),
+                    "tn": tn[index].item(),
+                    "iou": iou[index].item(),
+                    "f1": f1[index].item(),
+                }
+            )
+        cell_level_df = pd.DataFrame(data_list)
+        cell_level_df.to_parquet(cell_level_output_parquet_path)
 
-    for index, row in enumerate(df.itertuples()):
-        data_list.append(
-            {
-                "image_path": row.image_path,
-                "tp": tp[index].item(),
-                "fp": fp[index].item(),
-                "fn": fn[index].item(),
-                "tn": tn[index].item(),
-                "iou": iou[index].item(),
-                "f1": f1[index].item(),
-            }
-        )
+        # For cell-level databanks with reconstruction metadata, evaluate after
+        # placing predicted crops back into full-image coordinates.
+        if reconstruction.has_reconstruction_metadata(df):
+            reconstructed_dir = os.path.join(
+                model_dir, f"{dataset_name}_{model_name}_set-{split_type}_reconstructed"
+            )
+            reconstructed_eval_df = reconstruction.reconstruct_full_images_from_arrays(
+                databank_df=df.reset_index(drop=True),
+                predicted_crops=list(reconst_imgs),
+                output_dir=Path(reconstructed_dir),
+                threshold=0.5,
+            )
+            if len(reconstructed_eval_df) > 0:
+                reconstructed_eval_df.to_parquet(output_parquet_path)
+            else:
+                # Fallback to cell-level metrics if reconstruction produced no rows.
+                cell_level_df.to_parquet(output_parquet_path)
+        else:
+            cell_level_df.to_parquet(output_parquet_path)
 
-    # save results
-    # TODO: improme naming
-    output_parquet_path = (
-        model_path[:-4] + "parquet"
-    )  # remove "ckpt" filetype and add "parquet"
-    output_df = pd.DataFrame(data_list)
-    output_df.to_parquet(output_parquet_path)
+    else:  # add metric to a copy of the input parquet file
+        df[model_name + "_iou"] = iou.detach().cpu().numpy()
+        df[model_name + "_f1"] = f1.detach().cpu().numpy()
+        df.to_parquet(output_parquet_path)
+
     return output_parquet_path
 
 
-def build_required_datasets_DEPRECATED(ensemble_dataset_version=Version.C1):
-    original_dataset = "BF-C2DL-HSC"
-    dataset_dataframe_path = (
-        f"data/dataframes/{original_dataset}_dataset_dataframe.parquet"
-    )
-    qa_output_path = f"data/ensemble_data/qa/qa_images_{original_dataset}"
-    qa_parquet_path = f"data/ensemble_data/qa/qa_{original_dataset}.parquet"
+def evaluate_checkpoint(
+    model_path: str, databank_path: str, split_type: str = "test"
+) -> Dict[str, Union[float, int, str]]:
+    """
+    Run inference for a checkpoint on a databank split and return aggregated metrics.
+    """
+    output_parquet_path = generate_evaluation(model_path, databank_path, split_type)
+    output_df = pd.read_parquet(output_parquet_path)
 
-    # build required qa dataset
-    ext.build_qa_dataset(dataset_dataframe_path, qa_output_path, qa_parquet_path)
-    # compress images to save space
-    ext.compress_images(qa_output_path)
-    # build ensemble dataset
-    ensemble_datasets_path = "data/ensemble_data/datasets"
-    # build_dataset(qa_parquet_path, ensemble_datasets_path, ensemble_dataset_version)
+    if split_type == "all":
+        model_name = os.path.basename(model_path).split(".ckpt")[0]
+        iou_col = f"{model_name}_iou"
+        f1_col = f"{model_name}_f1"
+    else:
+        iou_col = "iou"
+        f1_col = "f1"
+
+    if len(output_df) == 0:
+        return {
+            "output_parquet_path": output_parquet_path,
+            "split": split_type,
+            "count": 0,
+            "iou_mean": float("nan"),
+            "f1_mean": float("nan"),
+        }
+
+    return {
+        "output_parquet_path": output_parquet_path,
+        "split": split_type,
+        "count": int(len(output_df)),
+        "iou_mean": float(output_df[iou_col].mean()),
+        "f1_mean": float(output_df[f1_col].mean()),
+    }
