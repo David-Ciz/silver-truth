@@ -9,7 +9,10 @@ from typing import Iterable, Optional
 import mlflow
 import pandas as pd
 
-DEFAULT_MLFLOW_TRACKING_URI = "data/mlflow/mlruns"
+# Anchor to the project root (two levels up from this file: src/silver_truth → project root)
+# so the path resolves correctly regardless of the working directory.
+_PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
+DEFAULT_MLFLOW_TRACKING_URI = str(_PROJECT_ROOT / "data" / "mlflow" / "mlruns")
 
 
 def _run_command(command: list[str], cwd: Optional[Path] = None) -> Optional[str]:
@@ -99,3 +102,45 @@ def set_common_mlflow_tags(
             if value is None:
                 continue
             mlflow.set_tag(key, str(value))
+
+
+def set_ablation_tags(
+    dataset: str,
+    fold: str,
+    phase: str,
+    step: str,
+    variant: str,
+    ablation_mode: Optional[str] = None,
+    qa_threshold: Optional[float] = None,
+    repo_root: Optional[Path] = None,
+) -> None:
+    """
+    Set standardised MLflow tags for ablation experiment runs.
+
+    Naming convention for the MLflow experiment (set *before* starting the run):
+        ``{phase}-{dataset}-{variant}-{fold}``
+        e.g. ``phaseC-BF-C2DL-HSC-baseline-fold1``
+
+    Every run tagged this way is filterable by any axis in the MLflow Compare Runs UI.
+
+    Parameters
+    ----------
+    dataset:       dataset name, e.g. ``BF-C2DL-HSC``
+    fold:          fold identifier, e.g. ``fold-1``
+    phase:         pipeline phase, e.g. ``phaseA``, ``phaseB``, ``phaseC``
+    step:          step name within the phase, e.g. ``competitor_baseline``, ``qa_train``
+    variant:       experiment variant name, e.g. ``baseline``, ``resnet18_qa``
+    ablation_mode: ablation mode for Phase C steps, e.g. ``full_pipeline``, ``qa_only``
+    qa_threshold:  QA filter threshold if applicable
+    repo_root:     project root for git/dvc commit resolution
+    """
+    mlflow.set_tag("dataset", dataset)
+    mlflow.set_tag("fold", fold)
+    mlflow.set_tag("phase", phase)
+    mlflow.set_tag("step", step)
+    mlflow.set_tag("variant", variant)
+    mlflow.set_tag("dvc_commit", get_dvc_commit(repo_root))
+    if ablation_mode is not None:
+        mlflow.set_tag("ablation_mode", ablation_mode)
+    if qa_threshold is not None:
+        mlflow.set_tag("qa_threshold", str(qa_threshold))

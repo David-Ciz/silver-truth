@@ -19,7 +19,7 @@ import segmentation_models_pytorch as smp
 import torch
 import pandas as pd
 import os
-from typing import Dict, Union
+from typing import Dict, Optional, Union
 from pathlib import Path
 
 
@@ -32,14 +32,22 @@ logging.basicConfig(
 _logger = logging.getLogger(__name__)
 
 
-def build_databank(build_opt: dict, qa_parquet_path: str) -> str:
+def build_databank(
+    build_opt: dict, qa_parquet_path: str, output_dir: Optional[str] = None
+) -> str:
     """
     Builds the Ensemble databank.
+
+    Parameters
+    ----------
+    output_dir : str, optional
+        Override the default output directory (``utils.DATABANKS_DIR``).  Useful
+        when building multiple databanks from different filtered parquets so they
+        don't overwrite each other.
     """
+    dest = output_dir if output_dir is not None else utils.DATABANKS_DIR
     # build ensemble dataset
-    ensemble_parquet_path = db_builds.build_databank(
-        build_opt, qa_parquet_path, utils.DATABANKS_DIR
-    )
+    ensemble_parquet_path = db_builds.build_databank(build_opt, qa_parquet_path, dest)
 
     # confirm that the splits are the same (cell-level only; image-level has one row per image)
     if build_opt.get("aggregation_level", "cell") == "cell":
@@ -84,23 +92,24 @@ def _set_mlflow_experiment(name: str) -> None:
     mlflow.set_tracking_uri(
         envs.mlflow_mlruns_path
     )  # needs to be set before mlflow.get_experiment_by_name()
-    # find mlflow experiment
+    # find or create mlflow experiment, then always set it as active
     experiment = mlflow.get_experiment_by_name(name)
     if experiment is None:
         mlflow.create_experiment(name, envs.mlflow_mlruns_path)
-    else:
-        mlflow.set_experiment(name)
+    mlflow.set_experiment(name)
 
 
 def run_experiment(
-    name: str, databank_name: str, parquet_file: str, run_sequence: list[dict]
+    name: str,
+    databank_name: str,
+    parquet_file: str,
+    run_sequence: list[dict],
+    checkpoints_dir: Optional[str] = None,
 ):
     "Entry point for new Ensemble experiment."
 
     _set_mlflow_experiment(name)
 
-    # TODO: prepare here database loading because lots of models use the same
-    #      add parameter to pass train and val datasets
     dataset_tag = infer_dataset_name_from_text([parquet_file, databank_name])
     split_tag = "unknown"
     try:
@@ -123,6 +132,8 @@ def run_experiment(
                 "run_count": len(run_sequence),
             }
         )
+        if checkpoints_dir is not None:
+            mlflow.log_param("checkpoints_dir", checkpoints_dir)
         _logger.info(
             'MLflow experiment "%s": parent run started with ID "%s".',
             name,
@@ -145,7 +156,11 @@ def run_experiment(
                         name,
                         run_id,
                     )
-                    training.run(databank_name, run_params, parquet_file)
+                    # Merge checkpoints_dir into run_params so training.run can use it.
+                    effective_params = dict(run_params)
+                    if checkpoints_dir is not None:
+                        effective_params["checkpoints_dir"] = checkpoints_dir
+                    training.run(effective_params, parquet_file)
             except Exception as ex:
                 print(f"Error during Ensemble experiment: {ex}")
                 mlflow.set_tag("status", "failed")
@@ -166,11 +181,20 @@ def _get_eval_sets(dataset):
 
 
 def generate_evaluation(
-    model_path: str, databank_path: str, split_type: str = "test"
+    model_path: str,
+    databank_path: str,
+    split_type: str = "test",
+    output_dir: Optional[str] = None,
 ) -> str:
     """
     Generate a parquet file with the evaluation of the given model checkpoint against the given set of a databank.
     If split_type is "all", it creates a copy of the parquet file with the metrics added.
+
+    Parameters
+    ----------
+    output_dir : str, optional
+        Directory to write evaluation parquets into.  Defaults to the directory
+        containing the checkpoint file.
     """
 
     # load model
@@ -180,7 +204,8 @@ def generate_evaluation(
         model_path, device=utils.get_device(), weights_only=False
     )
 
-    model_dir = os.path.dirname(model_path)
+    model_dir = output_dir if output_dir is not None else os.path.dirname(model_path)
+    os.makedirs(model_dir, exist_ok=True)
     model_name = os.path.basename(model_path).split(".ckpt")[0]
     dataset_name = os.path.basename(databank_path).split(".parquet")[0]
     output_parquet_path = os.path.join(
@@ -261,12 +286,17 @@ def generate_evaluation(
 
 
 def evaluate_checkpoint(
-    model_path: str, databank_path: str, split_type: str = "test"
+    model_path: str,
+    databank_path: str,
+    split_type: str = "test",
+    output_dir: Optional[str] = None,
 ) -> Dict[str, Union[float, int, str]]:
     """
     Run inference for a checkpoint on a databank split and return aggregated metrics.
     """
-    output_parquet_path = generate_evaluation(model_path, databank_path, split_type)
+    output_parquet_path = generate_evaluation(
+        model_path, databank_path, split_type, output_dir=output_dir
+    )
     output_df = pd.read_parquet(output_parquet_path)
 
     if split_type == "all":

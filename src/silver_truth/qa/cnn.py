@@ -22,6 +22,15 @@ import numpy as np
 from pathlib import Path
 import random
 import mlflow
+import pytorch_lightning as pl
+from pytorch_lightning.callbacks import (
+    ModelCheckpoint,
+    EarlyStopping,
+    LearningRateMonitor,
+)
+from pytorch_lightning.loggers import MLFlowLogger
+import torchmetrics
+from tqdm import tqdm
 from typing import Optional, Sequence
 
 from silver_truth.metrics.qa_model_evaluation import (
@@ -39,7 +48,6 @@ def set_seed(seed: int):
     if torch.cuda.is_available():
         torch.cuda.manual_seed(seed)
         torch.cuda.manual_seed_all(seed)
-    # For deterministic behavior (may slow down training)
     torch.backends.cudnn.deterministic = True
     torch.backends.cudnn.benchmark = False
 
@@ -62,7 +70,6 @@ class JaccardDataset(Dataset):
         input_channels: Optional[Sequence[int] | str] = None,
     ):
         self.data = pd.read_parquet(parquet_file)
-        # If data_root is provided, convert to Path, else None
         self.data_root = Path(data_root) if data_root else None
         self.transform = transform
         self.augment = augment
@@ -120,10 +127,8 @@ class JaccardDataset(Dataset):
 
     def __getitem__(self, idx):
         row = self.data.iloc[idx]
-        # This is the relative path from the parquet, e.g., "data/qa_data/BF-C2DL-HSC_crops_64/xxx.tif"
         rel_path = row["stacked_path"]
 
-        # If data_root is provided (e.g., on HPC scratch), prepend it to the relative path
         if self.data_root:
             image_path = self.data_root / rel_path
         else:
@@ -131,15 +136,11 @@ class JaccardDataset(Dataset):
 
         jaccard = row[self.target_column]
 
-        # Read the stacked TIFF with tifffile (PIL doesn't handle multi-frame TIFFs correctly).
-        # QA crops can be 2-channel (raw, seg) or 4-channel (raw, seg, gt, tra).
         img_np = tifffile.imread(image_path)
 
         if img_np.ndim == 2:
-            # Single-channel fallback (mostly for synthetic testing).
             img_np = np.stack([img_np, img_np], axis=0)
         elif img_np.ndim == 3:
-            # Accept both CHW and HWC layouts.
             if img_np.shape[0] <= 8:
                 pass  # already CHW
             elif img_np.shape[-1] <= 8:
@@ -163,21 +164,15 @@ class JaccardDataset(Dataset):
 
         img_np = img_np[list(self.input_channels), :, :]
 
-        # Apply augmentation if enabled (for training)
         if self.augment:
-            # Random horizontal flip
             if random.random() > 0.5:
-                img_np = np.flip(img_np, axis=2).copy()  # flip along W axis
-            # Random vertical flip
+                img_np = np.flip(img_np, axis=2).copy()
             if random.random() > 0.5:
-                img_np = np.flip(img_np, axis=1).copy()  # flip along H axis
-            # Random 90-degree rotations
-            k = random.randint(0, 3)  # 0, 90, 180, or 270 degrees
+                img_np = np.flip(img_np, axis=1).copy()
+            k = random.randint(0, 3)
             if k > 0:
                 img_np = np.rot90(img_np, k, axes=(1, 2)).copy()
 
-        # Normalize to [0, 1] range
-        # Images are uint8 (0-255)
         img_np = img_np.astype(np.float32) / 255.0
 
         image = torch.from_numpy(img_np)
@@ -187,7 +182,10 @@ class JaccardDataset(Dataset):
         return image, torch.tensor(jaccard, dtype=torch.float32)
 
 
-# Define the model
+# ---------------------------------------------------------------------------
+# Backbone / head
+# ---------------------------------------------------------------------------
+
 class Jaccard(nn.Module):
     def __init__(self, dropout_rate=0.3, model_type="resnet50"):
         super(Jaccard, self).__init__()
@@ -228,14 +226,13 @@ class Jaccard(nn.Module):
         else:
             raise ValueError(f"Unsupported model_type: {model_type}")
 
-        # Adjust first conv layer for 2 channels
         if "resnet" in model_type:
             self.model.conv1 = nn.Conv2d(
                 2, 64, kernel_size=7, stride=2, padding=3, bias=False
             )
 
         self.dropout = nn.Dropout(p=dropout_rate)
-        self.fc = nn.Linear(in_features, 1)  # Regression output
+        self.fc = nn.Linear(in_features, 1)
 
     def forward(self, x):
         x = self.model(x)
@@ -243,6 +240,81 @@ class Jaccard(nn.Module):
         x = self.fc(x)
         return x
 
+
+# ---------------------------------------------------------------------------
+# PyTorch Lightning module
+# ---------------------------------------------------------------------------
+
+class JaccardLightningModule(pl.LightningModule):
+    """LightningModule wrapping the Jaccard backbone for regression training."""
+
+    def __init__(
+        self,
+        model_type: str = "resnet50",
+        dropout_rate: float = 0.3,
+        learning_rate: float = 1e-4,
+        weight_decay: float = 1e-4,
+        grad_clip: float = 1.0,
+    ):
+        super().__init__()
+        self.save_hyperparameters()
+
+        self.model = Jaccard(dropout_rate=dropout_rate, model_type=model_type)
+        self.criterion = nn.MSELoss()
+
+        # torchmetrics — reset per epoch automatically
+        self.val_mae = torchmetrics.MeanAbsoluteError()
+        self.val_r2 = torchmetrics.R2Score()
+
+    # ------------------------------------------------------------------
+    def forward(self, x):
+        return self.model(x)
+
+    # ------------------------------------------------------------------
+    def _shared_step(self, batch):
+        images, targets = batch
+        preds = self(images).squeeze(dim=1)
+        loss = self.criterion(preds, targets)
+        return loss, preds, targets
+
+    def training_step(self, batch, batch_idx):
+        loss, _, _ = self._shared_step(batch)
+        self.log("train_loss", loss, on_step=False, on_epoch=True, prog_bar=True)
+        return loss
+
+    def validation_step(self, batch, batch_idx):
+        loss, preds, targets = self._shared_step(batch)
+        self.val_mae.update(preds, targets)
+        self.val_r2.update(preds, targets)
+        self.log("val_loss", loss, on_step=False, on_epoch=True, prog_bar=True)
+        return loss
+
+    def on_validation_epoch_end(self):
+        self.log("val_mae", self.val_mae.compute(), prog_bar=True)
+        self.log("val_r2", self.val_r2.compute(), prog_bar=True)
+        self.val_mae.reset()
+        self.val_r2.reset()
+
+    # ------------------------------------------------------------------
+    def configure_optimizers(self):
+        optimizer = torch.optim.Adam(
+            self.parameters(),
+            lr=self.hparams.learning_rate,
+            weight_decay=self.hparams.weight_decay,
+        )
+        scheduler = ReduceLROnPlateau(optimizer, mode="min", factor=0.5, patience=5)
+        return {
+            "optimizer": optimizer,
+            "lr_scheduler": {
+                "scheduler": scheduler,
+                "monitor": "val_loss",
+            },
+        }
+
+
+# ---------------------------------------------------------------------------
+# Transforms
+# ---------------------------------------------------------------------------
 
 def tensor_normalize(tensor, mean, std):
     """Normalize tensor with given mean and std."""
@@ -268,54 +340,16 @@ def get_transform():
     return NormalizeTransform()
 
 
-def train_epoch(model, dataloader, criterion, optimizer, device, max_grad_norm=1.0):
-    """Train the model for one epoch."""
-    model.train()
-    running_loss = 0.0
-
-    for images, targets in dataloader:
-        images, targets = images.to(device), targets.to(device)
-
-        optimizer.zero_grad()
-        outputs = model(images)
-        loss = criterion(outputs.squeeze(dim=1), targets)
-        loss.backward()
-
-        # Gradient clipping to prevent exploding gradients
-        if max_grad_norm > 0:
-            torch.nn.utils.clip_grad_norm_(model.parameters(), max_grad_norm)
-
-        optimizer.step()
-
-        running_loss += loss.item() * images.size(0)
-
-    return running_loss / len(dataloader.dataset)
-
-
-def validate_epoch(model, dataloader, criterion, device):
-    """Evaluate the model on validation set."""
-    model.eval()
-    running_loss = 0.0
-
-    with torch.no_grad():
-        for images, targets in dataloader:
-            images, targets = images.to(device), targets.to(device)
-            outputs = model(images)
-            loss = criterion(outputs.squeeze(), targets)
-            running_loss += loss.item() * images.size(0)
-
-    return running_loss / len(dataloader.dataset)
-
+# ---------------------------------------------------------------------------
+# Helpers kept for evaluate() / _run_evaluation()
+# ---------------------------------------------------------------------------
 
 def evaluate_model_with_ids(model, dataset, indices, batch_size, device):
     """
     Evaluate model and return predictions, actuals, and cell_ids.
 
-    This function creates a non-shuffled dataloader to ensure correct
-    alignment between predictions and cell_ids.
-
     Args:
-        model: The trained model
+        model: The trained model (nn.Module or LightningModule)
         dataset: The full JaccardDataset
         indices: List of indices for this split
         batch_size: Batch size for evaluation
@@ -324,7 +358,9 @@ def evaluate_model_with_ids(model, dataset, indices, batch_size, device):
     Returns:
         Tuple of (predictions, actuals, cell_ids)
     """
-    model.eval()
+    # Unwrap LightningModule if needed
+    nn_model = model.model if isinstance(model, JaccardLightningModule) else model
+    nn_model.eval()
     predictions = []
     actuals = []
     cell_ids = []
@@ -335,11 +371,10 @@ def evaluate_model_with_ids(model, dataset, indices, batch_size, device):
     with torch.no_grad():
         for batch_idx, (images, targets) in enumerate(eval_loader):
             images, targets = images.to(device), targets.to(device)
-            outputs = model(images)
+            outputs = nn_model(images)
             predictions.extend(outputs.squeeze(dim=1).cpu().numpy())
             actuals.extend(targets.cpu().numpy())
 
-            # Get cell_ids for this batch - correctly aligned since shuffle=False
             current_batch_size = images.shape[0]
             start_idx = batch_idx * batch_size
             end_idx = start_idx + current_batch_size
@@ -355,11 +390,12 @@ def save_model(model, path, metadata=None):
     Save the model checkpoint with optional metadata.
 
     Args:
-        model: The model to save
+        model: The model to save (nn.Module or LightningModule)
         path: Path to save the checkpoint
-        metadata: Optional dict with training metadata (epochs, lr, etc.)
+        metadata: Optional dict with training metadata
     """
-    checkpoint = {"model_state_dict": model.state_dict(), "metadata": metadata or {}}
+    nn_model = model.model if isinstance(model, JaccardLightningModule) else model
+    checkpoint = {"model_state_dict": nn_model.state_dict(), "metadata": metadata or {}}
     torch.save(checkpoint, path)
     print(f"Model saved to {path}")
 
@@ -378,7 +414,6 @@ def load_model(path, device):
     checkpoint = torch.load(path, map_location=device)
     metadata = checkpoint.get("metadata", {})
 
-    # Get model parameters from metadata (with defaults for backward compatibility)
     dropout_rate = metadata.get("dropout_rate", 0.3)
     model_type = metadata.get("model_type", "resnet50")
 
@@ -416,6 +451,10 @@ def get_split_indices(dataset):
     return train_indices, val_indices, test_indices
 
 
+# ---------------------------------------------------------------------------
+# Public API
+# ---------------------------------------------------------------------------
+
 def train(
     parquet_file,
     data_root=None,
@@ -438,20 +477,14 @@ def train(
     mlflow_experiment="cnn-jaccard",
     mlflow_run_name=None,
 ):
-    """Train the CNN model for Jaccard index prediction."""
-    # Set seed for reproducibility
+    """Train the CNN model for Jaccard index prediction using PyTorch Lightning."""
     set_seed(seed)
+    pl.seed_everything(seed, workers=True)
     print(f"Random seed: {seed}")
 
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    print(f"Using device: {device}")
-
-    # Setup MLflow
-    if mlflow_tracking_uri:
-        mlflow.set_tracking_uri(mlflow_tracking_uri)
-    mlflow.set_experiment(mlflow_experiment)
-
-    # Training dataset with augmentation
+    # ------------------------------------------------------------------
+    # Datasets
+    # ------------------------------------------------------------------
     train_dataset = JaccardDataset(
         parquet_file,
         data_root=data_root,
@@ -460,7 +493,6 @@ def train(
         target_column=target_column,
         input_channels=input_channels,
     )
-    # Validation/test dataset without augmentation
     eval_dataset = JaccardDataset(
         parquet_file,
         data_root=data_root,
@@ -474,168 +506,156 @@ def train(
     print(f"Using input channels: {train_dataset.input_channels}")
 
     train_indices, val_indices, test_indices = get_split_indices(train_dataset)
-
     print(
         f"Dataset splits - Train: {len(train_indices)}, Val: {len(val_indices)}, Test: {len(test_indices)}"
     )
     print(f"Data augmentation: {'enabled' if augment else 'disabled'}")
 
-    # DataLoaders
-    train_data = Subset(train_dataset, train_indices)
     train_loader = DataLoader(
-        train_data,
+        Subset(train_dataset, train_indices),
         batch_size=batch_size,
         shuffle=True,
         num_workers=num_workers,
-        pin_memory=True if device.type == "cuda" else False,
+        pin_memory=True,
     )
-
-    val_data = Subset(eval_dataset, val_indices)
     val_loader = DataLoader(
-        val_data,
+        Subset(eval_dataset, val_indices),
         batch_size=batch_size,
         shuffle=False,
         num_workers=num_workers,
-        pin_memory=True if device.type == "cuda" else False,
+        pin_memory=True,
     )
 
-    # Model, criterion, optimizer
-    model = Jaccard(dropout_rate=dropout_rate, model_type=model_type).to(device)
+    # ------------------------------------------------------------------
+    # LightningModule
+    # ------------------------------------------------------------------
+    lightning_model = JaccardLightningModule(
+        model_type=model_type,
+        dropout_rate=dropout_rate,
+        learning_rate=learning_rate,
+        weight_decay=weight_decay,
+        grad_clip=grad_clip,
+    )
     print(f"Using model: {model_type}")
-    criterion = nn.MSELoss()
-    optimizer = torch.optim.Adam(
-        model.parameters(), lr=learning_rate, weight_decay=weight_decay
+
+    # ------------------------------------------------------------------
+    # Logger + callbacks
+    # ------------------------------------------------------------------
+    mlf_logger = MLFlowLogger(
+        experiment_name=mlflow_experiment,
+        run_name=mlflow_run_name,
+        tracking_uri=mlflow_tracking_uri,
+        log_model=False,  # we handle model saving ourselves
     )
 
-    # Learning rate scheduler
-    scheduler = ReduceLROnPlateau(optimizer, mode="min", factor=0.5, patience=5)
-
-    # Early stopping setup
-    best_val_loss = float("inf")
-    best_model_state = None
-    epochs_without_improvement = 0
-    last_lr = learning_rate
-    final_epoch = 0
-
-    # Start MLflow run
-    with mlflow.start_run(run_name=mlflow_run_name):
-        # Log hyperparameters
-        mlflow.log_params(
-            {
-                "batch_size": batch_size,
-                "learning_rate": learning_rate,
-                "num_epochs": num_epochs,
-                "weight_decay": weight_decay,
-                "dropout_rate": dropout_rate,
-                "patience": patience,
-                "augment": augment,
-                "seed": seed,
-                "num_workers": num_workers,
-                "grad_clip": grad_clip,
-                "model_type": model_type,
-                "train_samples": len(train_indices),
-                "val_samples": len(val_indices),
-                "test_samples": len(test_indices),
-                "parquet_file": str(parquet_file),
-                "target_column": str(train_dataset.target_column),
-                "input_channels": ",".join(
-                    str(channel) for channel in train_dataset.input_channels
-                ),
-                "device": str(device),
-            }
-        )
-
-        # Training loop
-        print(f"\nStarting training for {num_epochs} epochs...")
-        print(
-            f"Weight decay: {weight_decay}, Dropout: {dropout_rate}, Early stopping patience: {patience}"
-        )
-
-        for epoch in range(num_epochs):
-            train_loss = train_epoch(
-                model, train_loader, criterion, optimizer, device, grad_clip
-            )
-            val_loss = validate_epoch(model, val_loader, criterion, device)
-
-            # Update scheduler
-            scheduler.step(val_loss)
-            current_lr = optimizer.param_groups[0]["lr"]
-
-            # Log metrics to MLflow
-            mlflow.log_metrics(
-                {
-                    "train_loss": train_loss,
-                    "val_loss": val_loss,
-                    "learning_rate": current_lr,
-                },
-                step=epoch,
-            )
-
-            print(
-                f"Epoch {epoch+1}/{num_epochs}, Train Loss: {train_loss:.4f}, Val Loss: {val_loss:.4f}, LR: {current_lr:.2e}"
-            )
-
-            # Log if LR changed
-            if current_lr != last_lr:
-                print(f"  -> Learning rate reduced to {current_lr:.2e}")
-                last_lr = current_lr
-
-            # Early stopping check
-            if val_loss < best_val_loss:
-                best_val_loss = val_loss
-                best_model_state = model.state_dict().copy()
-                epochs_without_improvement = 0
-                print("  -> New best validation loss!")
-            else:
-                epochs_without_improvement += 1
-
-            final_epoch = epoch + 1
-
-            if patience > 0 and epochs_without_improvement >= patience:
-                print(f"\nEarly stopping triggered after {epoch+1} epochs")
-                break
-
-        # Load best model state
-        if best_model_state is not None:
-            model.load_state_dict(best_model_state)
-            print(f"Restored best model with validation loss: {best_val_loss:.4f}")
-
-        # Log final metrics
-        mlflow.log_metrics(
-            {
-                "best_val_loss": best_val_loss,
-                "final_epoch": final_epoch,
-            }
-        )
-
-        # Save model
-        metadata = {
-            "parquet_file": str(parquet_file),
+    # Log all hyper-parameters up front
+    mlf_logger.log_hyperparams(
+        {
             "batch_size": batch_size,
             "learning_rate": learning_rate,
             "num_epochs": num_epochs,
             "weight_decay": weight_decay,
             "dropout_rate": dropout_rate,
+            "patience": patience,
+            "augment": augment,
+            "seed": seed,
+            "num_workers": num_workers,
+            "grad_clip": grad_clip,
             "model_type": model_type,
-            "augmentation": augment,
-            "best_val_loss": best_val_loss,
             "train_samples": len(train_indices),
             "val_samples": len(val_indices),
             "test_samples": len(test_indices),
+            "parquet_file": str(parquet_file),
             "target_column": str(train_dataset.target_column),
             "input_channels": ",".join(
-                str(channel) for channel in train_dataset.input_channels
+                str(ch) for ch in train_dataset.input_channels
             ),
         }
-        save_model(model, output_model, metadata)
+    )
 
-        # Log model artifact to MLflow
+    callbacks = [
+        ModelCheckpoint(
+            monitor="val_loss",
+            mode="min",
+            save_top_k=1,
+            filename="best-{epoch:02d}-{val_loss:.4f}",
+        ),
+        EarlyStopping(
+            monitor="val_loss",
+            mode="min",
+            patience=patience,
+            verbose=True,
+        ),
+        LearningRateMonitor(logging_interval="epoch"),
+    ]
+
+    # ------------------------------------------------------------------
+    # Trainer — device selected automatically (MPS / CUDA / CPU)
+    # ------------------------------------------------------------------
+    trainer = pl.Trainer(
+        max_epochs=num_epochs,
+        accelerator="auto",
+        devices="auto",
+        gradient_clip_val=grad_clip,
+        callbacks=callbacks,
+        logger=mlf_logger,
+        log_every_n_steps=1,
+        enable_progress_bar=True,
+    )
+
+    print(f"\nStarting training for {num_epochs} epochs...")
+    print(
+        f"Weight decay: {weight_decay}, Dropout: {dropout_rate}, "
+        f"Early stopping patience: {patience}"
+    )
+
+    trainer.fit(lightning_model, train_loader, val_loader)
+
+    # ------------------------------------------------------------------
+    # Retrieve the best checkpoint and save in legacy format
+    # ------------------------------------------------------------------
+    best_ckpt_path = trainer.checkpoint_callback.best_model_path
+    if best_ckpt_path:
+        print(f"Loading best checkpoint: {best_ckpt_path}")
+        lightning_model = JaccardLightningModule.load_from_checkpoint(best_ckpt_path)
+
+    best_val_loss = float(trainer.checkpoint_callback.best_model_score or 0.0)
+    final_epoch = trainer.current_epoch
+
+    metadata = {
+        "parquet_file": str(parquet_file),
+        "batch_size": batch_size,
+        "learning_rate": learning_rate,
+        "num_epochs": num_epochs,
+        "weight_decay": weight_decay,
+        "dropout_rate": dropout_rate,
+        "model_type": model_type,
+        "augmentation": augment,
+        "best_val_loss": best_val_loss,
+        "train_samples": len(train_indices),
+        "val_samples": len(val_indices),
+        "test_samples": len(test_indices),
+        "target_column": str(train_dataset.target_column),
+        "input_channels": ",".join(
+            str(ch) for ch in train_dataset.input_channels
+        ),
+    }
+    save_model(lightning_model, output_model, metadata)
+
+    # Log remaining summary metrics and artifacts via the active MLflow run
+    mlflow.set_tracking_uri(mlflow_tracking_uri)
+    run_id = mlf_logger.run_id
+    with mlflow.start_run(run_id=run_id):
+        mlflow.log_metrics(
+            {"best_val_loss": best_val_loss, "final_epoch": final_epoch}
+        )
         mlflow.log_artifact(output_model)
 
-        # Run evaluation and save results
-        print("\nRunning evaluation on all splits...")
+        # Infer device used by the trainer for evaluation
+        device = lightning_model.device if hasattr(lightning_model, "device") else torch.device("cpu")
+
         eval_metrics = _run_evaluation(
-            model,
+            lightning_model,
             eval_dataset,
             train_indices,
             val_indices,
@@ -644,17 +664,11 @@ def train(
             device,
             output_excel,
         )
-
-        # Log evaluation metrics
         if eval_metrics:
             mlflow.log_metrics(eval_metrics)
-
-        # Log results excel as artifact
         mlflow.log_artifact(output_excel)
 
-        active = mlflow.active_run()
-        if active is not None:
-            print(f"\nMLflow run ID: {active.info.run_id}")
+    print(f"\nMLflow run ID: {run_id}")
 
 
 def evaluate(
@@ -667,10 +681,15 @@ def evaluate(
     batch_size=16,
 ):
     """Evaluate a trained model on the dataset and save results."""
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    device = (
+        torch.device("cuda")
+        if torch.cuda.is_available()
+        else torch.device("mps")
+        if torch.backends.mps.is_available()
+        else torch.device("cpu")
+    )
     print(f"Using device: {device}")
 
-    # Load model
     if model_path is None:
         raise ValueError("model_path is required for evaluation.")
 
@@ -684,7 +703,6 @@ def evaluate(
         input_channels if input_channels is not None else metadata.get("input_channels")
     )
 
-    # Dataset
     dataset = JaccardDataset(
         parquet_file,
         data_root=data_root,
@@ -695,12 +713,10 @@ def evaluate(
     print(f"Using target column: {dataset.target_column}")
     print(f"Using input channels: {dataset.input_channels}")
     train_indices, val_indices, test_indices = get_split_indices(dataset)
-
     print(
         f"Dataset splits - Train: {len(train_indices)}, Val: {len(val_indices)}, Test: {len(test_indices)}"
     )
 
-    # Run evaluation
     _run_evaluation(
         model,
         dataset,
@@ -724,8 +740,6 @@ def _run_evaluation(
     output_excel,
 ):
     """Internal function to run evaluation on all splits and save results."""
-
-    # Evaluate all splits
     train_predictions, train_actuals, train_cell_ids = evaluate_model_with_ids(
         model, dataset, train_indices, batch_size, device
     )
@@ -736,7 +750,6 @@ def _run_evaluation(
         model, dataset, test_indices, batch_size, device
     )
 
-    # Create DataFrames
     train_results = pd.DataFrame(
         {
             "cell_id": train_cell_ids,
@@ -759,10 +772,8 @@ def _run_evaluation(
         }
     )
 
-    # Save results
     save_results_to_excel(train_results, val_results, test_results, output_excel)
 
-    # Calculate comprehensive metrics for MLflow
     metrics = {}
     print("\n=== Evaluation Summary ===")
     for name, df in [
@@ -774,18 +785,15 @@ def _run_evaluation(
             y_true = df["Jaccard index"].values
             y_pred = df["Predicted Jaccard index"].values
 
-            # Get comprehensive metrics
             regression_metrics = calculate_regression_metrics(y_true, y_pred)
             tolerance_metrics = calculate_tolerance_accuracy(y_true, y_pred)
 
-            # Add to metrics dict with split prefix
             for key, value in regression_metrics.items():
                 if isinstance(value, (int, float)):
                     metrics[f"{name}_{key}"] = value
             for key, value in tolerance_metrics.items():
                 metrics[f"{name}_{key}"] = value
 
-            # Print summary
             print(f"{name.capitalize()}: {len(df)} samples")
             print(
                 f"  R²: {regression_metrics.get('r2_score', 0):.4f}, "

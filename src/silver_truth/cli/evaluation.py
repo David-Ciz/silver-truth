@@ -6,6 +6,7 @@ import logging
 import mlflow
 import pandas as pd
 
+from silver_truth.ensemble.reconstruction import reconstruct_full_images_from_paths
 from silver_truth.evaluation.evaluation_logic import evaluate_competitor_logic
 from silver_truth.evaluation.stacked_jaccard_logic import (
     calculate_evaluation_metrics,
@@ -49,6 +50,25 @@ logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
     is_flag=True,
     help="Create detailed per-cell evaluation results in parquet format",
 )
+@click.option(
+    "--mlflow-tracking-uri",
+    type=str,
+    default=DEFAULT_MLFLOW_TRACKING_URI,
+    show_default=True,
+    help="MLflow tracking URI.",
+)
+@click.option(
+    "--mlflow-experiment",
+    type=str,
+    default=None,
+    help="MLflow experiment name. If set, logs per-split metrics for each competitor.",
+)
+@click.option(
+    "--mlflow-run-name",
+    type=str,
+    default=None,
+    help="MLflow run name prefix (competitor name is appended automatically).",
+)
 def evaluate_competitor(
     dataset_dataframe_path: Path,
     competitor: Optional[str] = None,
@@ -56,6 +76,9 @@ def evaluate_competitor(
     visualize: bool = False,
     campaign_col: str = "campaign_number",
     detailed: bool = False,
+    mlflow_tracking_uri: str = DEFAULT_MLFLOW_TRACKING_URI,
+    mlflow_experiment: Optional[str] = None,
+    mlflow_run_name: Optional[str] = None,
 ):
     """
     Evaluates competitor segmentation results against ground truth using Jaccard index.
@@ -70,6 +93,9 @@ def evaluate_competitor(
         visualize=visualize,
         campaign_col=campaign_col,
         detailed=detailed,
+        mlflow_tracking_uri=mlflow_tracking_uri,
+        mlflow_experiment=mlflow_experiment,
+        mlflow_run_name=mlflow_run_name,
     )
 
 
@@ -357,11 +383,207 @@ def cli():
     pass
 
 
+# ---------------------------------------------------------------------------
+# evaluate-fusion-crops
+# ---------------------------------------------------------------------------
+
+
+@click.command("evaluate-fusion-crops")
+@click.argument(
+    "parquet_path",
+    type=click.Path(exists=True, path_type=Path),
+)
+@click.option(
+    "--fused-path-column",
+    required=True,
+    help=(
+        "Column in the parquet that contains the on-disk path to each fused crop TIF "
+        "(e.g. 'bic_flat_voting').  This is the lower-cased model name written by "
+        "silver-fusion run-crops-experiment."
+    ),
+)
+@click.option(
+    "--output-dir",
+    "-d",
+    required=True,
+    type=click.Path(path_type=Path),
+    help="Directory where reconstructed full-image TIFs will be written.",
+)
+@click.option(
+    "--output",
+    "-o",
+    type=click.Path(path_type=Path),
+    default=None,
+    help="Path to write per-image IoU/F1 CSV.  Defaults to <output-dir>/fullimage_eval.csv.",
+)
+@click.option(
+    "--threshold",
+    type=float,
+    default=0.5,
+    show_default=True,
+    help="Binarisation threshold applied to each fused mask before reconstruction.",
+)
+def evaluate_fusion_crops(
+    parquet_path: Path,
+    fused_path_column: str,
+    output_dir: Path,
+    output: Optional[Path],
+    threshold: float,
+) -> None:
+    """
+    Reconstruct full-image segmentations from per-cell fused crops and evaluate IoU/F1.
+
+    Reads the parquet produced by ``silver-fusion run-crops-experiment``, places each
+    fused crop back into the full image at its recorded coordinates, and scores the
+    result against the full GT mask.
+
+    The parquet must contain ``gt_image``, ``crop_y_start/end/x_start/x_end`` (or
+    their ``recon_crop_*`` equivalents), and the fused-path column specified by
+    ``--fused-path-column``.
+    """
+    df = pd.read_parquet(parquet_path)
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    results_df = reconstruct_full_images_from_paths(
+        databank_df=df,
+        fused_path_column=fused_path_column,
+        output_dir=output_dir,
+        threshold=threshold,
+    )
+
+    if results_df.empty:
+        logging.warning(
+            "No images could be reconstructed — check paths and GT columns."
+        )
+    else:
+        mean_iou = results_df["iou"].mean()
+        mean_f1 = results_df["f1"].mean()
+        logging.info(
+            "Reconstructed %d images — mean IoU=%.4f  mean F1=%.4f",
+            len(results_df),
+            mean_iou,
+            mean_f1,
+        )
+
+    csv_path = output if output is not None else output_dir / "fullimage_eval.csv"
+    results_df.to_csv(csv_path, index=False)
+    click.echo(f"Full-image evaluation written to: {csv_path}")
+
+
+# ---------------------------------------------------------------------------
+# filter-parquet
+# ---------------------------------------------------------------------------
+
+
+@click.command("filter-parquet")
+@click.argument(
+    "parquet_path",
+    type=click.Path(exists=True, path_type=Path),
+)
+@click.option(
+    "--mode",
+    type=click.Choice(["qa_only", "full_pipeline"]),
+    required=True,
+    help=(
+        "Filtering mode.  "
+        "'qa_only': keep only the single highest-predicted-quality crop per cell "
+        "(top-1 by predicted_jaccard_index) — no fusion needed downstream.  "
+        "'full_pipeline': keep all crops whose predicted_jaccard_index >= threshold; "
+        "for any cell with no passing crop, fall back to its top-1 crop so no cell "
+        "is silently dropped."
+    ),
+)
+@click.option(
+    "--threshold",
+    type=float,
+    default=0.75,
+    show_default=True,
+    help="QA score threshold used by 'full_pipeline' mode (ignored for 'qa_only').",
+)
+@click.option(
+    "--output",
+    "-o",
+    required=True,
+    type=click.Path(path_type=Path),
+    help="Path for the filtered output parquet.",
+)
+def filter_parquet(
+    parquet_path: Path,
+    mode: str,
+    threshold: float,
+    output: Path,
+) -> None:
+    """
+    Filter a QA-enriched parquet by predicted_jaccard_index.
+
+    Requires that the parquet already has a ``predicted_jaccard_index`` column
+    (added by ``silver-evaluation merge-qa-predictions``).
+
+    Use this as a preprocessing step before passing to
+    ``silver-fusion run-crops-experiment`` or
+    ``silver-evaluation evaluate-fusion-crops``.
+    """
+    _KEY_COLS = ["campaign_number", "original_image_key", "label"]
+
+    df = pd.read_parquet(parquet_path)
+    if "predicted_jaccard_index" not in df.columns:
+        raise click.ClickException(
+            "Column 'predicted_jaccard_index' not found.  "
+            "Run 'silver-evaluation merge-qa-predictions' first."
+        )
+
+    if mode == "qa_only":
+        filtered = (
+            df.sort_values("predicted_jaccard_index", ascending=False)
+            .groupby(_KEY_COLS, as_index=False)
+            .first()
+        )
+        n_in = df[_KEY_COLS].drop_duplicates().shape[0]
+        n_out = filtered[_KEY_COLS].drop_duplicates().shape[0]
+        logging.info(
+            "qa_only: %d cells in → %d cells out (top-1 per cell, %d rows → %d rows)",
+            n_in,
+            n_out,
+            len(df),
+            len(filtered),
+        )
+    else:  # full_pipeline
+        passing = df[df["predicted_jaccard_index"] >= threshold].copy()
+        covered_keys = set(map(tuple, passing[_KEY_COLS].values.tolist()))
+        not_covered = df[~df[_KEY_COLS].apply(tuple, axis=1).isin(covered_keys)]
+        fallback = (
+            not_covered.sort_values("predicted_jaccard_index", ascending=False)
+            .groupby(_KEY_COLS, as_index=False)
+            .first()
+        )
+        filtered = pd.concat([passing, fallback], ignore_index=True)
+        n_cells_total = df[_KEY_COLS].drop_duplicates().shape[0]
+        n_passing_cells = len(covered_keys)
+        n_fallback_cells = fallback[_KEY_COLS].drop_duplicates().shape[0]
+        pct_filtered = 100.0 * (n_cells_total - n_passing_cells) / max(n_cells_total, 1)
+        logging.info(
+            "full_pipeline t=%.2f: %d rows in → %d rows out | "
+            "%d/%d cells pass threshold (%.1f%% fell back to top-1)",
+            threshold,
+            len(df),
+            len(filtered),
+            n_passing_cells,
+            n_cells_total,
+            pct_filtered,
+        )
+
+    output.parent.mkdir(parents=True, exist_ok=True)
+    filtered.to_parquet(output, index=False)
+    click.echo(f"Filtered parquet written to: {output}  ({len(filtered)} rows)")
+
+
 cli.add_command(evaluate_competitor)
 cli.add_command(calculate_evaluation_metrics_cli)
 cli.add_command(evaluate_qa_model)
 cli.add_command(evaluate_qa_filtering)
 cli.add_command(merge_qa_predictions)
+cli.add_command(evaluate_fusion_crops)
+cli.add_command(filter_parquet)
 
 
 if __name__ == "__main__":

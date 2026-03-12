@@ -4,10 +4,14 @@ theme:
   name: readthedocs
 nav:
   - Home: index.md
+  - Repository Workflow Map: repository_workflow_map.md
   - DVC Guide: dvc_guide.md
   - Silver-truth Generation: Silver-truth-generation.md
   - Quality Assurance: quality_assurance.md
   - Experiment Tracking: experiment_tracking.md
+  - Paper Protocol: paper_protocol.md
+  - Function Index: function_index.md
+  - API Reference (Generated): api_reference_generated.md
   - QA Data Preparation: qa_data_preparation.md
   - Evaluations: Evaluations.md
   - Label Synchronizer: label_synchronizer.md

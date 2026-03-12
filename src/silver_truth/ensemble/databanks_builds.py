@@ -1,4 +1,3 @@
-from enum import Enum
 import os
 from pathlib import Path
 import tifffile
@@ -6,15 +5,13 @@ from tqdm import tqdm
 import pandas as pd
 import numpy as np
 from scipy.ndimage import find_objects
-from src.silver_truth.ensemble import utils
-import src.silver_truth.ensemble.external as ext
-import src.silver_truth.data_processing.utils.parquet_utils as p_utils
+from silver_truth.ensemble import utils
+from silver_truth.ensemble.datasets import Version
+import silver_truth.ensemble.external as ext
+import silver_truth.data_processing.utils.parquet_utils as p_utils
 
-
-class Databank_type(Enum):
-    Single = 1  # Layer0: single segmentation, Layer1: gt, Layer2: empty
-    Norm = 2  # Layer0: normalized segmentations, Layer1: gt, Layer2: raw image
-
+# Kept for backwards compatibility with any code that still references Databank_type
+Databank_type = Version
 
 SPLIT_COL = p_utils.SPLITS_COLUMN
 
@@ -124,12 +121,12 @@ def build_analysis_databank(qa_dataset_path: str, output_path: str) -> None:
 
 
 def build_databank(build_opt: dict, qa_dataset_path: str, output_path: str) -> str:
-    if build_opt["databank"] == Databank_type.Single:
-        return build_databank_Single(build_opt, qa_dataset_path, output_path)
-    elif build_opt["databank"] == Databank_type.Norm:
+    if build_opt["databank"] in (Version.C1, Version.C2):
         return build_databank_Norm(build_opt, qa_dataset_path, output_path)
 
-    raise Exception("Error: Dataset version not yet supported.")
+    raise Exception(
+        f"Error: Dataset version '{build_opt['databank']}' not yet supported."
+    )
 
 
 def build_databank_Single(

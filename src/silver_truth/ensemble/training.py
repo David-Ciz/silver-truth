@@ -8,12 +8,14 @@ import pytorch_lightning as pl
 from pytorch_lightning.callbacks import Callback, EarlyStopping, ModelCheckpoint
 import mlflow
 import matplotlib.pyplot as plt
+from pathlib import Path
+from typing import Optional
 from silver_truth.ensemble.model_unet_mult_input import Unet_Mult_Input
 from silver_truth.ensemble.model_unet_dynamic import Unet_Dynamic
-from src.silver_truth.ensemble.datasets import Version, get_dataset_class
-from src.silver_truth.ensemble.models_loss_type import LossType
-from src.silver_truth.ensemble.models import ModelType, SMP_Model
-import src.silver_truth.ensemble.utils as utils
+from silver_truth.ensemble.datasets import Version, get_dataset_class
+from silver_truth.ensemble.models_loss_type import LossType
+from silver_truth.ensemble.models import ModelType, SMP_Model
+import silver_truth.ensemble.utils as utils
 import albumentations as A
 
 # TODO: create config pipepline:
@@ -156,7 +158,7 @@ def _train_model(
 
     else:
         num_inputs = 1 if is_single_input else 2
-        model_pl = SMP_Model(model_type, device, num_inputs)
+        model_pl = SMP_Model(model_type, num_inputs=num_inputs)
 
     mlflow.log_param("model_type", model_type)
     mlflow.log_param("model", model_pl.model)
@@ -171,6 +173,13 @@ def _train_model(
 
     checkpoint_filename = f"M{model_type.value}-{databank_suffix}"
 
+    # Allow caller to override checkpoint directory; fall back to package default.
+    ckpt_dirpath = run_params.get(
+        "checkpoints_dir",
+        f"{_checkpoint_path}/{databank_name}",
+    )
+    mlflow.log_param("checkpoints_dir", ckpt_dirpath)
+
     trainer = pl.Trainer(
         default_root_dir=os.path.join(os.getcwd(), _checkpoint_path),
         deterministic=True,
@@ -180,7 +189,7 @@ def _train_model(
         callbacks=[
             ModelCheckpoint(
                 filename=checkpoint_filename,
-                dirpath=f"{_checkpoint_path}/{databank_name}",
+                dirpath=ckpt_dirpath,
                 monitor="val_loss",
                 mode="min",
                 save_top_k=1,
@@ -244,10 +253,23 @@ def _visualize_dataset(subset):
     plt.waitforbuttonpress(0)
 
 
-def run(run_params: dict, rand_seed: int = 42) -> None:
+def run(
+    run_params: dict, parquet_file: Optional[str] = None, rand_seed: int = 42
+) -> None:
     """
     Run a training session.
     With "remote", there's no visual feedback, such as image reconstructions.
+
+    Parameters
+    ----------
+    run_params : dict
+        Training parameters. Must contain ``"databank_opt"`` when ``parquet_file``
+        is not provided (legacy path reconstruction behaviour).
+    parquet_file : str, optional
+        Explicit path to the databank parquet. When provided the legacy
+        ``databank_opt``-based path reconstruction is skipped.
+    rand_seed : int
+        Random seed for reproducibility.
     """
     pl.seed_everything(seed=rand_seed)
 
@@ -255,36 +277,35 @@ def run(run_params: dict, rand_seed: int = 42) -> None:
     torch.backends.cudnn.deterministic = True
     torch.backends.cudnn.benchmark = False
 
-    # device = torch.device("cuda:0") if torch.cuda.is_available() else torch.device("cpu")
-    # print("Device:", device)
-    """"""
-    databank_opt = run_params["databank_opt"]
-    databank_name = utils.get_databank_name(databank_opt)
-    relative_parquet_path = f"data/ensemble_data/databanks/{databank_name}.parquet"
-    parquet_path = f"{os.path.join(os.getcwd(), relative_parquet_path)}"
+    if parquet_file is not None:
+        parquet_path = parquet_file
+        databank_opt = run_params.get("databank_opt", {})
+        databank_name = Path(parquet_file).stem
+    else:
+        databank_opt = run_params["databank_opt"]
+        databank_name = utils.get_databank_name(databank_opt)
+        relative_parquet_path = f"data/ensemble_data/databanks/{databank_name}.parquet"
+        parquet_path = f"{os.path.join(os.getcwd(), relative_parquet_path)}"
 
     latent_dim = None  # 32
 
     transform = A.Compose(
         [
             A.HorizontalFlip(),
-            # A.Rotate(p=1.0),
             A.RandomRotate90(),
             A.ToTensorV2(),
         ],
         seed=rand_seed,
     )
 
-    mlflow.log_param("dataset_transform", transform)
+    mlflow.log_param("dataset_transform", str(transform))
 
-    is_single_input = (
-        databank_opt["dataset"] == Version.A1
-        or databank_opt["dataset"] == Version.B1
-        or databank_opt["dataset"] == Version.C1
-    )
+    # When called without a databank_opt (new explicit-parquet path), default to C1.
+    dataset_version = databank_opt.get("dataset", Version.C1)
+    is_single_input = dataset_version in (Version.A1, Version.B1, Version.C1)
 
     # get datasets
-    dataset_class = get_dataset_class(databank_opt["dataset"])
+    dataset_class = get_dataset_class(dataset_version)
     train_set = dataset_class(parquet_path, "train", transform)
     val_set = dataset_class(parquet_path, "validation")
     test_set = dataset_class(parquet_path, "test")
@@ -339,6 +360,4 @@ def run(run_params: dict, rand_seed: int = 42) -> None:
         is_single_input,
     )
 
-    # DEBUG only
-    _visualize_reconstructions(model, _get_stacked_images(val_set, 16, is_single_input))
     print("Done.")

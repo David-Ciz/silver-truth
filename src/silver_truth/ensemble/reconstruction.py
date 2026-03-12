@@ -166,6 +166,43 @@ def reconstruct_full_images_from_arrays(
     return pd.DataFrame(result_rows)
 
 
+def _ensure_recon_crop_columns(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Normalise crop-coordinate column names so that both naming conventions are accepted.
+
+    ``run-crops-experiment`` writes ``crop_y_start / crop_y_end / crop_x_start /
+    crop_x_end`` (plain QA-parquet names).  ``reconstruct_full_images_from_arrays``
+    expects the ``recon_crop_*`` prefix used by the ensemble databank builder.
+
+    This function returns a *copy* of the dataframe with the ``recon_crop_*`` columns
+    added when only the plain ``crop_*`` variants are present.  The original frame is
+    never mutated.
+    """
+    _PLAIN = ["crop_y_start", "crop_y_end", "crop_x_start", "crop_x_end"]
+    _RECON = [
+        "recon_crop_y_start",
+        "recon_crop_y_end",
+        "recon_crop_x_start",
+        "recon_crop_x_end",
+    ]
+
+    if all(c in df.columns for c in _RECON):
+        return df  # already correct — nothing to do
+
+    if all(c in df.columns for c in _PLAIN):
+        df = df.copy()
+        for plain, recon in zip(_PLAIN, _RECON):
+            df[recon] = df[plain]
+        logger.debug(
+            "Aliased plain crop columns (%s) → recon_crop_* columns for reconstruction.",
+            _PLAIN,
+        )
+        return df
+
+    # Neither set is complete; let the downstream validator raise a clear error.
+    return df
+
+
 def reconstruct_full_images_from_paths(
     databank_df: pd.DataFrame,
     fused_path_column: str,
@@ -174,11 +211,16 @@ def reconstruct_full_images_from_paths(
 ) -> pd.DataFrame:
     """
     Reconstruct full images from on-disk fused per-cell masks referenced by a column.
+
+    Accepts dataframes that use either the ``recon_crop_*`` column naming (ensemble
+    databank) or the plain ``crop_*`` naming produced by ``run-crops-experiment``.
+    Both conventions are normalised before reconstruction is attempted.
     """
     if fused_path_column not in databank_df.columns:
         raise ValueError(
             f"Missing fused path column '{fused_path_column}' in databank dataframe."
         )
+    databank_df = _ensure_recon_crop_columns(databank_df)
 
     predicted_crops = []
     valid_indices = []
@@ -190,7 +232,13 @@ def reconstruct_full_images_from_paths(
         if not mask_path.exists():
             logger.warning("Fused mask not found: %s", mask_path)
             continue
-        predicted_crops.append(tifffile.imread(mask_path))
+        img = tifffile.imread(mask_path)
+        # Stacked QA crops are multi-channel (C, H, W); channel 1 is the
+        # competitor segmentation mask.  Single-channel fused outputs are
+        # used as-is.
+        if img.ndim == 3:
+            img = img[1]
+        predicted_crops.append(img)
         valid_indices.append(index)
 
     if not valid_indices:

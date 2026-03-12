@@ -192,19 +192,21 @@ def run_evaluation(
 
         competitor_columns = df.attrs.get("competitor_columns", [])
 
+        _NON_COMPETITOR_COLS = {
+            "composite_key",
+            "raw_image",
+            "gt_image",
+            "source_image",
+            "tracking_markers",
+            "split",
+            campaign_col,
+            "sequence_id",
+            "time_id",
+        }
         potential_cols = [
             col
             for col in df.columns
-            if col
-            not in [
-                "composite_key",
-                "raw_image",
-                "gt_image",
-                campaign_col,
-                "sequence_id",
-                "time_id",
-                "tracking_markers",
-            ]
+            if col not in _NON_COMPETITOR_COLS
             and isinstance(df[col].iloc[0], str)
             and Path(df[col].iloc[0]).suffix in [".tif", ".tiff"]
             and not col.startswith("Unnamed")
@@ -332,10 +334,15 @@ def run_evaluation(
     overall_averages = {}
     all_labels = set()
 
+    _SPLITS = ["train", "validation", "test"]
+    _has_split_col = "split" in filtered_df.columns
+    per_split_averages: dict = {comp: {} for comp in competitor_columns}
+
     # --- Processing Loop ---
     for comp in competitor_columns:
         logging.info(f"--- Processing Competitor: {comp} ---")
         competitor_all_label_scores = []
+        split_label_scores: dict[str, list] = {s: [] for s in _SPLITS}
 
         if comp not in filtered_df.columns:
             logging.warning(
@@ -402,6 +409,12 @@ def run_evaluation(
                         image_avg = sum(jaccard_scores.values()) / len(jaccard_scores)
                         per_image_averages[comp][campaign][composite_key] = image_avg
                         campaign_all_label_scores.extend(list(jaccard_scores.values()))
+                        if _has_split_col:
+                            row_split = row.get("split")
+                            if row_split in split_label_scores:
+                                split_label_scores[row_split].extend(
+                                    list(jaccard_scores.values())
+                                )
                     else:
                         per_image_averages[comp][campaign][composite_key] = 0.0
 
@@ -448,6 +461,19 @@ def run_evaluation(
                 f"  No valid Jaccard scores found for '{comp}' across all campaigns. Overall average set to NaN."
             )
 
+        if _has_split_col:
+            per_split_averages[comp] = {}
+            for spl in _SPLITS:
+                scores = split_label_scores[spl]
+                if scores:
+                    per_split_averages[comp][spl] = sum(scores) / len(scores)
+                    logging.info(
+                        f"  Split '{spl}' avg Jaccard for '{comp}': {per_split_averages[comp][spl]:.4f}"
+                        f" (from {len(scores)} label scores)"
+                    )
+                else:
+                    per_split_averages[comp][spl] = float("nan")
+
     logging.info("--- Evaluation Summary ---")
 
     # Calculate and display evaluation statistics
@@ -491,6 +517,20 @@ def run_evaluation(
         campaigns,
     )
 
+    # --- Per-split summary (test split = paper number) ---
+    if _has_split_col and per_split_averages:
+        logging.info("--- Per-split Jaccard averages (test = held-out fold) ---")
+        header = f"  {'Competitor':<25}  {'train':>8}  {'val':>8}  {'TEST':>8}"
+        logging.info(header)
+        logging.info("  " + "-" * (len(header) - 2))
+        for comp in competitor_columns:
+            sp = per_split_averages.get(comp, {})
+            tr = sp.get("train", float("nan"))
+            va = sp.get("validation", float("nan"))
+            te = sp.get("test", float("nan"))
+            logging.info(f"  {comp:<25}  {tr:8.4f}  {va:8.4f}  {te:8.4f}")
+        logging.info("-" * 55)
+
     # --- Optional CSV Output ---
     if output:
         logging.info(f"Preparing detailed results for CSV output to {output}")
@@ -520,6 +560,15 @@ def run_evaluation(
                                     "image_average": img_avg,
                                     "campaign_average": camp_avg,
                                     "overall_competitor_average": overall_avg,
+                                    "split_train_average": per_split_averages.get(
+                                        comp, {}
+                                    ).get("train", float("nan")),
+                                    "split_validation_average": per_split_averages.get(
+                                        comp, {}
+                                    ).get("validation", float("nan")),
+                                    "split_test_average": per_split_averages.get(
+                                        comp, {}
+                                    ).get("test", float("nan")),
                                 }
                             )
                     else:
@@ -533,6 +582,15 @@ def run_evaluation(
                                 "image_average": img_avg,
                                 "campaign_average": camp_avg,
                                 "overall_competitor_average": overall_avg,
+                                "split_train_average": per_split_averages.get(
+                                    comp, {}
+                                ).get("train", float("nan")),
+                                "split_validation_average": per_split_averages.get(
+                                    comp, {}
+                                ).get("validation", float("nan")),
+                                "split_test_average": per_split_averages.get(
+                                    comp, {}
+                                ).get("test", float("nan")),
                             }
                         )
 
@@ -559,4 +617,5 @@ def run_evaluation(
         "per_image_averages": per_image_averages,
         "per_campaign_averages": per_campaign_averages,
         "overall_averages": overall_averages,
+        "per_split_averages": per_split_averages,
     }

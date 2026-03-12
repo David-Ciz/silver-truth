@@ -73,8 +73,8 @@ WEIGHTED_MODELS = [
 
 ALL_MODELS = FLAT_MODELS + WEIGHTED_MODELS
 
-# MLflow tracking path (same as ensemble)
-MLFLOW_TRACKING_PATH = "data/fusion_experiments/mlruns"
+# MLflow tracking path (matches project standard)
+MLFLOW_TRACKING_PATH = "data/mlflow/mlruns"
 
 
 def get_gt_timepoints(df: pd.DataFrame, campaign: str) -> List[int]:
@@ -328,6 +328,11 @@ def run_single_fusion(
     help="MLflow experiment name",
 )
 @click.option(
+    "--mlflow-tracking-path",
+    default=None,
+    help="MLflow tracking directory (default: data/mlflow/mlruns relative to project root)",
+)
+@click.option(
     "--skip-fusion",
     is_flag=True,
     help="Skip fusion step (only evaluate existing results)",
@@ -343,6 +348,7 @@ def main(
     threshold: float,
     output_dir: Path,
     mlflow_experiment: str,
+    mlflow_tracking_path: str,
     skip_fusion: bool,
 ):
     """
@@ -411,7 +417,8 @@ def main(
     logger.info(f"Loaded {len(df)} rows from parquet")
 
     # Setup MLflow
-    mlflow_path = PROJECT_ROOT / MLFLOW_TRACKING_PATH
+    resolved_tracking = mlflow_tracking_path or str(PROJECT_ROOT / MLFLOW_TRACKING_PATH)
+    mlflow_path = Path(resolved_tracking)
     mlflow_path.mkdir(parents=True, exist_ok=True)
     mlflow.set_tracking_uri(str(mlflow_path))
     mlflow.set_experiment(mlflow_experiment)

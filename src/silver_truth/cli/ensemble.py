@@ -46,11 +46,22 @@ def _parse_split_sets(split_sets: str) -> list[float]:
     show_default=True,
     help="Maximum training epochs.",
 )
+@click.option(
+    "--checkpoints-dir",
+    type=click.Path(path_type=Path),
+    default=None,
+    help=(
+        "Directory to write model checkpoints into.  "
+        "Defaults to the package default (data/ensemble_data/results/checkpoints/{databank_name}).  "
+        "Pass an explicit path to keep multiple experiments' checkpoints separate."
+    ),
+)
 def ensemble_experiment(
     name: str,
     parquet_file: str,
     model_type: str,
     max_epochs: int,
+    checkpoints_dir: Optional[Path],
 ):
     """Runs an Ensemble experiment via command-line interface."""
     try:
@@ -60,6 +71,9 @@ def ensemble_experiment(
             databank_name,
             parquet_file,
             [{"model_type": ModelType[model_type], "max_epochs": max_epochs}],
+            checkpoints_dir=str(checkpoints_dir)
+            if checkpoints_dir is not None
+            else None,
         )
     except Exception as e:
         click.echo(
@@ -130,6 +144,15 @@ def ensemble_experiment(
         "('image', requires QA parquet generated with crop=False)."
     ),
 )
+@click.option(
+    "--output-dir",
+    type=click.Path(path_type=Path),
+    default=None,
+    help=(
+        "Directory to write the databank parquet and image folder into.  "
+        f"Defaults to the package default ({utils.DATABANKS_DIR})."
+    ),
+)
 def build_databank(
     dataset_name: str,
     qa_parquet_path: str,
@@ -140,11 +163,12 @@ def build_databank(
     qa_column: Optional[str],
     qa_threshold: float,
     aggregation_level: str,
+    output_dir: Optional[Path],
 ) -> None:
     """Build an Ensemble databank parquet and image folder from a QA parquet."""
     build_opt = {
         "name": dataset_name,
-        "version": Version[version],
+        "databank": Version[version],
         "crop_size": crop_size,
         "split_seed": split_seed,
         "split_sets": _parse_split_sets(split_sets),
@@ -152,7 +176,11 @@ def build_databank(
         "qa_threshold": qa_threshold if qa_column else None,
         "aggregation_level": aggregation_level.lower(),
     }
-    output_parquet = ensemble.build_databank(build_opt, qa_parquet_path)
+    output_parquet = ensemble.build_databank(
+        build_opt,
+        qa_parquet_path,
+        output_dir=str(output_dir) if output_dir is not None else None,
+    )
     click.echo(output_parquet)
 
 
@@ -176,9 +204,22 @@ def build_databank(
     show_default=True,
     help="Which split to evaluate.",
 )
-def evaluate_checkpoint(model_path: str, databank_path: str, split_type: str) -> None:
+@click.option(
+    "--output-dir",
+    type=click.Path(path_type=Path),
+    default=None,
+    help="Directory to write evaluation parquets into. Defaults to the checkpoint directory.",
+)
+def evaluate_checkpoint(
+    model_path: str, databank_path: str, split_type: str, output_dir: Optional[Path]
+) -> None:
     """Run inference from a checkpoint and print mean IoU/F1."""
-    summary = ensemble.evaluate_checkpoint(model_path, databank_path, split_type)
+    summary = ensemble.evaluate_checkpoint(
+        model_path,
+        databank_path,
+        split_type,
+        output_dir=str(output_dir) if output_dir is not None else None,
+    )
     click.echo(f"output_parquet: {summary['output_parquet_path']}")
     click.echo(
         f"split={summary['split']} count={summary['count']} "
@@ -212,8 +253,18 @@ def evaluate_checkpoint(model_path: str, databank_path: str, split_type: str) ->
     show_default=True,
     help="Glob pattern used to locate checkpoints under checkpoints-dir.",
 )
+@click.option(
+    "--output-dir",
+    type=click.Path(path_type=Path),
+    default=None,
+    help="Directory to write evaluation parquets into. Defaults to the checkpoint directory.",
+)
 def evaluate_best_checkpoint(
-    checkpoints_dir: str, databank_path: str, split_type: str, pattern: str
+    checkpoints_dir: str,
+    databank_path: str,
+    split_type: str,
+    pattern: str,
+    output_dir: Optional[Path],
 ) -> None:
     """Pick the newest checkpoint in a folder and evaluate it."""
     ckpt_candidates = sorted(
@@ -225,7 +276,12 @@ def evaluate_best_checkpoint(
         )
     best_ckpt = str(ckpt_candidates[-1])
     click.echo(f"selected_checkpoint: {best_ckpt}")
-    summary = ensemble.evaluate_checkpoint(best_ckpt, databank_path, split_type)
+    summary = ensemble.evaluate_checkpoint(
+        best_ckpt,
+        databank_path,
+        split_type,
+        output_dir=str(output_dir) if output_dir is not None else None,
+    )
     click.echo(f"output_parquet: {summary['output_parquet_path']}")
     click.echo(
         f"split={summary['split']} count={summary['count']} "

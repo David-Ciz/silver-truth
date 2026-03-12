@@ -32,6 +32,21 @@ This is the most granular approach. The QA model identifies individual cell segm
 
 By experimenting with these three strategies and adjusting the thresholds for what constitutes a "bad" segmentation, we can determine the most effective way to leverage the QA model to improve the quality of the final silver-truth annotations.
 
+## Current Paper Implementation (Thesis Folds)
+
+The paper workflow currently uses **cell-level QA scores** and compares three modes:
+
+- `fusion_only`: no QA filtering, run Java fusion on all candidates.
+- `full_pipeline`: apply QA threshold gate, then run Java fusion on remaining candidates.
+- `qa_only`: pick the QA-best candidate per cell (with deterministic fallback), no fusion voting.
+
+Important:
+- `predicted_jaccard_index` must come from QA model outputs trained/evaluated on the same fold protocol.
+- Full metrics are computed on reconstructed full images with sparse-GT label-aware scoring.
+
+Planned extension:
+- competitor-only QA filtering (apply QA gate inside one competitor, then re-evaluate that competitor) to isolate QA gain without fusion.
+
 ## Limitations and Future Work
 
 It is important to note that this initial proposal is a first, naive approach. It has several limitations that should be addressed in future work:

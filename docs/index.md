@@ -30,7 +30,11 @@ For detailed installation instructions and basic usage examples, please refer to
 
 ## Further Documentation
 
+*   [Repository Workflow Map](repository_workflow_map.md): Canonical map of what currently runs, what each CLI does, and where ablations are orchestrated.
 *   [DVC Guide](dvc_guide.md): Complete guide to setting up DVC and downloading datasets.
+*   [Paper Protocol (Fold-Locked)](paper_protocol.md): Exact paper run order from fold prep to ablation/sweep.
+*   [Function Index](function_index.md): Fast map of key functions/CLI commands by workflow.
+*   [API Reference (Generated)](api_reference_generated.md): Signatures and one-line summaries from docstrings.
 *   [Label Synchronization Process](label_synchronizer.md): Detailed explanation of how labels are synchronized.
 *   [Silver Truth Generation Algorithm](Silver-truth-generation.md): Information on how the silver truth is computationally derived.
 *   [Evaluation Strategy](Evaluations.md): Details on the metrics and approach used for evaluating results.

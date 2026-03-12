@@ -3,7 +3,7 @@ import tifffile
 from tqdm import tqdm
 from enum import Enum
 from torch.utils.data import Dataset
-import src.silver_truth.ensemble.external as ext
+import silver_truth.ensemble.external as ext
 import albumentations as A
 import numpy as np
 import time
