@@ -8,13 +8,14 @@ import pytorch_lightning as pl
 from pytorch_lightning.callbacks import Callback, EarlyStopping, ModelCheckpoint
 import mlflow
 import matplotlib.pyplot as plt
+import albumentations as A
 from silver_truth.ensemble.model_unet_mult_input import Unet_Mult_Input
 from silver_truth.ensemble.model_unet_dynamic import Unet_Dynamic
-from src.silver_truth.ensemble.datasets import Version, get_dataset_class
-from src.silver_truth.ensemble.models_loss_type import LossType
-from src.silver_truth.ensemble.models import ModelType, SMP_Model
-import src.silver_truth.ensemble.utils as utils
-import albumentations as A
+from silver_truth.ensemble.datasets import Version, get_dataset_class
+from silver_truth.ensemble.models_loss_type import LossType
+from silver_truth.ensemble.models import ModelType, SMP_Model
+import silver_truth.ensemble.utils as utils
+
 
 # TODO: create config pipepline:
 # config dictionary should be provided

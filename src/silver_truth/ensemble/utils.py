@@ -1,8 +1,9 @@
 from tqdm import tqdm
 import tifffile
+import torch
 from scipy.ndimage import find_objects
 import silver_truth.ensemble.external as ext
-import torch
+
 
 ORIGINAL_DATASETS = {
     "BF-C2DL-HSC": "ds1",

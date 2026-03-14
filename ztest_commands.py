@@ -1,17 +1,16 @@
-# from src.data_processing.label_synchronizer import verify_dataset_synchronization_logic
-from src.silver_truth.ensemble.databanks_builds import Databank_type
-from src.silver_truth.ensemble.datasets import Version
-import src.silver_truth.ensemble.external as ext
-import src.silver_truth.ensemble.ensemble as ensemble
-import src.silver_truth.ensemble.utils as utils
 import os
-from src.silver_truth.data_processing.utils.parquet_utils import add_split_type
-from src.silver_truth.ensemble.models import ModelType
-
+# from src.data_processing.label_synchronizer import verify_dataset_synchronization_logic
+from silver_truth.ensemble.databanks_builds import Databank_type
+from silver_truth.ensemble.datasets import Version
+import silver_truth.ensemble.external as ext
+import silver_truth.ensemble.ensemble as ensemble
+import silver_truth.ensemble.utils as utils
+from silver_truth.data_processing.utils.parquet_utils import add_split_type
+from silver_truth.ensemble.models import ModelType
 # import src.qa.preprocessing as  qa_pp
-from src.silver_truth.qa.evaluation import integrate_results
-from src.silver_truth.qa.result_conversion import excel2csv
-import src.silver_truth.qa.preprocessing as qa_pp
+from silver_truth.qa.evaluation import integrate_results
+from silver_truth.qa.result_conversion import excel2csv
+import silver_truth.qa.preprocessing as qa_pp
 
 
 # ----- Workflow ----- #
@@ -241,8 +240,8 @@ databank_opt = build_opt_list[0]
 run_sequence = [
         #{"model_type": ModelType.Unet_Dynamic, "max_epochs": 2, "databank_opt": databank_opt},
         #{"model_type": ModelType.Unet_Mult_Input, "max_epochs": 100, "databank_opt": databank_opt},
-        {"model_type": ModelType.Unet, "max_epochs": 100, "databank_opt": databank_opt},
-        #{"model_type": ModelType.UnetPlusPlus, "max_epochs": 100, "qa": databank_opt}
+        #{"model_type": ModelType.Unet, "max_epochs": 100, "databank_opt": databank_opt},
+        {"model_type": ModelType.UnetPlusPlus, "max_epochs": 100, "databank_opt": databank_opt}
     ]
 
 train_model(databank_opt, run_sequence)

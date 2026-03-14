@@ -2,22 +2,22 @@ from typing import Callable, Optional
 import tifffile
 from tqdm import tqdm
 from enum import Enum
-import torch
+#import torch
 from torch.utils.data import Dataset
-import src.silver_truth.ensemble.external as ext
 import albumentations as A
 import numpy as np
 import time
+import silver_truth.ensemble.external as ext
 # from PIL import Image
 
 
 class Version(Enum):
     A1 = 1  # raw, gt           [1,1]
-    B1 = 3  # seg, gt           [1,1]
-    B2 = 4  # seg&raw, gt       [2,1]
-    B3 = 5  # segs, gt          [N,1]
-    C1 = 6  # norm_seg, gt      [1,1]
-    C2 = 7  # norm_seg&raw, gt  [2,1]
+    B1 = 2  # seg, gt           [1,1]
+    B2 = 3  # seg&raw, gt       [2,1]
+    B3 = 4  # segs, gt          [N,1]
+    C1 = 5  # norm_seg, gt      [1,1]
+    C2 = 6  # norm_seg&raw, gt  [2,1]
 
 
 def get_dataset_class(version: Version):
@@ -198,6 +198,11 @@ class EnsembleDatasetB3(Dataset):
                     segmentations.append(np.zeros((h,w), dtype=np.float32))
                 self.data.append(np.array(segmentations))
                 self.gts.append(gt_image)
+            #TODO: DEBUG only ####
+            if len(self.data) > 1:
+                break
+            #####
+                
 
     def __len__(self) -> int:
         return len(self.data)
