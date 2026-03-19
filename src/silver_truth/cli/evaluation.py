@@ -742,11 +742,19 @@ def filter_parquet(
     click.echo("╔══════════════════════════════════════════════════════╗")
     click.echo(f"║  QA FILTER: mode={mode}  threshold={threshold:.2f}             ║")
     click.echo("╠══════════════════════════════════════════════════════╣")
-    click.echo(f"║  Rows:  {n_rows_in:>6d} → {filter_stats['total_rows_out']:>6d}                          ║")
+    click.echo(
+        f"║  Rows:  {n_rows_in:>6d} → {filter_stats['total_rows_out']:>6d}                          ║"
+    )
     click.echo(f"║  Cells: {n_cells_total:>6d} total                              ║")
-    click.echo(f"║         {filter_stats['cells_passing_threshold']:>6d} pass threshold                    ║")
-    click.echo(f"║         {filter_stats['cells_fallback_top1']:>6d} fallback to top-1                 ║")
-    click.echo(f"║         {filter_stats['pct_cells_filtered']:>5.1f}% of cells needed fallback        ║")
+    click.echo(
+        f"║         {filter_stats['cells_passing_threshold']:>6d} pass threshold                    ║"
+    )
+    click.echo(
+        f"║         {filter_stats['cells_fallback_top1']:>6d} fallback to top-1                 ║"
+    )
+    click.echo(
+        f"║         {filter_stats['pct_cells_filtered']:>5.1f}% of cells needed fallback        ║"
+    )
     click.echo("╚══════════════════════════════════════════════════════╝")
     click.echo("")
 

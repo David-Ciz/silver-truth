@@ -88,7 +88,9 @@ class JaccardDataset(Dataset):
         self.input_channels = self._resolve_input_channels(input_channels)
         self.cache_images = cache_images
         self.image_cache = image_cache if image_cache is not None else {}
-        self.image_paths = [self._resolve_image_path(path) for path in self.data["stacked_path"]]
+        self.image_paths = [
+            self._resolve_image_path(path) for path in self.data["stacked_path"]
+        ]
         self.targets = self.data[self.target_column].astype(np.float32).to_numpy()
         self.cell_ids = (
             self.data["cell_id"].tolist()
@@ -391,9 +393,7 @@ def prepare_images_for_model(
 
     vertical_flip_mask = torch.rand(images.shape[0], device=images.device) < 0.5
     if vertical_flip_mask.any():
-        images[vertical_flip_mask] = torch.flip(
-            images[vertical_flip_mask], dims=(-2,)
-        )
+        images[vertical_flip_mask] = torch.flip(images[vertical_flip_mask], dims=(-2,))
 
     rotations = torch.randint(0, 4, (images.shape[0],), device=images.device)
     for k in range(1, 4):
@@ -570,9 +570,7 @@ def train(
         create_tags = dict(logger_tags)
         if inherited_parent_run_id:
             create_tags[MLFLOW_PARENT_RUN_TAG] = inherited_parent_run_id
-        logger_run = MlflowClient(
-            tracking_uri=resolved_tracking_uri
-        ).create_run(
+        logger_run = MlflowClient(tracking_uri=resolved_tracking_uri).create_run(
             experiment_id=experiment.experiment_id,
             run_name=mlflow_run_name,
             tags=create_tags or None,

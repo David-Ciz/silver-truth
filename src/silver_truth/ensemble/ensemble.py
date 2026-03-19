@@ -12,12 +12,10 @@ import silver_truth.ensemble.utils as utils
 from silver_truth.experiment_tracking import (
     infer_dataset_name_from_text,
     infer_split_from_dataframe,
-    log_standardized_single_split_metrics,
     resolve_mlflow_experiment_name,
     resolve_mlflow_tracking_uri,
     start_managed_mlflow_run,
     set_common_mlflow_tags,
-    set_evaluation_tags,
 )
 from silver_truth.data_processing.utils.parquet_utils import same_splits
 import segmentation_models_pytorch as smp

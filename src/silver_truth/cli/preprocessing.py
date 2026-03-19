@@ -254,7 +254,9 @@ def compress_tifs(directory, non_recursive, dry_run, verbose):
     "--rect-size",
     "rect_sizes",
     multiple=True,
-    callback=lambda _ctx, _param, values: tuple(_parse_rect_size(value) for value in values),
+    callback=lambda _ctx, _param, values: tuple(
+        _parse_rect_size(value) for value in values
+    ),
     help=(
         "Rectangular crop sizes to evaluate, formatted as HEIGHTxWIDTH. "
         "Reports both fixed-orientation and swappable-orientation fit rates."
@@ -313,7 +315,9 @@ def segmentation_size_stats(
 ):
     """Summarize cell size statistics from GT folders or dataset parquets."""
     if not inputs:
-        raise click.UsageError("Provide at least one segmentation directory or dataset parquet.")
+        raise click.UsageError(
+            "Provide at least one segmentation directory or dataset parquet."
+        )
 
     input_paths = tuple(Path(path) for path in inputs)
     parquet_inputs = tuple(path for path in input_paths if path.suffix == ".parquet")

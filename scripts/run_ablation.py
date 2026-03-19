@@ -250,7 +250,9 @@ def build_steps(cfg: dict[str, Any]) -> list[dict[str, Any]]:
     paper_runs = cfg["paper_runs_root"]
     competitor_csv = f"{paper_runs}/baselines/{dataset}_{split_name}_competitors.csv"
     compare_experiment = f"paper-compare-{dataset}-{variant}-{split_name}"
-    phasea_fusion_experiment = f"phaseA-fusion-baselines-{dataset}-{variant}-{split_name}"
+    phasea_fusion_experiment = (
+        f"phaseA-fusion-baselines-{dataset}-{variant}-{split_name}"
+    )
     phaseb_qa_train_experiment = f"phaseB-qa-train-{dataset}-{variant}-{split_name}"
     phaseb_qa_regression_experiment = (
         f"phaseB-qa-regression-{dataset}-{variant}-{split_name}"
@@ -315,9 +317,7 @@ def build_steps(cfg: dict[str, Any]) -> list[dict[str, Any]]:
             }
         )
 
-    _baseline_db_dir = _databank_dir(
-        paper_runs, variant, split_name, tag="unfiltered"
-    )
+    _baseline_db_dir = _databank_dir(paper_runs, variant, split_name, tag="unfiltered")
     _baseline_db_parquet = _databank_parquet(
         _baseline_db_dir, dataset, cfg.get("ensemble_version", "C1")
     )
@@ -589,7 +589,7 @@ def build_steps(cfg: dict[str, Any]) -> list[dict[str, Any]]:
                             f"  --qa-parquet {filtered_pq} "
                             f"  --models {model} "
                             f"  --output-dir {mode_out} "
-                        f"  --mlflow-experiment phaseC-full-pipeline-crop-eval-{dataset}-{variant}-{split_name} "
+                            f"  --mlflow-experiment phaseC-full-pipeline-crop-eval-{dataset}-{variant}-{split_name} "
                             f"  --mlflow-run-name full_pipeline_t{threshold_label} "
                             f"  --mlflow-tracking-path {mlflow_uri.replace('file:', '')}"
                         ),
@@ -705,7 +705,10 @@ def build_steps(cfg: dict[str, Any]) -> list[dict[str, Any]]:
                 }
             )
 
-    if cfg.get("run_phaseC_ablation", True) and "ensemble_qa_retrained" in ablation_modes:
+    if (
+        cfg.get("run_phaseC_ablation", True)
+        and "ensemble_qa_retrained" in ablation_modes
+    ):
         mode_out = ablation_out.format_map(
             {**cfg, "mode": f"ensemble_qa_retrained_t{threshold}"}
         )
@@ -722,9 +725,7 @@ def build_steps(cfg: dict[str, Any]) -> list[dict[str, Any]]:
         _retrain_ckpt_dir = _ckpt_dir(
             paper_runs, variant, split_name, tag=f"retrained_t{threshold:.2f}"
         )
-        _retrain_exp = (
-            f"phaseC-ensemble-qa-retrained-{dataset}-{variant}-{split_name}"
-        )
+        _retrain_exp = f"phaseC-ensemble-qa-retrained-{dataset}-{variant}-{split_name}"
         steps.append(
             {
                 "id": "phaseC_ensemble_qa_retrained_train",
@@ -865,7 +866,9 @@ def _build_mlflow_context(
     created_at = datetime.now(timezone.utc)
     run_stamp = created_at.strftime("%Y%m%d_%H%M%SZ")
     phase_token = phase.lower()
-    parent_run_name = f"{cfg['variant']}__{cfg['split_name']}__{phase_token}__{run_stamp}"
+    parent_run_name = (
+        f"{cfg['variant']}__{cfg['split_name']}__{phase_token}__{run_stamp}"
+    )
 
     mlflow.set_tracking_uri(tracking_uri)
     experiment = mlflow.set_experiment(experiment_name)

@@ -332,11 +332,15 @@ def run_evaluation(
         return {}
     logging.info(f"Found {len(campaigns)} campaigns: {campaigns}")
 
-    all_results = {comp: {camp: {} for camp in campaigns} for comp in competitor_columns}
+    all_results = {
+        comp: {camp: {} for camp in campaigns} for comp in competitor_columns
+    }
     all_f1_results = {
         comp: {camp: {} for camp in campaigns} for comp in competitor_columns
     }
-    per_image_averages = {comp: {camp: {} for camp in campaigns} for comp in competitor_columns}
+    per_image_averages = {
+        comp: {camp: {} for camp in campaigns} for comp in competitor_columns
+    }
     per_image_f1_averages = {
         comp: {camp: {} for camp in campaigns} for comp in competitor_columns
     }
@@ -431,7 +435,8 @@ def run_evaluation(
                         for label, values in labelwise_scores.items()
                     }
                     f1_scores = {
-                        label: values["f1"] for label, values in labelwise_scores.items()
+                        label: values["f1"]
+                        for label, values in labelwise_scores.items()
                     }
                     all_results[comp][campaign][composite_key] = jaccard_scores
                     all_f1_results[comp][campaign][composite_key] = f1_scores
@@ -625,7 +630,9 @@ def run_evaluation(
                         .get(campaign, {})
                         .get(image_key, float("nan"))
                     )
-                    camp_avg = per_campaign_averages.get(comp, {}).get(campaign, float("nan"))
+                    camp_avg = per_campaign_averages.get(comp, {}).get(
+                        campaign, float("nan")
+                    )
                     camp_f1_avg = per_campaign_f1_averages.get(comp, {}).get(
                         campaign, float("nan")
                     )

@@ -396,7 +396,10 @@ def main(
     output_base = PROJECT_ROOT / output_dir
 
     # Start parent MLflow run
-    run_name = mlflow_run_name or f"{dataset}_{split}_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+    run_name = (
+        mlflow_run_name
+        or f"{dataset}_{split}_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+    )
 
     with mlflow.start_run(run_name=run_name) as parent_run:
         set_common_mlflow_tags(dataset=dataset, split=split, repo_root=PROJECT_ROOT)
@@ -427,9 +430,7 @@ def main(
             logger.info(f"Model: {model}")
             logger.info("=" * 60)
 
-            child_run_name = (
-                f"{run_name}__{model_lower}" if mlflow_run_name else model
-            )
+            child_run_name = f"{run_name}__{model_lower}" if mlflow_run_name else model
             with mlflow.start_run(run_name=child_run_name, nested=True) as model_run:
                 set_common_mlflow_tags(
                     dataset=dataset, split=split, repo_root=PROJECT_ROOT

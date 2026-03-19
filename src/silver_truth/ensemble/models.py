@@ -48,14 +48,22 @@ class SMP_Model(pl.LightningModule):
     ):
         super().__init__()
         self.save_hyperparameters()
-        self.model = self._get_model(model_type, num_inputs, encoder_name, encoder_weights)
+        self.model = self._get_model(
+            model_type, num_inputs, encoder_name, encoder_weights
+        )
         self.level_trigger = (
             LevelTrigger()
         )  # threshold=0.5 default; device placement via register_buffer
         self.loss_type = LossType.MSE
         # self.loss_function = DiceLoss("binary", from_logits=True)
 
-    def _get_model(self, model_type: ModelType, num_inputs: int, encoder_name: str, encoder_weights: str | None):
+    def _get_model(
+        self,
+        model_type: ModelType,
+        num_inputs: int,
+        encoder_name: str,
+        encoder_weights: str | None,
+    ):
         # Bug on load_from_checkpoint() --> model_type != ModelType.[type]
         match ModelType(model_type.value):
             case ModelType.Unet:
