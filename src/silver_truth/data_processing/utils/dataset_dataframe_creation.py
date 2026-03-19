@@ -14,10 +14,14 @@ import numpy as np
 RAW_DATA_FOLDERS = {"01", "02"}
 GT_FOLDER_FIRST = "01_GT"
 GT_FOLDER_SECOND = "02_GT"
+ST_FOLDER_FIRST = "01_ST"
+ST_FOLDER_SECOND = "02_ST"
 SEG_FOLDER = "SEG"
 TRA_FOLDER = "TRA"
 RES_FOLDER_FIRST = "01_RES"
 RES_FOLDER_SECOND = "02_RES"
+SILVER_TRUTH_COLUMN = "SILVER-TRUTH"
+REFERENCE_COLUMNS_ATTR = "reference_columns"
 
 
 def is_valid_competitor_folder(folder):
@@ -52,6 +56,10 @@ def process_dataset_directory(
             process_gt_data(dataset_subfolder, "01", dataset_info)
         elif dataset_subfolder.name == GT_FOLDER_SECOND:
             process_gt_data(dataset_subfolder, "02", dataset_info)
+        elif dataset_subfolder.name == ST_FOLDER_FIRST:
+            process_silver_truth_data(dataset_subfolder, "01", dataset_info)
+        elif dataset_subfolder.name == ST_FOLDER_SECOND:
+            process_silver_truth_data(dataset_subfolder, "02", dataset_info)
 
         # Process competitor results
         elif is_valid_competitor_folder(dataset_subfolder):
@@ -99,6 +107,23 @@ def process_gt_data(
             image_number = extract_image_number(image.name)
             composite_key = f"{campaign_number}_{image_number}"
             dataset_info[composite_key]["tracking_markers"] = str(image)
+            dataset_info[composite_key]["campaign_number"] = campaign_number
+            dataset_info[composite_key]["time_frame"] = int(image_number.split(".")[0])
+
+
+def process_silver_truth_data(
+    folder: Path, campaign_number: str, dataset_info: Dict[str, Dict[str, Any]]
+) -> None:
+    """Process silver-truth segmentation files stored under 01_ST/02_ST."""
+    seg_subfolder = folder / SEG_FOLDER
+    if not seg_subfolder.is_dir():
+        return
+
+    for image in seg_subfolder.iterdir():
+        if image.suffix == ".tif":
+            image_number = extract_image_number(image.name)
+            composite_key = f"{campaign_number}_{image_number}"
+            dataset_info[composite_key][SILVER_TRUTH_COLUMN] = str(image)
             dataset_info[composite_key]["campaign_number"] = campaign_number
             dataset_info[composite_key]["time_frame"] = int(image_number.split(".")[0])
 
@@ -205,11 +230,13 @@ def get_competitor_columns(df: pd.DataFrame) -> List[str]:
     Returns:
         List of competitor column names
     """
-    if "competitor_columns" in df.attrs:
-        return df.attrs["competitor_columns"]
-    else:
-        # If attrs not available, return empty list or implement fallback logic
-        return []
+    competitor_columns = list(df.attrs.get("competitor_columns", []))
+    reference_columns = set(df.attrs.get(REFERENCE_COLUMNS_ATTR, []))
+    return [
+        column
+        for column in competitor_columns
+        if column not in reference_columns and column != SILVER_TRUTH_COLUMN
+    ]
 
 
 def save_dataframe_to_parquet_with_metadata(df: pd.DataFrame, output_path: str) -> None:
@@ -226,6 +253,8 @@ def save_dataframe_to_parquet_with_metadata(df: pd.DataFrame, output_path: str) 
 
     if "creation_time" in df.attrs:
         del df.attrs["creation_time"]
+    output_path_obj = Path(output_path)
+    output_path_obj.parent.mkdir(parents=True, exist_ok=True)
     # Convert DataFrame to a PyArrow table without preserving the index.
     table = pa.Table.from_pandas(df, preserve_index=False)
 
@@ -239,7 +268,7 @@ def save_dataframe_to_parquet_with_metadata(df: pd.DataFrame, output_path: str) 
     table = table.replace_schema_metadata(metadata)
 
     # Write the table to a Parquet file.
-    pq.write_table(table, output_path)
+    pq.write_table(table, output_path_obj)
 
 
 def load_dataframe_from_parquet_with_metadata(input_path: str) -> pd.DataFrame:
@@ -549,6 +578,10 @@ def create_dataset_dataframe_logic(
     # Store metadata
     dataset_dataframe.attrs["base_directory"] = str(synchronized_dataset_dir)
     dataset_dataframe.attrs["competitor_columns"] = list(competitor_columns)
+    reference_columns = []
+    if SILVER_TRUTH_COLUMN in dataset_dataframe.columns:
+        reference_columns.append(SILVER_TRUTH_COLUMN)
+    dataset_dataframe.attrs[REFERENCE_COLUMNS_ATTR] = reference_columns
     dataset_dataframe.attrs["created_by"] = "David-Ciz"  #
     dataset_dataframe.attrs["creation_time"] = pd.Timestamp.now()
     save_dataframe_to_parquet_with_metadata(dataset_dataframe, str(output_path))

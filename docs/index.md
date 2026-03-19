@@ -20,9 +20,12 @@ Raw Data -> Synchronization -> DataFrame -> Job Files -> Fusion -> Evaluation
 
 ### Core Modules
 
-*   **`cli_preprocessing.py`**: Handles initial data preparation, including synchronizing datasets and creating structured dataframes.
-*   **`cli_fusion.py`**: Manages the generation of job files and the execution of the cell segmentation fusion process to create the silver truth.
-*   **`cli_evaluation.py`**: Provides tools for evaluating competitor algorithms against ground truth or the generated silver truth.
+*   **`silver-preprocessing` / `src/silver_truth/cli/preprocessing.py`**: Synchronization, dataframe generation, and segmentation size checks.
+*   **`silver-qa` / `src/silver_truth/cli/qa.py`**: QA crop generation and QA CNN training.
+*   **`silver-fusion` / `src/silver_truth/cli/fusion.py`**: Job-file generation, Java fusion, and crop-level fusion orchestration.
+*   **`silver-evaluation` / `src/silver_truth/cli/evaluation.py`**: Competitor evaluation, QA evaluation, fusion reconstruction scoring, and parquet filtering.
+*   **`silver-ensemble` / `src/silver_truth/cli/ensemble.py`**: Databank building, ensemble training, and checkpoint evaluation.
+*   **`scripts/run_ablation.py`**: Config-driven orchestration for Phase A/B/C paper experiments.
 
 ## Getting Started
 
@@ -31,8 +34,10 @@ For detailed installation instructions and basic usage examples, please refer to
 ## Further Documentation
 
 *   [Repository Workflow Map](repository_workflow_map.md): Canonical map of what currently runs, what each CLI does, and where ablations are orchestrated.
+*   [Executable Index](executable_index.md): Task-oriented list of what agents should try first, including maintained CLI entrypoints, scripts, and reusable functions.
 *   [DVC Guide](dvc_guide.md): Complete guide to setting up DVC and downloading datasets.
 *   [Paper Protocol (Fold-Locked)](paper_protocol.md): Exact paper run order from fold prep to ablation/sweep.
+*   [Ensemble Transfer Plan](ensemble_transfer_plan.md): Fold-locked plan for validating MuSC first, then testing MuSC -> HSC transfer.
 *   [Function Index](function_index.md): Fast map of key functions/CLI commands by workflow.
 *   [API Reference (Generated)](api_reference_generated.md): Signatures and one-line summaries from docstrings.
 *   [Label Synchronization Process](label_synchronizer.md): Detailed explanation of how labels are synchronized.

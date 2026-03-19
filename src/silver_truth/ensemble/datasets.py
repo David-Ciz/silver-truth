@@ -320,13 +320,10 @@ class EnsembleDatasetC2(Dataset):
         return len(self.data)
 
     def __getitem__(self, index):
-        c, h, w = self.data[index].shape
-        data = np.reshape(self.data[index], (1, h, w, c))
-        augmented = self.transform(images=data, mask=self.gts[index])
-        return augmented["images"], augmented["mask"].unsqueeze(-3).unsqueeze(-3)
-
-        # augmented = self.transform(image=self.data[index], mask=self.gts[index])
-        # return augmented["image"], augmented["mask"].unsqueeze(-3)
+        # self.data[index] is (2, H, W) — transpose to (H, W, 2) for albumentations
+        data = np.transpose(self.data[index], (1, 2, 0))
+        augmented = self.transform(image=data, mask=self.gts[index])
+        return augmented["image"], augmented["mask"].unsqueeze(-3)
 
 
 def benchmark_EnsembleDataset(path, epochs=1000):

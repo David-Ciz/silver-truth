@@ -1,4 +1,5 @@
 import logging
+import json
 from pathlib import Path
 
 import click
@@ -13,11 +14,44 @@ from silver_truth.data_processing.compression import compress_tifs_logic
 from silver_truth.data_processing.utils.dataset_dataframe_creation import (
     create_dataset_dataframe_logic,
 )
+from silver_truth.data_processing.segmentation_stats import (
+    build_oversized_cell_audit,
+    collect_segmentation_object_stats,
+    collect_segmentation_object_stats_from_dataframes,
+    save_oversized_cell_visualizations,
+    save_segmentation_object_stats,
+    save_segmentation_summary,
+    summarize_segmentation_object_stats,
+)
 
 # Configure logging globally
 logging.basicConfig(
     level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
 )
+
+
+def _parse_rect_size(value: str) -> tuple[int, int]:
+    """Parse a rectangular size option formatted as HEIGHTxWIDTH."""
+    normalized = value.lower().replace(" ", "")
+    parts = normalized.split("x")
+    if len(parts) != 2:
+        raise click.BadParameter(
+            f"Invalid rectangular size '{value}'. Use HEIGHTxWIDTH, for example 128x256."
+        )
+
+    try:
+        height, width = int(parts[0]), int(parts[1])
+    except ValueError as exc:
+        raise click.BadParameter(
+            f"Invalid rectangular size '{value}'. Use HEIGHTxWIDTH, for example 128x256."
+        ) from exc
+
+    if height <= 0 or width <= 0:
+        raise click.BadParameter(
+            f"Invalid rectangular size '{value}'. Height and width must be positive."
+        )
+
+    return height, width
 
 
 @click.command()
@@ -201,6 +235,167 @@ def compress_tifs(directory, non_recursive, dry_run, verbose):
         )
 
 
+@click.command("segmentation-size-stats")
+@click.argument(
+    "inputs",
+    nargs=-1,
+    type=click.Path(exists=True, path_type=Path),
+)
+@click.option(
+    "--crop-size",
+    "crop_sizes",
+    multiple=True,
+    type=int,
+    default=(64,),
+    show_default=True,
+    help="Crop sizes to evaluate using bounding-box fit rate. Pass multiple times.",
+)
+@click.option(
+    "--rect-size",
+    "rect_sizes",
+    multiple=True,
+    callback=lambda _ctx, _param, values: tuple(_parse_rect_size(value) for value in values),
+    help=(
+        "Rectangular crop sizes to evaluate, formatted as HEIGHTxWIDTH. "
+        "Reports both fixed-orientation and swappable-orientation fit rates."
+    ),
+)
+@click.option(
+    "--output",
+    type=click.Path(path_type=Path),
+    help="Optional path to save the JSON summary.",
+)
+@click.option(
+    "--per-object-output",
+    type=click.Path(path_type=Path),
+    help="Optional path to save per-object stats (.parquet or .csv).",
+)
+@click.option(
+    "--show-outliers-for",
+    type=int,
+    help=(
+        "Optional crop size to audit for clipped cells. "
+        "Writes an oversized-cell CSV/JSON and optional PNG context views."
+    ),
+)
+@click.option(
+    "--outlier-output-dir",
+    type=click.Path(path_type=Path),
+    help=(
+        "Optional directory for oversized-cell audit outputs. "
+        "Defaults to ./segmentation_outliers_sz{N} when --show-outliers-for is used."
+    ),
+)
+@click.option(
+    "--max-visualizations",
+    type=int,
+    default=25,
+    show_default=True,
+    help="Maximum number of oversized-cell PNGs to generate.",
+)
+@click.option(
+    "--context-pad",
+    type=int,
+    default=32,
+    show_default=True,
+    help="Extra pixels of context around the audited cell in visualization PNGs.",
+)
+def segmentation_size_stats(
+    inputs: tuple[Path, ...],
+    crop_sizes: tuple[int, ...],
+    rect_sizes: tuple[tuple[int, int], ...],
+    output: Path | None,
+    per_object_output: Path | None,
+    show_outliers_for: int | None,
+    outlier_output_dir: Path | None,
+    max_visualizations: int,
+    context_pad: int,
+):
+    """Summarize cell size statistics from GT folders or dataset parquets."""
+    if not inputs:
+        raise click.UsageError("Provide at least one segmentation directory or dataset parquet.")
+
+    input_paths = tuple(Path(path) for path in inputs)
+    parquet_inputs = tuple(path for path in input_paths if path.suffix == ".parquet")
+    directory_inputs = tuple(path for path in input_paths if path.is_dir())
+
+    if parquet_inputs and directory_inputs:
+        raise click.UsageError(
+            "Do not mix directories and parquet files in one invocation."
+        )
+
+    if parquet_inputs:
+        stats_df = collect_segmentation_object_stats_from_dataframes(parquet_inputs)
+    elif directory_inputs:
+        stats_df = collect_segmentation_object_stats(directory_inputs)
+    else:
+        raise click.UsageError(
+            "Inputs must be segmentation directories or .parquet dataset files."
+        )
+
+    summary = summarize_segmentation_object_stats(
+        stats_df, crop_sizes=crop_sizes, rect_sizes=rect_sizes
+    )
+
+    click.echo(json.dumps(summary, indent=2))
+
+    if output is not None:
+        save_segmentation_summary(summary, output)
+        click.echo(f"Saved summary JSON to {output}")
+
+    if per_object_output is not None:
+        save_segmentation_object_stats(stats_df, per_object_output)
+        click.echo(f"Saved per-object stats to {per_object_output}")
+
+    if show_outliers_for is not None:
+        audit_df = build_oversized_cell_audit(stats_df, show_outliers_for)
+        audit_output_dir = (
+            outlier_output_dir
+            if outlier_output_dir is not None
+            else Path.cwd() / f"segmentation_outliers_sz{show_outliers_for}"
+        )
+        audit_output_dir.mkdir(parents=True, exist_ok=True)
+        audit_csv_path = audit_output_dir / f"oversized_cells_sz{show_outliers_for}.csv"
+        summary_json_path = (
+            audit_output_dir / f"oversized_cells_sz{show_outliers_for}_summary.json"
+        )
+        visualizations_dir = (
+            audit_output_dir / f"oversized_cells_sz{show_outliers_for}_png"
+        )
+
+        audit_df.to_csv(audit_csv_path, index=False)
+        created_files = save_oversized_cell_visualizations(
+            audit_df,
+            visualizations_dir,
+            crop_size=show_outliers_for,
+            max_visualizations=max_visualizations,
+            context_pad=context_pad,
+        )
+
+        audit_summary = {
+            "crop_size": show_outliers_for,
+            "n_cells_total": int(len(stats_df)),
+            "n_oversized_cells": int(len(audit_df)),
+            "n_gt_images_with_oversized_cells": int(audit_df["gt_image"].nunique())
+            if not audit_df.empty
+            else 0,
+            "n_visualizations_written": len(created_files),
+            "audit_csv": str(audit_csv_path),
+            "visualizations_dir": str(visualizations_dir),
+        }
+        summary_json_path.write_text(
+            json.dumps(audit_summary, indent=2) + "\n", encoding="utf-8"
+        )
+
+        click.echo(json.dumps({"outlier_audit": audit_summary}, indent=2))
+        click.echo(f"Saved audit CSV to {audit_csv_path}")
+        click.echo(f"Saved summary JSON to {summary_json_path}")
+        if created_files:
+            click.echo(
+                f"Saved {len(created_files)} visualization PNGs to {visualizations_dir}"
+            )
+
+
 @click.group()
 def cli():
     pass
@@ -212,6 +407,7 @@ cli.add_command(synchronize_datasets)
 cli.add_command(verify_dataset_synchronization)
 cli.add_command(create_dataset_dataframe)
 cli.add_command(compress_tifs)
+cli.add_command(segmentation_size_stats)
 
 
 if __name__ == "__main__":

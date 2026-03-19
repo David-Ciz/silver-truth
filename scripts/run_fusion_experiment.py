@@ -29,7 +29,7 @@ import mlflow
 import sys
 import re
 from pathlib import Path
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 import pandas as pd
 import logging
 from datetime import datetime
@@ -41,8 +41,11 @@ from silver_truth.fusion.fusion import (
     FusionModel,
 )
 from silver_truth.experiment_tracking import (
+    log_standardized_split_metrics,
     set_common_mlflow_tags,
+    set_evaluation_tags,
 )
+from silver_truth.job_file_generator import generate_job_file
 from silver_truth.metrics.evaluation_logic import evaluate_by_split
 
 
@@ -119,51 +122,27 @@ def timepoints_to_string(timepoints: List[int]) -> str:
     return ",".join(str(t) for t in timepoints)
 
 
-def add_weights_to_job_file(input_job_file: Path, output_job_file: Path) -> None:
+def regenerate_job_files(
+    parquet_file: Path, dataset: str, campaign: str, split: str
+) -> tuple[Path, Path]:
     """
-    Convert a job file to one with weights by adding " 1" to each competitor line.
-    The last line (ground truth/tracking markers) should not have a weight.
+    Refresh the job files from the split parquet so fusion never uses stale DVC outputs.
     """
-    with open(input_job_file, "r") as f:
-        lines = f.readlines()
-
-    output_lines = []
-    for i, line in enumerate(lines):
-        line = line.rstrip("\n")
-        if not line.strip():  # Skip empty lines
-            continue
-
-        # Last non-empty line is the GT/tracking markers - no weight
-        is_last = (i == len(lines) - 1) or all(
-            not line_item.strip() for line_item in lines[i + 1 :]
+    output_dir = PROJECT_ROOT / "data" / "job_files" / dataset / split
+    base_job_file = Path(
+        generate_job_file(
+            parquet_file_path=str(parquet_file),
+            campaign_number=campaign,
+            output_dir=str(output_dir),
         )
-
-        if is_last:
-            output_lines.append(line + "\n")
-        else:
-            # Add weight " 1" to competitor lines
-            output_lines.append(line + " 1\n")
-
-    output_job_file.parent.mkdir(parents=True, exist_ok=True)
-    with open(output_job_file, "w") as f:
-        f.writelines(output_lines)
-
-    logger.info(f"Created job file with weights: {output_job_file}")
-
-
-def get_job_file_path(
-    dataset: str, campaign: str, needs_weights: bool, split: str = "mixed"
-) -> Path:
-    """Get the appropriate job file path based on whether weights are needed."""
-    base_dir = PROJECT_ROOT / "data" / "job_files" / dataset / split
-    if needs_weights:
-        return base_dir / f"{dataset}_{campaign}_job_file_with_weights.txt"
-    else:
-        return base_dir / f"{dataset}_{campaign}_job_file.txt"
+    )
+    weighted_job_file = output_dir / f"{dataset}_{campaign}_job_file_with_weights.txt"
+    return base_job_file, weighted_job_file
 
 
 def run_single_fusion(
     dataset: str,
+    parquet_file: Path,
     campaign: str,
     model: str,
     timepoints: List[int],
@@ -179,37 +158,22 @@ def run_single_fusion(
         dict with keys: success, output_dir, model, campaign, error (if failed)
     """
     needs_weights = model in WEIGHTED_MODELS
-    job_file = get_job_file_path(dataset, campaign, needs_weights, split)
+    try:
+        base_job_file, weighted_job_file = regenerate_job_files(
+            parquet_file=parquet_file,
+            dataset=dataset,
+            campaign=campaign,
+            split=split,
+        )
+    except Exception as e:
+        return {
+            "success": False,
+            "model": model,
+            "campaign": campaign,
+            "error": f"Failed to regenerate job files: {e}",
+        }
 
-    if not job_file.exists():
-        if needs_weights:
-            # Try to auto-create job file with weights from base job file
-            base_job_file = get_job_file_path(dataset, campaign, False, split)
-            if base_job_file.exists():
-                logger.info(f"Auto-creating job file with weights from {base_job_file}")
-                try:
-                    add_weights_to_job_file(base_job_file, job_file)
-                except Exception as e:
-                    return {
-                        "success": False,
-                        "model": model,
-                        "campaign": campaign,
-                        "error": f"Failed to create job file with weights: {e}",
-                    }
-            else:
-                return {
-                    "success": False,
-                    "model": model,
-                    "campaign": campaign,
-                    "error": f"Job file not found: {job_file} (and base file {base_job_file} doesn't exist)",
-                }
-        else:
-            return {
-                "success": False,
-                "model": model,
-                "campaign": campaign,
-                "error": f"Job file not found: {job_file}",
-            }
+    job_file = weighted_job_file if needs_weights else base_job_file
 
     # Create model-specific output directory with split organization
     model_lower = model.lower()
@@ -333,6 +297,11 @@ def run_single_fusion(
     help="MLflow tracking directory (default: data/mlflow/mlruns relative to project root)",
 )
 @click.option(
+    "--mlflow-run-name",
+    default=None,
+    help="Optional MLflow parent run name.",
+)
+@click.option(
     "--skip-fusion",
     is_flag=True,
     help="Skip fusion step (only evaluate existing results)",
@@ -349,6 +318,7 @@ def main(
     output_dir: Path,
     mlflow_experiment: str,
     mlflow_tracking_path: str,
+    mlflow_run_name: Optional[str],
     skip_fusion: bool,
 ):
     """
@@ -426,10 +396,15 @@ def main(
     output_base = PROJECT_ROOT / output_dir
 
     # Start parent MLflow run
-    run_name = f"{dataset}_{split}_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+    run_name = mlflow_run_name or f"{dataset}_{split}_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
 
     with mlflow.start_run(run_name=run_name) as parent_run:
         set_common_mlflow_tags(dataset=dataset, split=split, repo_root=PROJECT_ROOT)
+        set_evaluation_tags(
+            pipeline_family="fusion_baseline",
+            evaluation_level="full_image_binary",
+            setup_name=run_name,
+        )
         mlflow.set_tag("run_kind", "experiment_parent")
         mlflow.set_tag("parent_scope", "dataset_split")
         mlflow.log_params(
@@ -452,9 +427,18 @@ def main(
             logger.info(f"Model: {model}")
             logger.info("=" * 60)
 
-            with mlflow.start_run(run_name=model, nested=True) as model_run:
+            child_run_name = (
+                f"{run_name}__{model_lower}" if mlflow_run_name else model
+            )
+            with mlflow.start_run(run_name=child_run_name, nested=True) as model_run:
                 set_common_mlflow_tags(
                     dataset=dataset, split=split, repo_root=PROJECT_ROOT
+                )
+                set_evaluation_tags(
+                    pipeline_family="fusion_baseline",
+                    evaluation_level="full_image_binary",
+                    setup_name=model_lower,
+                    extra_tags={"fusion_model": model},
                 )
                 mlflow.set_tag("run_kind", "model_run")
                 mlflow.log_params(
@@ -483,6 +467,7 @@ def main(
                     if not skip_fusion:
                         result = run_single_fusion(
                             dataset=dataset,
+                            parquet_file=parquet_file,
                             campaign=campaign,
                             model=model,
                             timepoints=timepoints,
@@ -556,6 +541,14 @@ def main(
                                             mlflow.log_metric(
                                                 f"{metric_split}_{metric_name}", value
                                             )
+                                flat_metrics = {}
+                                for metric_split, split_metrics in metrics.items():
+                                    for metric_name, value in split_metrics.items():
+                                        if isinstance(value, (int, float)):
+                                            flat_metrics[
+                                                f"{metric_split}_{metric_name}"
+                                            ] = value
+                                log_standardized_split_metrics(flat_metrics)
 
                                 # Print summary
                                 logger.info(f"\n  Results for {model}:")

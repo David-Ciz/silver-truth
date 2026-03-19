@@ -4,17 +4,17 @@ The "silver truth" in this project refers to a computer-generated reference anno
 
 ### Overview of the Fusion Process
 
-The generation of silver truth is primarily handled by the `cli_fusion.py` script, which acts as a Python wrapper around a powerful Java-based fusion tool, specifically the `Annotations Fusing tools` plugin (packaged as a standalone JAR file). This approach allows us to leverage the robust fusion capabilities of the Java tool while providing a convenient command-line interface through Python.
+The generation of silver truth is handled through the `silver-fusion` CLI, which wraps the Java-based fusion tool used by the project. The current maintained command surfaces live in `src/silver_truth/cli/fusion.py`.
 
 The general workflow for generating silver truth involves:
 
 1.  **Preparing Input Data**: Ensuring that synchronized segmentation results from various competitor algorithms are available.
-2.  **Generating Job Files**: Creating a job specification file that lists the input image patterns for the fusion tool. This is done using the `generate-jobfiles` command within `cli_fusion.py`.
-3.  **Running the Fusion Tool**: Executing the Java fusion tool via the `run-fusion` command in `cli_fusion.py`, providing the job file and other necessary parameters.
+2.  **Generating Job Files**: Creating a job specification file that lists the input image patterns for the fusion tool. This is done using `silver-fusion generate-jobfiles`.
+3.  **Running the Fusion Tool**: Executing the Java fusion tool via `silver-fusion run-fusion`, providing the job file and other necessary parameters.
 
-### The `cli_fusion.py` Script
+### The `silver-fusion` CLI
 
-The `cli_fusion.py` script provides two main commands:
+The maintained CLI provides these main commands:
 
 #### 1. `generate-jobfiles`
 
@@ -23,7 +23,7 @@ This command prepares the input for the fusion process by creating a job specifi
 **Usage:**
 
 ```bash
-python cli_fusion.py generate-jobfiles --parquet-file <path_to_parquet_file> --campaign-number <campaign_number> --output-dir <output_directory> [OPTIONS]
+silver-fusion generate-jobfiles --parquet-file <path_to_parquet_file> --campaign-number <campaign_number> --output-dir <output_directory> [OPTIONS]
 ```
 
 **Key Parameters:**
@@ -37,7 +37,7 @@ python cli_fusion.py generate-jobfiles --parquet-file <path_to_parquet_file> --c
 **Example:**
 
 ```bash
-python cli_fusion.py generate-jobfiles --parquet-file BF-C2DL-HSC_dataset_dataframe.parquet --campaign-number 01 --output-dir job_files
+silver-fusion generate-jobfiles --parquet-file BF-C2DL-HSC_dataset_dataframe.parquet --campaign-number 01 --output-dir job_files
 ```
 
 #### 2. `run-fusion`
@@ -47,7 +47,7 @@ This command executes the actual segmentation fusion process using the Java JAR.
 **Usage:**
 
 ```bash
-python cli_fusion.py run-fusion --jar-path <path_to_jar> --job-file <path_to_job_file> --output-pattern <output_pattern> --time-points <time_points> --num-threads <num_threads> --model <model> [OPTIONS]
+silver-fusion run-fusion --jar-path <path_to_jar> --job-file <path_to_job_file> --output-pattern <output_pattern> --time-points <time_points> --num-threads <num_threads> --model <model> [OPTIONS]
 ```
 
 **Key Parameters:**
@@ -57,7 +57,7 @@ python cli_fusion.py run-fusion --jar-path <path_to_jar> --job-file <path_to_job
 *   `--output-pattern` (required): Output filename pattern for the fused images, including `TTT` or `TTTT` placeholders for time points (e.g., `/path/to/fused_TTT.tif`).
 *   `--time-points` (required): A string specifying the time points to process (e.g., `"1-9,23,25"`).
 *   `--num-threads` (required): Number of processing threads to use for the fusion.
-*   `--model` (required): The fusion model to use. Available models are defined by the `FusionModel` enum in `src/fusion/fusion.py` (e.g., `weighted_average`, `majority_vote`).
+*   `--model` (required): The fusion model to use. Available models are defined by the `FusionModel` enum in `src/silver_truth/fusion/fusion.py`.
 *   `--threshold` (optional): Voting threshold for merging (default: `1.0`).
 *   `--cmv-mode` (optional): Enable Combinatorial Model Validation mode (e.g., `"CMV"`, `"CMV2_8"`).
 *   `--seg-folder` (optional): Optional path to ground truth folder for scoring during fusion.
@@ -66,15 +66,28 @@ python cli_fusion.py run-fusion --jar-path <path_to_jar> --job-file <path_to_job
 **Example:**
 
 ```bash
-python cli_fusion.py run-fusion --jar-path src/data_processing/cell_tracking_java_helpers/label-fusion-ng-2.2.0-SNAPSHOT-jar-with-dependencies.jar --job-file job_files/BF-C2DL-HSC_01_job_file.txt --output-pattern data/fused/BF-C2DL-HSC_fused_TTT.tif --time-points "1-10" --num-threads 4 --model "weighted_average"
+silver-fusion run-fusion --job-file job_files/BF-C2DL-HSC_01_job_file.txt --output-pattern data/fused/BF-C2DL-HSC_fused_TTT.tif --time-points "1-10" --num-threads 4 --model SIMPLE
 ```
 
 ### Fusion Models
 
-The `--model` parameter in `run-fusion` allows selection of different fusion algorithms. These correspond to the `FusionModel` enum in `src/fusion/fusion.py`. Common models include:
+The `--model` parameter in `run-fusion` allows selection of different fusion algorithms. These correspond to the `FusionModel` enum in `src/silver_truth/fusion/fusion.py`. Common models used in the repository include:
 
-*   **`weighted_average`**
-*   **`majority_vote`**
+*   **`SIMPLE`**
+*   **`MAJORITY_FLAT`**
+*   **`THRESHOLD_FLAT`**
+*   **`BIC_FLAT_VOTING`**
+
+### Crop-Oriented Fusion Experiments
+
+For paper experiments, the more common path is `silver-fusion run-fusion-crops`, which:
+
+*   reads a QA crop parquet
+*   stages per-cell synthetic timepoints for the Java fusion tool
+*   runs one or more fusion models
+*   writes `_with_fused.parquet` outputs and summary CSVs
+
+Those crop outputs are then scored at full-image level with `silver-evaluation evaluate-fusion-crops`.
 
 ### Inputs Required by the Java Plugin
 

@@ -2,3 +2,5 @@
 datasets:
   BF-C2DL-HSC:
     crop_size: 64
+  BF-C2DL-MuSC:
+    crop_size: 256

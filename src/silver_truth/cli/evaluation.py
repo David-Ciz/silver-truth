@@ -12,12 +12,26 @@ from silver_truth.evaluation.stacked_jaccard_logic import (
     calculate_evaluation_metrics,
     calculate_evaluation_metrics_cropped,
 )
+from silver_truth.evaluation.reporting import (
+    generate_hsc_reporting_bundle,
+    write_hsc_reporting_bundle,
+)
 from silver_truth.metrics.qa_model_evaluation import (
     evaluate_qa_model_from_excel,
     merge_predictions_to_parquet,
 )
 from silver_truth.qa.filtering_evaluation import run_qa_filtering_evaluation
-from silver_truth.experiment_tracking import DEFAULT_MLFLOW_TRACKING_URI
+from silver_truth.data_processing.utils.dataset_dataframe_creation import (
+    SILVER_TRUTH_COLUMN,
+)
+from silver_truth.experiment_tracking import (
+    DEFAULT_MLFLOW_TRACKING_URI,
+    infer_dataset_name_from_text,
+    log_standardized_split_metrics,
+    start_managed_mlflow_run,
+    set_common_mlflow_tags,
+    set_evaluation_tags,
+)
 
 # Setup logging
 logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
@@ -232,11 +246,12 @@ def _log_qa_metrics_to_mlflow(
         if metrics:
             mlflow.log_metrics(metrics)
 
-    mlflow.set_tracking_uri(mlflow_tracking_uri)
-
     if mlflow_run_id:
         # Log to existing run
-        with mlflow.start_run(run_id=mlflow_run_id):
+        with start_managed_mlflow_run(
+            run_id=mlflow_run_id,
+            mlflow_tracking_uri=mlflow_tracking_uri,
+        ):
             logging.info(f"Logging QA metrics to existing MLflow run: {mlflow_run_id}")
             for split_name, split_results in results.items():
                 log_metrics_for_split(split_results, split_name)
@@ -247,15 +262,22 @@ def _log_qa_metrics_to_mlflow(
                 mlflow.log_artifacts(str(output_dir), artifact_path="evaluation")
     else:
         # Create new run
-        if mlflow_experiment:
-            mlflow.set_experiment(mlflow_experiment)
-
-        with mlflow.start_run(run_name=mlflow_run_name):
+        with start_managed_mlflow_run(
+            mlflow_tracking_uri=mlflow_tracking_uri,
+            mlflow_experiment=mlflow_experiment,
+            run_name=mlflow_run_name,
+        ):
             active = mlflow.active_run()
             if active is not None:
                 logging.info(f"Created new MLflow run: {active.info.run_id}")
             else:
                 logging.info("Created new MLflow run.")
+
+            set_evaluation_tags(
+                pipeline_family="qa_model",
+                evaluation_level="qa_regression",
+                setup_name=excel_path.stem,
+            )
 
             # Log the excel path as a parameter
             mlflow.log_param("excel_path", str(excel_path))
@@ -423,12 +445,63 @@ def cli():
     show_default=True,
     help="Binarisation threshold applied to each fused mask before reconstruction.",
 )
+@click.option(
+    "--mlflow-tracking-uri",
+    type=str,
+    default=DEFAULT_MLFLOW_TRACKING_URI,
+    show_default=True,
+    help="MLflow tracking URI.",
+)
+@click.option(
+    "--mlflow-experiment",
+    type=str,
+    default=None,
+    help="Optional MLflow experiment used for reconstructed-image evaluation logging.",
+)
+@click.option(
+    "--mlflow-run-name",
+    type=str,
+    default=None,
+    help="Optional MLflow run name.",
+)
+@click.option(
+    "--setup-name",
+    type=str,
+    default=None,
+    help="Logical setup name used in MLflow tags. Defaults to fused-path-column.",
+)
+@click.option(
+    "--pipeline-family",
+    type=str,
+    default="fusion",
+    show_default=True,
+    help="Pipeline family tag written to MLflow.",
+)
+@click.option(
+    "--qa-mode",
+    type=str,
+    default=None,
+    help="Optional QA mode tag, e.g. fusion_only or full_pipeline.",
+)
+@click.option(
+    "--qa-threshold",
+    type=float,
+    default=None,
+    help="Optional QA threshold tag for MLflow.",
+)
 def evaluate_fusion_crops(
     parquet_path: Path,
     fused_path_column: str,
     output_dir: Path,
     output: Optional[Path],
     threshold: float,
+    mlflow_tracking_uri: str,
+    mlflow_experiment: Optional[str],
+    mlflow_run_name: Optional[str],
+    setup_name: Optional[str],
+    pipeline_family: str,
+    qa_mode: Optional[str],
+    qa_threshold: Optional[float],
 ) -> None:
     """
     Reconstruct full-image segmentations from per-cell fused crops and evaluate IoU/F1.
@@ -467,6 +540,48 @@ def evaluate_fusion_crops(
 
     csv_path = output if output is not None else output_dir / "fullimage_eval.csv"
     results_df.to_csv(csv_path, index=False)
+
+    if mlflow_experiment:
+        dataset_tag = infer_dataset_name_from_text(
+            [parquet_path, *df.get("gt_image", pd.Series(dtype=str)).dropna().head(10)]
+        )
+        split_metrics: dict[str, float] = {}
+        if not results_df.empty:
+            if "split" in results_df.columns:
+                for split_name, split_df in results_df.groupby("split"):
+                    split_key = str(split_name)
+                    split_metrics[f"{split_key}_mean_jaccard"] = float(
+                        split_df["iou"].mean()
+                    )
+                    split_metrics[f"{split_key}_mean_f1"] = float(split_df["f1"].mean())
+                    split_metrics[f"{split_key}_count"] = float(len(split_df))
+            split_metrics["overall_mean_jaccard"] = float(results_df["iou"].mean())
+            split_metrics["overall_mean_f1"] = float(results_df["f1"].mean())
+            split_metrics["overall_count"] = float(len(results_df))
+
+        with start_managed_mlflow_run(
+            mlflow_tracking_uri=mlflow_tracking_uri,
+            mlflow_experiment=mlflow_experiment,
+            run_name=mlflow_run_name or fused_path_column,
+        ):
+            set_common_mlflow_tags(dataset=dataset_tag, split="image_reconstructed")
+            set_evaluation_tags(
+                pipeline_family=pipeline_family,
+                evaluation_level="image_reconstructed",
+                setup_name=setup_name or fused_path_column,
+                qa_mode=qa_mode,
+                qa_threshold=qa_threshold,
+                extra_tags={
+                    "fused_path_column": fused_path_column,
+                },
+            )
+            mlflow.log_param("parquet_path", str(parquet_path))
+            mlflow.log_param("fused_path_column", fused_path_column)
+            mlflow.log_param("output_csv", str(csv_path))
+            mlflow.log_param("threshold", threshold)
+            log_standardized_split_metrics(split_metrics)
+            mlflow.log_artifact(str(csv_path))
+
     click.echo(f"Full-image evaluation written to: {csv_path}")
 
 
@@ -507,11 +622,33 @@ def evaluate_fusion_crops(
     type=click.Path(path_type=Path),
     help="Path for the filtered output parquet.",
 )
+@click.option(
+    "--mlflow-tracking-uri",
+    type=str,
+    default=DEFAULT_MLFLOW_TRACKING_URI,
+    show_default=True,
+    help="MLflow tracking URI.",
+)
+@click.option(
+    "--mlflow-experiment",
+    type=str,
+    default=None,
+    help="Optional MLflow experiment to log filtering statistics to.",
+)
+@click.option(
+    "--mlflow-run-name",
+    type=str,
+    default=None,
+    help="Optional MLflow run name.",
+)
 def filter_parquet(
     parquet_path: Path,
     mode: str,
     threshold: float,
     output: Path,
+    mlflow_tracking_uri: str,
+    mlflow_experiment: Optional[str],
+    mlflow_run_name: Optional[str],
 ) -> None:
     """
     Filter a QA-enriched parquet by predicted_jaccard_index.
@@ -532,19 +669,42 @@ def filter_parquet(
             "Run 'silver-evaluation merge-qa-predictions' first."
         )
 
+    if "competitor" in df.columns:
+        reference_mask = df["competitor"].astype(str) == SILVER_TRUTH_COLUMN
+        reference_count = int(reference_mask.sum())
+        if reference_count:
+            df = df.loc[~reference_mask].copy()
+            logging.warning(
+                "Dropped %d '%s' reference rows before QA filtering.",
+                reference_count,
+                SILVER_TRUTH_COLUMN,
+            )
+
+    n_rows_in = len(df)
+    n_cells_total = df[_KEY_COLS].drop_duplicates().shape[0]
+    filter_stats: dict = {
+        "mode": mode,
+        "threshold": threshold,
+        "total_rows_in": n_rows_in,
+        "total_cells": n_cells_total,
+    }
+
     if mode == "qa_only":
         filtered = (
             df.sort_values("predicted_jaccard_index", ascending=False)
             .groupby(_KEY_COLS, as_index=False)
             .first()
         )
-        n_in = df[_KEY_COLS].drop_duplicates().shape[0]
         n_out = filtered[_KEY_COLS].drop_duplicates().shape[0]
+        filter_stats["total_rows_out"] = len(filtered)
+        filter_stats["cells_passing_threshold"] = n_out
+        filter_stats["cells_fallback_top1"] = 0
+        filter_stats["pct_cells_filtered"] = 0.0
         logging.info(
             "qa_only: %d cells in → %d cells out (top-1 per cell, %d rows → %d rows)",
-            n_in,
+            n_cells_total,
             n_out,
-            len(df),
+            n_rows_in,
             len(filtered),
         )
     else:  # full_pipeline
@@ -557,24 +717,162 @@ def filter_parquet(
             .first()
         )
         filtered = pd.concat([passing, fallback], ignore_index=True)
-        n_cells_total = df[_KEY_COLS].drop_duplicates().shape[0]
         n_passing_cells = len(covered_keys)
         n_fallback_cells = fallback[_KEY_COLS].drop_duplicates().shape[0]
         pct_filtered = 100.0 * (n_cells_total - n_passing_cells) / max(n_cells_total, 1)
+
+        filter_stats["total_rows_out"] = len(filtered)
+        filter_stats["cells_passing_threshold"] = n_passing_cells
+        filter_stats["cells_fallback_top1"] = n_fallback_cells
+        filter_stats["pct_cells_filtered"] = round(pct_filtered, 2)
+
         logging.info(
             "full_pipeline t=%.2f: %d rows in → %d rows out | "
             "%d/%d cells pass threshold (%.1f%% fell back to top-1)",
             threshold,
-            len(df),
+            n_rows_in,
             len(filtered),
             n_passing_cells,
             n_cells_total,
             pct_filtered,
         )
 
+    # ── Prominent summary ────────────────────────────────────────────────
+    click.echo("")
+    click.echo("╔══════════════════════════════════════════════════════╗")
+    click.echo(f"║  QA FILTER: mode={mode}  threshold={threshold:.2f}             ║")
+    click.echo("╠══════════════════════════════════════════════════════╣")
+    click.echo(f"║  Rows:  {n_rows_in:>6d} → {filter_stats['total_rows_out']:>6d}                          ║")
+    click.echo(f"║  Cells: {n_cells_total:>6d} total                              ║")
+    click.echo(f"║         {filter_stats['cells_passing_threshold']:>6d} pass threshold                    ║")
+    click.echo(f"║         {filter_stats['cells_fallback_top1']:>6d} fallback to top-1                 ║")
+    click.echo(f"║         {filter_stats['pct_cells_filtered']:>5.1f}% of cells needed fallback        ║")
+    click.echo("╚══════════════════════════════════════════════════════╝")
+    click.echo("")
+
+    # ── MLflow logging ───────────────────────────────────────────────────
+    if mlflow_experiment:
+        with start_managed_mlflow_run(
+            mlflow_tracking_uri=mlflow_tracking_uri,
+            mlflow_experiment=mlflow_experiment,
+            run_name=mlflow_run_name or f"filter_{mode}_t{threshold}",
+        ):
+            dataset_tag = infer_dataset_name_from_text([str(parquet_path)])
+            set_common_mlflow_tags(dataset=dataset_tag, split="filter")
+            set_evaluation_tags(
+                pipeline_family="qa_filter",
+                evaluation_level="filter",
+                setup_name=f"{mode}_t{threshold}",
+                qa_mode=mode,
+                qa_threshold=threshold,
+            )
+            mlflow.log_param("parquet_path", str(parquet_path))
+            mlflow.log_param("output_path", str(output))
+            for key, value in filter_stats.items():
+                if isinstance(value, (int, float)):
+                    mlflow.log_metric(key, value)
+                else:
+                    mlflow.log_param(key, value)
+
     output.parent.mkdir(parents=True, exist_ok=True)
     filtered.to_parquet(output, index=False)
     click.echo(f"Filtered parquet written to: {output}  ({len(filtered)} rows)")
+
+
+@click.command("report-hsc-results")
+@click.option(
+    "--paper-runs-root",
+    type=click.Path(exists=True, file_okay=False, path_type=Path),
+    default=Path("data/paper_runs"),
+    show_default=True,
+    help="Root directory containing paper run outputs.",
+)
+@click.option(
+    "--variant",
+    type=str,
+    default="baseline",
+    show_default=True,
+    help="Ablation variant name under data/paper_runs/ablation/.",
+)
+@click.option(
+    "--qa-threshold",
+    type=float,
+    default=0.75,
+    show_default=True,
+    help="QA threshold used for the default full-pipeline and ensemble_qa report rows.",
+)
+@click.option(
+    "--fusion-model",
+    type=str,
+    default="simple",
+    show_default=True,
+    help="Fusion model subdirectory to use for fusion_only reporting.",
+)
+@click.option(
+    "--full-pipeline-model",
+    type=str,
+    default="simple",
+    show_default=True,
+    help="Fusion model subdirectory to use for full_pipeline reporting.",
+)
+@click.option(
+    "--output-dir",
+    type=click.Path(path_type=Path),
+    default=Path("data/paper_runs/reports/hsc_baseline"),
+    show_default=True,
+    help="Directory where inventory, per-image metrics, summary tables, and markdown are written.",
+)
+@click.option(
+    "--bootstrap-samples",
+    type=int,
+    default=10000,
+    show_default=True,
+    help="Number of bootstrap resamples for confidence intervals.",
+)
+@click.option(
+    "--bootstrap-seed",
+    type=int,
+    default=42,
+    show_default=True,
+    help="Random seed for bootstrap confidence intervals.",
+)
+def report_hsc_results(
+    paper_runs_root: Path,
+    variant: str,
+    qa_threshold: float,
+    fusion_model: str,
+    full_pipeline_model: str,
+    output_dir: Path,
+    bootstrap_samples: int,
+    bootstrap_seed: int,
+):
+    """
+    Consolidate HSC fold-safe baseline outputs into one reporting bundle.
+
+    The command auto-discovers the current HSC baseline artifacts under
+    data/paper_runs/, normalizes them to one per-image table, computes bootstrap
+    confidence intervals, runs default paired comparisons, and writes CSV/Markdown
+    outputs for advisor or manuscript use.
+    """
+    bundle = generate_hsc_reporting_bundle(
+        paper_runs_root=paper_runs_root,
+        variant=variant,
+        qa_threshold=qa_threshold,
+        fusion_model=fusion_model,
+        full_pipeline_model=full_pipeline_model,
+        bootstrap_samples=bootstrap_samples,
+        bootstrap_seed=bootstrap_seed,
+    )
+    written = write_hsc_reporting_bundle(output_dir, bundle)
+
+    inventory = bundle["inventory"]
+    found = int(inventory["exists"].sum())
+    missing = int((~inventory["exists"]).sum())
+    click.echo(f"Report bundle written to: {output_dir}")
+    click.echo(f"Artifacts found: {found} | missing: {missing}")
+    click.echo(f"Core summary: {written['core_summary']}")
+    click.echo(f"Paired comparisons: {written['comparisons']}")
+    click.echo(f"Markdown summary: {written['markdown']}")
 
 
 cli.add_command(evaluate_competitor)
@@ -584,6 +882,7 @@ cli.add_command(evaluate_qa_filtering)
 cli.add_command(merge_qa_predictions)
 cli.add_command(evaluate_fusion_crops)
 cli.add_command(filter_parquet)
+cli.add_command(report_hsc_results)
 
 
 if __name__ == "__main__":

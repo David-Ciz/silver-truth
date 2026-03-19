@@ -79,8 +79,25 @@ def run_qa_evaluation(
         return {}
 
     # Filter by competitor if specified
+    if "competitor" in qa_df.columns:
+        reference_mask = qa_df["competitor"].astype(str) == ddc.SILVER_TRUTH_COLUMN
+        reference_count = int(reference_mask.sum())
+        if reference_count:
+            qa_df = qa_df.loc[~reference_mask].copy()
+            logging.warning(
+                "Dropped %d '%s' reference rows before QA evaluation.",
+                reference_count,
+                ddc.SILVER_TRUTH_COLUMN,
+            )
+
     competitors = qa_df["competitor"].unique()
     if competitor:
+        if competitor == ddc.SILVER_TRUTH_COLUMN:
+            logging.error(
+                "'%s' is a reference output and is excluded from QA evaluation.",
+                ddc.SILVER_TRUTH_COLUMN,
+            )
+            return {}
         if competitor not in competitors:
             logging.error(
                 f"Competitor '{competitor}' not found in QA data. Available: {competitors}"

@@ -34,13 +34,13 @@ Why:
 
 ### Naming Convention
 
-Use experiment names with clear prefixes:
+Use experiment names with clear prefixes. The current runner commonly emits names like:
 
-- `qa-cnn-<dataset>-<fold>`
-- `qa-filtering-<dataset>-<fold>`
-- `fusion-<dataset>-<fold>`
-- `paper-ablation-<dataset>`
-- `paper-threshold-sweep-<dataset>`
+- `phaseA-fusion-baselines-<dataset>-<variant>-<split>`
+- `phaseB-qa-train-<dataset>-<variant>-<split>`
+- `phaseB-qa-thresholding-<dataset>-<variant>-<split>`
+- `paper-compare-<dataset>-<variant>-<split>`
+- `phaseC-full-pipeline-crop-eval-<dataset>-<variant>-<split>`
 
 ### Current Defaults
 
@@ -72,8 +72,9 @@ First, run the DVC pipeline to prepare your data:
 dvc repro
 
 # Or run specific stages
-dvc repro create_mixed@BF-C2DL-HSC
-dvc repro generate_job_files
+dvc repro create_fold1@BF-C2DL-HSC create_fold2@BF-C2DL-HSC
+dvc repro create_qa_crops_split_fold1@BF-C2DL-HSC create_qa_crops_split_fold2@BF-C2DL-HSC
+dvc repro generate_job_files_fold1 generate_job_files_fold2
 ```
 
 This will:

@@ -187,6 +187,12 @@ silver-preprocessing synchronize-datasets <datasets_folder> <output_directory>
 
 # Create DataFrame
 silver-preprocessing create-dataset-dataframe <synchronized_dataset_dir> --output_path <output.parquet>
+
+# Measure per-cell segmentation sizes and bbox fit rate for crop decisions
+silver-preprocessing segmentation-size-stats \
+  data/synchronized_data/BF-C2DL-MuSC/01_GT/SEG \
+  data/synchronized_data/BF-C2DL-MuSC/02_GT/SEG \
+  --crop-size 64 --crop-size 96 --crop-size 128
 ```
 
 ### 2. Fusion (`silver-fusion`)

@@ -7,9 +7,11 @@ import numpy as np
 import tifffile
 
 from silver_truth.data_processing.utils.dataset_dataframe_creation import (
+    REFERENCE_COLUMNS_ATTR,
+    SILVER_TRUTH_COLUMN,
     load_dataframe_from_parquet_with_metadata,
 )
-from silver_truth.metrics.metrics import calculate_jaccard_scores
+from silver_truth.metrics.metrics import calculate_labelwise_scores
 from silver_truth.metrics.utils import print_results
 
 # Setup basic logging
@@ -191,6 +193,7 @@ def run_evaluation(
             )
 
         competitor_columns = df.attrs.get("competitor_columns", [])
+        reference_columns = set(df.attrs.get(REFERENCE_COLUMNS_ATTR, []))
 
         _NON_COMPETITOR_COLS = {
             "composite_key",
@@ -207,6 +210,8 @@ def run_evaluation(
             col
             for col in df.columns
             if col not in _NON_COMPETITOR_COLS
+            and col not in reference_columns
+            and col != SILVER_TRUTH_COLUMN
             and isinstance(df[col].iloc[0], str)
             and Path(df[col].iloc[0]).suffix in [".tif", ".tiff"]
             and not col.startswith("Unnamed")
@@ -249,9 +254,12 @@ def run_evaluation(
         return {}
     # --- Competitor Selection ---
     if competitor:
-        if competitor not in competitor_columns:
+        available_eval_columns = set(competitor_columns)
+        if SILVER_TRUTH_COLUMN in df.columns:
+            available_eval_columns.add(SILVER_TRUTH_COLUMN)
+        if competitor not in available_eval_columns:
             logging.error(
-                f"Competitor '{competitor}' not found in available competitor columns: {competitor_columns}"
+                f"Competitor '{competitor}' not found in available evaluation columns: {sorted(available_eval_columns)}"
             )
             return {}
         competitor_columns = [competitor]
@@ -324,25 +332,32 @@ def run_evaluation(
         return {}
     logging.info(f"Found {len(campaigns)} campaigns: {campaigns}")
 
-    all_results = {
+    all_results = {comp: {camp: {} for camp in campaigns} for comp in competitor_columns}
+    all_f1_results = {
         comp: {camp: {} for camp in campaigns} for comp in competitor_columns
     }
-    per_image_averages = {
+    per_image_averages = {comp: {camp: {} for camp in campaigns} for comp in competitor_columns}
+    per_image_f1_averages = {
         comp: {camp: {} for camp in campaigns} for comp in competitor_columns
     }
     per_campaign_averages = {comp: {} for comp in competitor_columns}
+    per_campaign_f1_averages = {comp: {} for comp in competitor_columns}
     overall_averages = {}
+    overall_f1_averages = {}
     all_labels = set()
 
     _SPLITS = ["train", "validation", "test"]
     _has_split_col = "split" in filtered_df.columns
     per_split_averages: dict = {comp: {} for comp in competitor_columns}
+    per_split_f1_averages: dict = {comp: {} for comp in competitor_columns}
 
     # --- Processing Loop ---
     for comp in competitor_columns:
         logging.info(f"--- Processing Competitor: {comp} ---")
         competitor_all_label_scores = []
+        competitor_all_label_f1_scores = []
         split_label_scores: dict[str, list] = {s: [] for s in _SPLITS}
+        split_label_f1_scores: dict[str, list] = {s: [] for s in _SPLITS}
 
         if comp not in filtered_df.columns:
             logging.warning(
@@ -350,13 +365,16 @@ def run_evaluation(
             )
             for campaign in campaigns:
                 per_campaign_averages[comp][campaign] = float("nan")
+                per_campaign_f1_averages[comp][campaign] = float("nan")
             overall_averages[comp] = float("nan")
+            overall_f1_averages[comp] = float("nan")
             continue
 
         for campaign in campaigns:
             logging.info(f"  Processing Campaign: {campaign}")
             campaign_df = filtered_df[filtered_df[campaign_col] == campaign]
             campaign_all_label_scores = []
+            campaign_all_label_f1_scores = []
             image_count = 0
             processed_count = 0
             skipped_count = 0
@@ -373,7 +391,9 @@ def run_evaluation(
                         f"    {composite_key}: Skipping due to invalid GT ('{gt_path_str}') or SEG ('{seg_path_str}') path type."
                     )
                     all_results[comp][campaign][composite_key] = {}
+                    all_f1_results[comp][campaign][composite_key] = {}
                     per_image_averages[comp][campaign][composite_key] = float("nan")
+                    per_image_f1_averages[comp][campaign][composite_key] = float("nan")
                     skipped_count += 1
                     continue
 
@@ -385,7 +405,9 @@ def run_evaluation(
                         f"    {composite_key}: Skipping because GT file disappeared: {gt_path}"
                     )
                     all_results[comp][campaign][composite_key] = {}
+                    all_f1_results[comp][campaign][composite_key] = {}
                     per_image_averages[comp][campaign][composite_key] = float("nan")
+                    per_image_f1_averages[comp][campaign][composite_key] = float("nan")
                     skipped_count += 1
                     continue
                 if not seg_path.exists():
@@ -393,7 +415,9 @@ def run_evaluation(
                         f"    {composite_key}: Skipping because competitor '{comp}' file not found: {seg_path}"
                     )
                     all_results[comp][campaign][composite_key] = {}
+                    all_f1_results[comp][campaign][composite_key] = {}
                     per_image_averages[comp][campaign][composite_key] = float("nan")
+                    per_image_f1_averages[comp][campaign][composite_key] = float("nan")
                     skipped_count += 1
                     continue
 
@@ -401,22 +425,39 @@ def run_evaluation(
                     gt_img = tifffile.imread(gt_path)
                     seg_img = tifffile.imread(seg_path)
 
-                    jaccard_scores = calculate_jaccard_scores(gt_img, seg_img)
+                    labelwise_scores = calculate_labelwise_scores(gt_img, seg_img)
+                    jaccard_scores = {
+                        label: values["jaccard"]
+                        for label, values in labelwise_scores.items()
+                    }
+                    f1_scores = {
+                        label: values["f1"] for label, values in labelwise_scores.items()
+                    }
                     all_results[comp][campaign][composite_key] = jaccard_scores
-                    all_labels.update(jaccard_scores.keys())
+                    all_f1_results[comp][campaign][composite_key] = f1_scores
+                    all_labels.update(labelwise_scores.keys())
 
-                    if jaccard_scores:
+                    if labelwise_scores:
                         image_avg = sum(jaccard_scores.values()) / len(jaccard_scores)
+                        image_f1_avg = sum(f1_scores.values()) / len(f1_scores)
                         per_image_averages[comp][campaign][composite_key] = image_avg
+                        per_image_f1_averages[comp][campaign][composite_key] = (
+                            image_f1_avg
+                        )
                         campaign_all_label_scores.extend(list(jaccard_scores.values()))
+                        campaign_all_label_f1_scores.extend(list(f1_scores.values()))
                         if _has_split_col:
                             row_split = row.get("split")
                             if row_split in split_label_scores:
                                 split_label_scores[row_split].extend(
                                     list(jaccard_scores.values())
                                 )
+                                split_label_f1_scores[row_split].extend(
+                                    list(f1_scores.values())
+                                )
                     else:
                         per_image_averages[comp][campaign][composite_key] = 0.0
+                        per_image_f1_averages[comp][campaign][composite_key] = 0.0
 
                     processed_count += 1
 
@@ -425,7 +466,9 @@ def run_evaluation(
                         f"    {composite_key}: Error processing images ({gt_path}, {seg_path}): {e}. Skipping image."
                     )
                     all_results[comp][campaign][composite_key] = {}
+                    all_f1_results[comp][campaign][composite_key] = {}
                     per_image_averages[comp][campaign][composite_key] = float("nan")
+                    per_image_f1_averages[comp][campaign][composite_key] = float("nan")
                     skipped_count += 1
 
             logging.info(
@@ -436,13 +479,22 @@ def run_evaluation(
                 campaign_avg = sum(campaign_all_label_scores) / len(
                     campaign_all_label_scores
                 )
+                campaign_f1_avg = sum(campaign_all_label_f1_scores) / len(
+                    campaign_all_label_f1_scores
+                )
                 per_campaign_averages[comp][campaign] = campaign_avg
+                per_campaign_f1_averages[comp][campaign] = campaign_f1_avg
                 competitor_all_label_scores.extend(campaign_all_label_scores)
+                competitor_all_label_f1_scores.extend(campaign_all_label_f1_scores)
                 logging.info(
                     f"    Campaign '{campaign}' avg Jaccard for '{comp}': {campaign_avg:.4f} (from {len(campaign_all_label_scores)} label scores)"
                 )
+                logging.info(
+                    f"    Campaign '{campaign}' avg F1 for '{comp}': {campaign_f1_avg:.4f} (from {len(campaign_all_label_f1_scores)} label scores)"
+                )
             else:
                 per_campaign_averages[comp][campaign] = float("nan")
+                per_campaign_f1_averages[comp][campaign] = float("nan")
                 logging.warning(
                     f"    No valid Jaccard scores found for '{comp}' in campaign '{campaign}'. Average set to NaN."
                 )
@@ -461,10 +513,26 @@ def run_evaluation(
                 f"  No valid Jaccard scores found for '{comp}' across all campaigns. Overall average set to NaN."
             )
 
+        if competitor_all_label_f1_scores:
+            overall_f1_avg = sum(competitor_all_label_f1_scores) / len(
+                competitor_all_label_f1_scores
+            )
+            overall_f1_averages[comp] = overall_f1_avg
+            logging.info(
+                f"  Overall avg F1 for '{comp}': {overall_f1_avg:.4f} (from {len(competitor_all_label_f1_scores)} label scores across all campaigns)"
+            )
+        else:
+            overall_f1_averages[comp] = float("nan")
+            logging.warning(
+                f"  No valid F1 scores found for '{comp}' across all campaigns. Overall average set to NaN."
+            )
+
         if _has_split_col:
             per_split_averages[comp] = {}
+            per_split_f1_averages[comp] = {}
             for spl in _SPLITS:
                 scores = split_label_scores[spl]
+                f1_scores = split_label_f1_scores[spl]
                 if scores:
                     per_split_averages[comp][spl] = sum(scores) / len(scores)
                     logging.info(
@@ -473,6 +541,14 @@ def run_evaluation(
                     )
                 else:
                     per_split_averages[comp][spl] = float("nan")
+                if f1_scores:
+                    per_split_f1_averages[comp][spl] = sum(f1_scores) / len(f1_scores)
+                    logging.info(
+                        f"  Split '{spl}' avg F1 for '{comp}': {per_split_f1_averages[comp][spl]:.4f}"
+                        f" (from {len(f1_scores)} label scores)"
+                    )
+                else:
+                    per_split_f1_averages[comp][spl] = float("nan")
 
     logging.info("--- Evaluation Summary ---")
 
@@ -519,17 +595,23 @@ def run_evaluation(
 
     # --- Per-split summary (test split = paper number) ---
     if _has_split_col and per_split_averages:
-        logging.info("--- Per-split Jaccard averages (test = held-out fold) ---")
-        header = f"  {'Competitor':<25}  {'train':>8}  {'val':>8}  {'TEST':>8}"
+        logging.info(
+            "--- Per-split label-level averages (test = held-out fold, IoU/F1) ---"
+        )
+        header = f"  {'Competitor':<25}  {'train_iou':>10}  {'val_iou':>10}  {'test_iou':>10}  {'test_f1':>10}"
         logging.info(header)
         logging.info("  " + "-" * (len(header) - 2))
         for comp in competitor_columns:
             sp = per_split_averages.get(comp, {})
+            sp_f1 = per_split_f1_averages.get(comp, {})
             tr = sp.get("train", float("nan"))
             va = sp.get("validation", float("nan"))
             te = sp.get("test", float("nan"))
-            logging.info(f"  {comp:<25}  {tr:8.4f}  {va:8.4f}  {te:8.4f}")
-        logging.info("-" * 55)
+            te_f1 = sp_f1.get("test", float("nan"))
+            logging.info(
+                f"  {comp:<25}  {tr:10.4f}  {va:10.4f}  {te:10.4f}  {te_f1:10.4f}"
+            )
+        logging.info("-" * 78)
 
     # --- Optional CSV Output ---
     if output:
@@ -543,10 +625,17 @@ def run_evaluation(
                         .get(campaign, {})
                         .get(image_key, float("nan"))
                     )
-                    camp_avg = per_campaign_averages.get(comp, {}).get(
+                    camp_avg = per_campaign_averages.get(comp, {}).get(campaign, float("nan"))
+                    camp_f1_avg = per_campaign_f1_averages.get(comp, {}).get(
                         campaign, float("nan")
                     )
                     overall_avg = overall_averages.get(comp, float("nan"))
+                    overall_f1_avg = overall_f1_averages.get(comp, float("nan"))
+                    image_f1_avg = (
+                        per_image_f1_averages.get(comp, {})
+                        .get(campaign, {})
+                        .get(image_key, float("nan"))
+                    )
 
                     if labels_data:
                         for label, score in labels_data.items():
@@ -557,9 +646,16 @@ def run_evaluation(
                                     "image_key": image_key,
                                     "label": label,
                                     "jaccard_score": score,
+                                    "f1_score": all_f1_results.get(comp, {})
+                                    .get(campaign, {})
+                                    .get(image_key, {})
+                                    .get(label, float("nan")),
                                     "image_average": img_avg,
+                                    "image_f1_average": image_f1_avg,
                                     "campaign_average": camp_avg,
+                                    "campaign_f1_average": camp_f1_avg,
                                     "overall_competitor_average": overall_avg,
+                                    "overall_competitor_f1_average": overall_f1_avg,
                                     "split_train_average": per_split_averages.get(
                                         comp, {}
                                     ).get("train", float("nan")),
@@ -567,6 +663,15 @@ def run_evaluation(
                                         comp, {}
                                     ).get("validation", float("nan")),
                                     "split_test_average": per_split_averages.get(
+                                        comp, {}
+                                    ).get("test", float("nan")),
+                                    "split_train_f1_average": per_split_f1_averages.get(
+                                        comp, {}
+                                    ).get("train", float("nan")),
+                                    "split_validation_f1_average": per_split_f1_averages.get(
+                                        comp, {}
+                                    ).get("validation", float("nan")),
+                                    "split_test_f1_average": per_split_f1_averages.get(
                                         comp, {}
                                     ).get("test", float("nan")),
                                 }
@@ -579,9 +684,13 @@ def run_evaluation(
                                 "image_key": image_key,
                                 "label": None,
                                 "jaccard_score": float("nan"),
+                                "f1_score": float("nan"),
                                 "image_average": img_avg,
+                                "image_f1_average": image_f1_avg,
                                 "campaign_average": camp_avg,
+                                "campaign_f1_average": camp_f1_avg,
                                 "overall_competitor_average": overall_avg,
+                                "overall_competitor_f1_average": overall_f1_avg,
                                 "split_train_average": per_split_averages.get(
                                     comp, {}
                                 ).get("train", float("nan")),
@@ -589,6 +698,15 @@ def run_evaluation(
                                     comp, {}
                                 ).get("validation", float("nan")),
                                 "split_test_average": per_split_averages.get(
+                                    comp, {}
+                                ).get("test", float("nan")),
+                                "split_train_f1_average": per_split_f1_averages.get(
+                                    comp, {}
+                                ).get("train", float("nan")),
+                                "split_validation_f1_average": per_split_f1_averages.get(
+                                    comp, {}
+                                ).get("validation", float("nan")),
+                                "split_test_f1_average": per_split_f1_averages.get(
                                     comp, {}
                                 ).get("test", float("nan")),
                             }
@@ -614,8 +732,13 @@ def run_evaluation(
 
     return {
         "all_results": all_results,
+        "all_f1_results": all_f1_results,
         "per_image_averages": per_image_averages,
+        "per_image_f1_averages": per_image_f1_averages,
         "per_campaign_averages": per_campaign_averages,
+        "per_campaign_f1_averages": per_campaign_f1_averages,
         "overall_averages": overall_averages,
+        "overall_f1_averages": overall_f1_averages,
         "per_split_averages": per_split_averages,
+        "per_split_f1_averages": per_split_f1_averages,
     }

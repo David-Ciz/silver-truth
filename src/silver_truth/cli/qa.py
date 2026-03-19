@@ -277,7 +277,7 @@ def cnn() -> None:
             "efficientnet_b7",
         ]
     ),
-    default="resnet50",
+    default="resnet18",
     help="Model architecture to use.",
 )
 @click.option(

@@ -3,6 +3,8 @@ _Updated: 2026-03-12 | Dataset: BF-C2DL-HSC (primary) | Folds: fold-1 and fold-2
 
 Cross-references:
 - [`docs/paper_protocol.md`](paper_protocol.md) — step-by-step command runbook
+- [`docs/ablation_results_and_insights.md`](ablation_results_and_insights.md) — result summary and current interpretation
+- [`docs/ablation_split_sizes.md`](ablation_split_sizes.md) — actual labeled image/cell counts per split
 - [`PAPER_STATUS.md`](../PAPER_STATUS.md) — phase tracking and completion gates
 
 ---
@@ -12,6 +14,8 @@ Cross-references:
 > "The ablation should just make the pipeline easier to run, but if I wanted I could use the CLI and run the individual commands manually."
 
 Each experiment is a **sequence of existing CLI commands**. Nothing new is invented unless a genuine gap exists in the current CLI. Every step is independently runnable and inspectable.
+
+The maintained orchestrator for these steps is `scripts/run_ablation.py`, but the manual commands below are still useful for understanding and debugging each phase.
 
 ### Natural experiment order
 
@@ -76,7 +80,7 @@ dvc repro create_fold1@BF-C2DL-HSC create_fold2@BF-C2DL-HSC \
 | Command | Group | Purpose |
 |---|---|---|
 | `silver-evaluation evaluate-competitor` | `silver-evaluation` | Full-image label-by-label IoU/F1 on whole-image parquets |
-| `silver-fusion run-crops-experiment` | `silver-fusion` | Run Java fusion on crop parquet; evaluates at crop level |
+| `silver-fusion run-fusion-crops` | `silver-fusion` | Run Java fusion on crop parquet; evaluates at crop level |
 | `silver-ensemble build-databank` | `silver-ensemble` | Build ensemble databank from QA crop parquet (optionally with QA gating) |
 | `silver-ensemble ensemble-experiment` | `silver-ensemble` | Train ensemble model (U-Net/UnetPlusPlus) with MLflow logging |
 | `silver-ensemble evaluate-checkpoint` | `silver-ensemble` | Evaluate a checkpoint; calls `reconstruct_full_images_from_arrays` when reconstruction metadata present |
@@ -149,15 +153,15 @@ silver-evaluation evaluate-competitor \
 source .venv/bin/activate
 export MLFLOW_TRACKING_URI=file:$(pwd)/data/mlflow/mlruns
 
-silver-fusion run-crops-experiment \
-  data/dataframes/BF-C2DL-HSC/qa_crops/fold-1_sz64_qa_dataset.parquet \
-  --models SIMPLE,MAJORITY_FLAT,THRESHOLD_FLAT,BIC_FLAT_VOTING \
+silver-fusion run-fusion-crops \
+  --qa-parquet data/dataframes/BF-C2DL-HSC/qa_crops/fold-1_sz64_qa_dataset.parquet \
+  --models SIMPLE --models MAJORITY_FLAT --models THRESHOLD_FLAT --models BIC_FLAT_VOTING \
   --output-dir data/paper_runs/fusion/fold-1 \
   --mlflow-experiment fusion-baseline-BF-C2DL-HSC-fold1
 
-silver-fusion run-crops-experiment \
-  data/dataframes/BF-C2DL-HSC/qa_crops/fold-2_sz64_qa_dataset.parquet \
-  --models SIMPLE,MAJORITY_FLAT,THRESHOLD_FLAT,BIC_FLAT_VOTING \
+silver-fusion run-fusion-crops \
+  --qa-parquet data/dataframes/BF-C2DL-HSC/qa_crops/fold-2_sz64_qa_dataset.parquet \
+  --models SIMPLE --models MAJORITY_FLAT --models THRESHOLD_FLAT --models BIC_FLAT_VOTING \
   --output-dir data/paper_runs/fusion/fold-2 \
   --mlflow-experiment fusion-baseline-BF-C2DL-HSC-fold2
 
@@ -287,6 +291,27 @@ silver-evaluation evaluate-qa-filtering \
 
 **Paper content**: QA regression table (MAE/RMSE/R²/Pearson r per fold). QA filtering validity table/plot vs threshold.
 
+### Oracle QA Sanity Check
+
+Before judging the learned QA model, run the same gating logic with the **true per-cell IoU against GT** as an oracle score.
+
+Setup:
+- score each competitor crop with its measured GT IoU instead of `predicted_jaccard_index`
+- sweep thresholds on that oracle score
+- re-run the same downstream selection/fusion pipeline on the surviving candidates
+- compare the result to the unfiltered baseline
+
+Why this matters:
+- it tests the core hypothesis directly: if we could perfectly detect bad segmentations, would filtering actually improve fusion?
+- it gives an upper bound on what QA-based filtering can achieve on this dataset
+- it separates "the QA model is not accurate enough" from "filtering is not the right lever"
+
+Interpretation:
+- if no oracle threshold beats the unfiltered baseline, then the filtering premise is weak
+- if an oracle threshold helps, then the real objective is to learn a QA model that approximates that oracle
+
+For any paper-facing claim, threshold selection still has to be fold-locked: choose it on train/validation GT only, then report it on the held-out test fold.
+
 ---
 
 ## Phase C — QA-Filtered Re-runs (Core Ablation)
@@ -313,7 +338,7 @@ silver-evaluation merge-qa-predictions \
   --output data/dataframes/BF-C2DL-HSC/qa_crops/paper_inputs/fold-2_paper_ready.parquet
 ```
 
-**Parquet filtering helpers** (thin, ~15 lines of pandas — lives in a script or `silver-evaluation filter-parquet` subcommand):
+**Parquet filtering helpers** are already implemented as `silver-evaluation filter-parquet`. The pandas sketch below is only illustrative:
 
 ```python
 import pandas as pd
@@ -363,8 +388,8 @@ def filter_parquet_full_pipeline(path, out, threshold=0.75):
 
 ```bash
 # fusion_only
-silver-fusion run-crops-experiment \
-  data/dataframes/BF-C2DL-HSC/qa_crops/paper_inputs/fold-1_paper_ready.parquet \
+silver-fusion run-fusion-crops \
+  --qa-parquet data/dataframes/BF-C2DL-HSC/qa_crops/paper_inputs/fold-1_paper_ready.parquet \
   --models BIC_FLAT_VOTING \
   --output-dir data/paper_runs/ablation/fold-1/fusion_only \
   --mlflow-experiment ablation-fusion-only-fold1
@@ -373,8 +398,8 @@ silver-fusion run-crops-experiment \
 # filter first, then: silver-evaluation evaluate-fusion-crops <filtered_parquet>
 
 # full_pipeline — filter then fuse
-silver-fusion run-crops-experiment \
-  data/dataframes/BF-C2DL-HSC/qa_crops/paper_inputs/fold-1_full_pipeline_t0.75.parquet \
+silver-fusion run-fusion-crops \
+  --qa-parquet data/dataframes/BF-C2DL-HSC/qa_crops/paper_inputs/fold-1_full_pipeline_t0.75.parquet \
   --models BIC_FLAT_VOTING \
   --output-dir data/paper_runs/ablation/fold-1/full_pipeline_t0.75 \
   --mlflow-experiment ablation-full-pipeline-t0.75-fold1
@@ -413,7 +438,7 @@ silver-ensemble evaluate-best-checkpoint \
 
 For each t ∈ {0.50, 0.60, 0.70, 0.75, 0.80, 0.85, 0.90}:
 1. `filter_parquet_full_pipeline(fold-{n}_paper_ready.parquet, ..., threshold=t)`
-2. `silver-fusion run-crops-experiment` on the filtered parquet
+2. `silver-fusion run-fusion-crops` on the filtered parquet
 3. `silver-evaluation evaluate-fusion-crops` for full-image scores
 
 Filtering rate per threshold is already available from the `evaluate-qa-filtering` output in Experiment 4 — cross-reference those tables.

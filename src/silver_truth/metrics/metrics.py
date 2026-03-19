@@ -4,7 +4,15 @@ from scipy.ndimage import find_objects
 import logging
 
 
-def calculate_jaccard_scores(gt_image, mask_image):
+def calculate_labelwise_scores(gt_image, mask_image):
+    """
+    Calculate per-label IoU and F1 scores for a labeled segmentation mask.
+
+    Returns
+    -------
+    dict
+        Mapping of label -> {"jaccard": float, "f1": float}.
+    """
     labels = np.unique(gt_image)[1:]  # Exclude background (0)
     scores = {}
     for label in labels:
@@ -12,9 +20,26 @@ def calculate_jaccard_scores(gt_image, mask_image):
         label_layer[gt_image == label] = 1
         mask_layer = np.zeros_like(mask_image)
         mask_layer[mask_image == label] = 1
-        j = jaccard_score(label_layer, mask_layer, average="micro")
-        scores[label] = j
+
+        jaccard = jaccard_score(label_layer, mask_layer, average="micro")
+
+        intersection = np.logical_and(label_layer, mask_layer).sum()
+        label_sum = label_layer.sum()
+        mask_sum = mask_layer.sum()
+        denominator = label_sum + mask_sum
+        f1 = float((2 * intersection) / denominator) if denominator > 0 else 1.0
+
+        scores[label] = {"jaccard": float(jaccard), "f1": f1}
     return scores
+
+
+def calculate_jaccard_scores(gt_image, mask_image):
+    return {
+        label: metric_values["jaccard"]
+        for label, metric_values in calculate_labelwise_scores(
+            gt_image=gt_image, mask_image=mask_image
+        ).items()
+    }
 
 
 def calculate_qa_jaccard_score(

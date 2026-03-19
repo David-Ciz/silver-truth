@@ -1,7 +1,7 @@
 import logging
 from datetime import datetime
 import mlflow
-from silver_truth.ensemble.datasets import EnsembleDatasetC1
+from silver_truth.ensemble.datasets import Version, get_dataset_class
 import silver_truth.ensemble.databanks_builds as db_builds
 import silver_truth.ensemble.envs as envs
 import silver_truth.ensemble.external as ext
@@ -12,7 +12,12 @@ import silver_truth.ensemble.utils as utils
 from silver_truth.experiment_tracking import (
     infer_dataset_name_from_text,
     infer_split_from_dataframe,
+    log_standardized_single_split_metrics,
+    resolve_mlflow_experiment_name,
+    resolve_mlflow_tracking_uri,
+    start_managed_mlflow_run,
     set_common_mlflow_tags,
+    set_evaluation_tags,
 )
 from silver_truth.data_processing.utils.parquet_utils import same_splits
 import segmentation_models_pytorch as smp
@@ -89,14 +94,16 @@ def build_databanks(datasets: list[str]):
 
 
 def _set_mlflow_experiment(name: str) -> None:
+    tracking_uri = resolve_mlflow_tracking_uri(envs.mlflow_mlruns_path)
+    experiment_name = resolve_mlflow_experiment_name(name) or name
     mlflow.set_tracking_uri(
-        envs.mlflow_mlruns_path
+        tracking_uri
     )  # needs to be set before mlflow.get_experiment_by_name()
     # find or create mlflow experiment, then always set it as active
-    experiment = mlflow.get_experiment_by_name(name)
+    experiment = mlflow.get_experiment_by_name(experiment_name)
     if experiment is None:
-        mlflow.create_experiment(name, envs.mlflow_mlruns_path)
-    mlflow.set_experiment(name)
+        mlflow.create_experiment(experiment_name, tracking_uri)
+    mlflow.set_experiment(experiment_name)
 
 
 def run_experiment(
@@ -121,7 +128,11 @@ def run_experiment(
     parent_run_name = (
         f"{name}_{dataset_tag}_{split_tag}_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
     )
-    with mlflow.start_run(run_name=parent_run_name) as parent_run:
+    with start_managed_mlflow_run(
+        mlflow_tracking_uri=envs.mlflow_mlruns_path,
+        mlflow_experiment=name,
+        run_name=parent_run_name,
+    ) as parent_run:
         set_common_mlflow_tags(dataset=dataset_tag, split=split_tag)
         mlflow.set_tag("run_kind", "experiment_parent")
         mlflow.set_tag("parent_scope", "dataset_split")
@@ -147,7 +158,12 @@ def run_experiment(
                 child_name = f"{child_name}_{model_type}"
 
             try:
-                with mlflow.start_run(run_name=child_name, nested=True) as mlflow_run:
+                with start_managed_mlflow_run(
+                    mlflow_tracking_uri=envs.mlflow_mlruns_path,
+                    mlflow_experiment=name,
+                    run_name=child_name,
+                    nested=True,
+                ) as mlflow_run:
                     set_common_mlflow_tags(dataset=dataset_tag, split=split_tag)
                     mlflow.set_tag("run_kind", "model_run")
                     run_id = mlflow_run.info.run_id
@@ -164,6 +180,7 @@ def run_experiment(
             except Exception as ex:
                 print(f"Error during Ensemble experiment: {ex}")
                 mlflow.set_tag("status", "failed")
+                raise
 
 
 def find_best_ensemble(models_path, val_set):
@@ -177,7 +194,31 @@ def _get_eval_sets(dataset):
         img, gt = dataset[i]
         imgs.append(img)
         gts.append(gt)
-    return torch.stack(imgs, dim=0), torch.stack(gts, dim=0)
+    return _batch_eval_tensors(imgs), _batch_eval_tensors(gts)
+
+
+def _batch_eval_tensors(samples: list[torch.Tensor]) -> torch.Tensor:
+    if not samples:
+        raise ValueError("Cannot batch an empty sample list.")
+
+    first = samples[0]
+    if first.ndim >= 4 and first.shape[0] == 1:
+        return torch.cat(samples, dim=0)
+    return torch.stack(samples, dim=0)
+
+
+def _resolve_dataset_version(
+    model: SMP_Model, dataset_version: Optional[Union[str, Version]] = None
+) -> Version:
+    if isinstance(dataset_version, Version):
+        return dataset_version
+    if isinstance(dataset_version, str):
+        return Version[dataset_version.upper()]
+
+    num_inputs = int(getattr(model.hparams, "num_inputs", 1))
+    if num_inputs == 2:
+        return Version.C2
+    return Version.C1
 
 
 def generate_evaluation(
@@ -185,6 +226,7 @@ def generate_evaluation(
     databank_path: str,
     split_type: str = "test",
     output_dir: Optional[str] = None,
+    dataset_version: Optional[Union[str, Version]] = None,
 ) -> str:
     """
     Generate a parquet file with the evaluation of the given model checkpoint against the given set of a databank.
@@ -217,7 +259,9 @@ def generate_evaluation(
 
     # load dataset
     # TODO: what if it's other dataset?
-    dataset = EnsembleDatasetC1(databank_path, split_type)
+    resolved_dataset_version = _resolve_dataset_version(model, dataset_version)
+    dataset_class = get_dataset_class(resolved_dataset_version)
+    dataset = dataset_class(databank_path, split_type)
     input_set, target_set = _get_eval_sets(dataset)
     input_set = input_set.to(model.device)
     target_set = target_set.to(model.device)
@@ -290,14 +334,26 @@ def evaluate_checkpoint(
     databank_path: str,
     split_type: str = "test",
     output_dir: Optional[str] = None,
+    dataset_version: Optional[Union[str, Version]] = None,
 ) -> Dict[str, Union[float, int, str]]:
     """
     Run inference for a checkpoint on a databank split and return aggregated metrics.
     """
     output_parquet_path = generate_evaluation(
-        model_path, databank_path, split_type, output_dir=output_dir
+        model_path,
+        databank_path,
+        split_type,
+        output_dir=output_dir,
+        dataset_version=dataset_version,
     )
     output_df = pd.read_parquet(output_parquet_path)
+    cell_output_parquet_path = output_parquet_path.replace(".parquet", "_cell.parquet")
+    cell_output_df: Optional[pd.DataFrame] = None
+    if os.path.exists(cell_output_parquet_path):
+        try:
+            cell_output_df = pd.read_parquet(cell_output_parquet_path)
+        except Exception:
+            cell_output_df = None
 
     if split_type == "all":
         model_name = os.path.basename(model_path).split(".ckpt")[0]
@@ -307,19 +363,34 @@ def evaluate_checkpoint(
         iou_col = "iou"
         f1_col = "f1"
 
+    evaluation_level = (
+        "image_reconstructed"
+        if {"reconstructed_path", "gt_image"}.issubset(set(output_df.columns))
+        else "cell_crop"
+    )
+
     if len(output_df) == 0:
         return {
             "output_parquet_path": output_parquet_path,
+            "cell_output_parquet_path": cell_output_parquet_path,
             "split": split_type,
             "count": 0,
             "iou_mean": float("nan"),
             "f1_mean": float("nan"),
+            "evaluation_level": evaluation_level,
         }
 
-    return {
+    summary: Dict[str, Union[float, int, str]] = {
         "output_parquet_path": output_parquet_path,
+        "cell_output_parquet_path": cell_output_parquet_path,
         "split": split_type,
         "count": int(len(output_df)),
         "iou_mean": float(output_df[iou_col].mean()),
         "f1_mean": float(output_df[f1_col].mean()),
+        "evaluation_level": evaluation_level,
     }
+    if cell_output_df is not None and len(cell_output_df) > 0:
+        summary["cell_count"] = int(len(cell_output_df))
+        summary["cell_iou_mean"] = float(cell_output_df["iou"].mean())
+        summary["cell_f1_mean"] = float(cell_output_df["f1"].mean())
+    return summary

@@ -1,7 +1,9 @@
 import os
 import json
+from pathlib import Path
 from silver_truth.data_processing.utils.dataset_dataframe_creation import (
     load_dataframe_from_parquet_with_metadata,
+    SILVER_TRUTH_COLUMN,
 )
 
 
@@ -47,6 +49,15 @@ def generate_job_file(
     """
     df = load_dataframe_from_parquet_with_metadata(parquet_file_path)
 
+    def _drop_reference_columns(columns: list[str]) -> list[str]:
+        filtered = [col for col in columns if col != SILVER_TRUTH_COLUMN]
+        dropped = [col for col in columns if col == SILVER_TRUTH_COLUMN]
+        if dropped:
+            print(
+                f"Excluded reference column '{SILVER_TRUTH_COLUMN}' from fusion competitors."
+            )
+        return filtered
+
     # Extract dataset name from parquet file path
     # Handle various naming patterns: *_dataset_dataframe.parquet, *_split_mixed.parquet, *_split_fold-1.parquet, etc.
     parquet_path = os.path.basename(parquet_file_path)
@@ -70,7 +81,7 @@ def generate_job_file(
     if competitor_columns is None:
         # First try to get from parquet metadata
         if "competitor_columns" in df.attrs and df.attrs["competitor_columns"]:
-            competitor_columns = df.attrs["competitor_columns"]
+            competitor_columns = _drop_reference_columns(df.attrs["competitor_columns"])
             print(f"Using competitors from parquet metadata: {competitor_columns}")
         else:
             # Fall back to config file
@@ -83,7 +94,9 @@ def generate_job_file(
             competitor_config = load_competitor_config(config_path)
 
             if dataset_name in competitor_config:
-                competitor_columns = competitor_config[dataset_name]
+                competitor_columns = _drop_reference_columns(
+                    competitor_config[dataset_name]
+                )
                 print(
                     f"Using configured competitors for {dataset_name}: {competitor_columns}"
                 )
@@ -102,9 +115,12 @@ def generate_job_file(
                 competitor_columns = [
                     col for col in all_columns if col not in exclude_columns
                 ]
+                competitor_columns = _drop_reference_columns(competitor_columns)
                 print(
                     f"No configuration found for {dataset_name}, using all available competitors: {competitor_columns}"
                 )
+    else:
+        competitor_columns = _drop_reference_columns(competitor_columns)
 
     # Validate that configured competitors exist in the dataframe
     available_competitors = [col for col in competitor_columns if col in df.columns]
@@ -191,10 +207,37 @@ def generate_job_file(
         print(f"Warning: No tracking markers found for campaign: {campaign_number}")
 
     output_file_name = f"{dataset_name}_{campaign_number}_job_file.txt"
-    output_file_path = os.path.join(output_dir, output_file_name)
+    output_file_path = Path(output_dir) / output_file_name
     os.makedirs(output_dir, exist_ok=True)
     with open(output_file_path, "w") as f:
         for line in job_file_content:
             f.write(f"{line}\n")
 
     print(f"Job file generated at: {output_file_path}")
+    create_weighted_job_file(output_file_path)
+    return str(output_file_path)
+
+
+def create_weighted_job_file(input_job_file: str | os.PathLike[str]) -> str:
+    """
+    Create or refresh the weighted sibling for an existing base job file.
+
+    The last non-empty line is assumed to be the GT tracking-marker path and is
+    left unweighted.
+    """
+    input_path = Path(input_job_file)
+    if input_path.name.endswith("_with_weights.txt"):
+        raise ValueError("Expected an unweighted job file path, got weighted variant")
+
+    output_path = input_path.with_name(f"{input_path.stem}_with_weights.txt")
+    lines = input_path.read_text(encoding="utf-8").splitlines()
+
+    non_empty_lines = [line for line in lines if line.strip()]
+    weighted_lines: list[str] = []
+    for idx, line in enumerate(non_empty_lines):
+        is_last = idx == len(non_empty_lines) - 1
+        weighted_lines.append(line if is_last else f"{line} 1")
+
+    output_path.write_text("\n".join(weighted_lines) + "\n", encoding="utf-8")
+    print(f"Weighted job file generated at: {output_path}")
+    return str(output_path)

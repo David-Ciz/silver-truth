@@ -337,6 +337,11 @@ def add_fused_images(
     help="MLflow tracking directory.",
 )
 @click.option(
+    "--mlflow-run-name",
+    default=None,
+    help="Optional MLflow parent run name.",
+)
+@click.option(
     "--skip-fusion",
     is_flag=True,
     help="Skip fusion and only evaluate existing outputs.",
@@ -367,6 +372,7 @@ def run_fusion_crops(
     chunk_size: int,
     mlflow_experiment: str,
     mlflow_tracking_path: str,
+    mlflow_run_name: Optional[str],
     skip_fusion: bool,
     keep_job_dir: bool,
     job_dir: Optional[Path],
@@ -385,6 +391,7 @@ def run_fusion_crops(
             chunk_size=chunk_size,
             mlflow_experiment=mlflow_experiment,
             mlflow_tracking_path=mlflow_tracking_path,
+            mlflow_run_name=mlflow_run_name,
             skip_fusion=skip_fusion,
             keep_job_dir=keep_job_dir,
             job_dir=job_dir,

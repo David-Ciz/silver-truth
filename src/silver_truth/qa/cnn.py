@@ -30,14 +30,22 @@ from pytorch_lightning.callbacks import (
 )
 from pytorch_lightning.loggers import MLFlowLogger
 import torchmetrics
-from tqdm import tqdm
 from typing import Optional, Sequence
+from mlflow.tracking import MlflowClient
 
 from silver_truth.metrics.qa_model_evaluation import (
     calculate_regression_metrics,
     calculate_tolerance_accuracy,
 )
-from silver_truth.experiment_tracking import DEFAULT_MLFLOW_TRACKING_URI
+from silver_truth.experiment_tracking import (
+    DEFAULT_MLFLOW_TRACKING_URI,
+    MLFLOW_PARENT_RUN_TAG,
+    get_ablation_context_tags,
+    get_inherited_parent_run_id,
+    resolve_mlflow_experiment_name,
+    resolve_mlflow_tracking_uri,
+    start_managed_mlflow_run,
+)
 
 
 def set_seed(seed: int):
@@ -68,6 +76,9 @@ class JaccardDataset(Dataset):
         augment=False,
         target_column=None,
         input_channels: Optional[Sequence[int] | str] = None,
+        image_cache: Optional[dict[str, np.ndarray]] = None,
+        cache_images: bool = True,
+        preload_images: bool = False,
     ):
         self.data = pd.read_parquet(parquet_file)
         self.data_root = Path(data_root) if data_root else None
@@ -75,6 +86,19 @@ class JaccardDataset(Dataset):
         self.augment = augment
         self.target_column = self._resolve_target_column(target_column)
         self.input_channels = self._resolve_input_channels(input_channels)
+        self.cache_images = cache_images
+        self.image_cache = image_cache if image_cache is not None else {}
+        self.image_paths = [self._resolve_image_path(path) for path in self.data["stacked_path"]]
+        self.targets = self.data[self.target_column].astype(np.float32).to_numpy()
+        self.cell_ids = (
+            self.data["cell_id"].tolist()
+            if "cell_id" in self.data.columns
+            else [str(index) for index in self.data.index]
+        )
+
+        if preload_images:
+            for image_path in self.image_paths:
+                self._get_cached_image(image_path)
 
     def _resolve_target_column(self, target_column):
         if target_column:
@@ -126,16 +150,22 @@ class JaccardDataset(Dataset):
         return len(self.data)
 
     def __getitem__(self, idx):
-        row = self.data.iloc[idx]
-        rel_path = row["stacked_path"]
+        image_path = self.image_paths[idx]
+        img_np = self._get_cached_image(image_path)
 
+        image = torch.from_numpy(np.array(img_np, copy=True))
+        if self.transform:
+            image = self.transform(image.to(dtype=torch.float32).div(255.0))
+
+        return image, torch.tensor(self.targets[idx], dtype=torch.float32)
+
+    def _resolve_image_path(self, rel_path) -> str:
+        path = Path(rel_path)
         if self.data_root:
-            image_path = self.data_root / rel_path
-        else:
-            image_path = rel_path
+            path = self.data_root / path
+        return str(path)
 
-        jaccard = row[self.target_column]
-
+    def _load_image(self, image_path: str) -> np.ndarray:
         img_np = tifffile.imread(image_path)
 
         if img_np.ndim == 2:
@@ -162,32 +192,27 @@ class JaccardDataset(Dataset):
                 f"but requested input_channels={self.input_channels}."
             )
 
-        img_np = img_np[list(self.input_channels), :, :]
+        return np.ascontiguousarray(img_np[list(self.input_channels), :, :])
 
-        if self.augment:
-            if random.random() > 0.5:
-                img_np = np.flip(img_np, axis=2).copy()
-            if random.random() > 0.5:
-                img_np = np.flip(img_np, axis=1).copy()
-            k = random.randint(0, 3)
-            if k > 0:
-                img_np = np.rot90(img_np, k, axes=(1, 2)).copy()
+    def _get_cached_image(self, image_path: str) -> np.ndarray:
+        if self.cache_images:
+            cached = self.image_cache.get(image_path)
+            if cached is not None:
+                return cached
 
-        img_np = img_np.astype(np.float32) / 255.0
-
-        image = torch.from_numpy(img_np)
-        if self.transform:
-            image = self.transform(image)
-
-        return image, torch.tensor(jaccard, dtype=torch.float32)
+        img_np = self._load_image(image_path)
+        if self.cache_images:
+            self.image_cache[image_path] = img_np
+        return img_np
 
 
 # ---------------------------------------------------------------------------
 # Backbone / head
 # ---------------------------------------------------------------------------
 
+
 class Jaccard(nn.Module):
-    def __init__(self, dropout_rate=0.3, model_type="resnet50"):
+    def __init__(self, dropout_rate=0.3, model_type="resnet18"):
         super(Jaccard, self).__init__()
 
         if model_type == "resnet18":
@@ -245,16 +270,18 @@ class Jaccard(nn.Module):
 # PyTorch Lightning module
 # ---------------------------------------------------------------------------
 
+
 class JaccardLightningModule(pl.LightningModule):
     """LightningModule wrapping the Jaccard backbone for regression training."""
 
     def __init__(
         self,
-        model_type: str = "resnet50",
+        model_type: str = "resnet18",
         dropout_rate: float = 0.3,
         learning_rate: float = 1e-4,
         weight_decay: float = 1e-4,
         grad_clip: float = 1.0,
+        augment_batches: bool = False,
     ):
         super().__init__()
         self.save_hyperparameters()
@@ -271,6 +298,11 @@ class JaccardLightningModule(pl.LightningModule):
         return self.model(x)
 
     # ------------------------------------------------------------------
+    def on_after_batch_transfer(self, batch, dataloader_idx):
+        images, targets = batch
+        should_augment = bool(self.training and self.hparams.augment_batches)
+        return prepare_images_for_model(images, augment=should_augment), targets
+
     def _shared_step(self, batch):
         images, targets = batch
         preds = self(images).squeeze(dim=1)
@@ -316,6 +348,7 @@ class JaccardLightningModule(pl.LightningModule):
 # Transforms
 # ---------------------------------------------------------------------------
 
+
 def tensor_normalize(tensor, mean, std):
     """Normalize tensor with given mean and std."""
     for t, m, s in zip(tensor, mean, std):
@@ -340,9 +373,43 @@ def get_transform():
     return NormalizeTransform()
 
 
+def prepare_images_for_model(
+    images: torch.Tensor, *, augment: bool = False
+) -> torch.Tensor:
+    """Convert cached uint8 tensors into normalized model inputs."""
+    images = images.to(dtype=torch.float32).div_(255.0)
+    images.sub_(0.5).div_(0.5)
+
+    if not augment or images.ndim != 4:
+        return images
+
+    horizontal_flip_mask = torch.rand(images.shape[0], device=images.device) < 0.5
+    if horizontal_flip_mask.any():
+        images[horizontal_flip_mask] = torch.flip(
+            images[horizontal_flip_mask], dims=(-1,)
+        )
+
+    vertical_flip_mask = torch.rand(images.shape[0], device=images.device) < 0.5
+    if vertical_flip_mask.any():
+        images[vertical_flip_mask] = torch.flip(
+            images[vertical_flip_mask], dims=(-2,)
+        )
+
+    rotations = torch.randint(0, 4, (images.shape[0],), device=images.device)
+    for k in range(1, 4):
+        rotation_mask = rotations == k
+        if rotation_mask.any():
+            images[rotation_mask] = torch.rot90(
+                images[rotation_mask], k=k, dims=(-2, -1)
+            )
+
+    return images.contiguous()
+
+
 # ---------------------------------------------------------------------------
 # Helpers kept for evaluate() / _run_evaluation()
 # ---------------------------------------------------------------------------
+
 
 def evaluate_model_with_ids(model, dataset, indices, batch_size, device):
     """
@@ -371,6 +438,7 @@ def evaluate_model_with_ids(model, dataset, indices, batch_size, device):
     with torch.no_grad():
         for batch_idx, (images, targets) in enumerate(eval_loader):
             images, targets = images.to(device), targets.to(device)
+            images = prepare_images_for_model(images, augment=False)
             outputs = nn_model(images)
             predictions.extend(outputs.squeeze(dim=1).cpu().numpy())
             actuals.extend(targets.cpu().numpy())
@@ -379,7 +447,7 @@ def evaluate_model_with_ids(model, dataset, indices, batch_size, device):
             start_idx = batch_idx * batch_size
             end_idx = start_idx + current_batch_size
             batch_indices = indices[start_idx:end_idx]
-            batch_cell_ids = dataset.data.iloc[batch_indices]["cell_id"].tolist()
+            batch_cell_ids = [dataset.cell_ids[index] for index in batch_indices]
             cell_ids.extend(batch_cell_ids)
 
     return predictions, actuals, cell_ids
@@ -455,6 +523,7 @@ def get_split_indices(dataset):
 # Public API
 # ---------------------------------------------------------------------------
 
+
 def train(
     parquet_file,
     data_root=None,
@@ -472,7 +541,7 @@ def train(
     seed=42,
     num_workers=4,
     grad_clip=1.0,
-    model_type="resnet50",
+    model_type="resnet18",
     mlflow_tracking_uri=DEFAULT_MLFLOW_TRACKING_URI,
     mlflow_experiment="cnn-jaccard",
     mlflow_run_name=None,
@@ -482,24 +551,57 @@ def train(
     pl.seed_everything(seed, workers=True)
     print(f"Random seed: {seed}")
 
+    output_model_path = Path(output_model).expanduser()
+    output_excel_path = Path(output_excel).expanduser()
+    output_model_path.parent.mkdir(parents=True, exist_ok=True)
+    output_excel_path.parent.mkdir(parents=True, exist_ok=True)
+
+    resolved_tracking_uri = resolve_mlflow_tracking_uri(mlflow_tracking_uri)
+    resolved_experiment_name = (
+        resolve_mlflow_experiment_name(mlflow_experiment) or mlflow_experiment
+    )
+    inherited_parent_run_id = get_inherited_parent_run_id()
+    logger_tags = get_ablation_context_tags()
+    logger_run_id: Optional[str] = None
+
+    if inherited_parent_run_id or logger_tags:
+        mlflow.set_tracking_uri(resolved_tracking_uri)
+        experiment = mlflow.set_experiment(resolved_experiment_name)
+        create_tags = dict(logger_tags)
+        if inherited_parent_run_id:
+            create_tags[MLFLOW_PARENT_RUN_TAG] = inherited_parent_run_id
+        logger_run = MlflowClient(
+            tracking_uri=resolved_tracking_uri
+        ).create_run(
+            experiment_id=experiment.experiment_id,
+            run_name=mlflow_run_name,
+            tags=create_tags or None,
+        )
+        logger_run_id = logger_run.info.run_id
+
+    shared_image_cache: dict[str, np.ndarray] = {}
+
     # ------------------------------------------------------------------
     # Datasets
     # ------------------------------------------------------------------
     train_dataset = JaccardDataset(
         parquet_file,
         data_root=data_root,
-        transform=get_transform(),
-        augment=augment,
+        transform=None,
+        augment=False,
         target_column=target_column,
         input_channels=input_channels,
+        image_cache=shared_image_cache,
+        preload_images=True,
     )
     eval_dataset = JaccardDataset(
         parquet_file,
         data_root=data_root,
-        transform=get_transform(),
+        transform=None,
         augment=False,
         target_column=target_column,
         input_channels=input_channels,
+        image_cache=shared_image_cache,
     )
 
     print(f"Using target column: {train_dataset.target_column}")
@@ -517,6 +619,8 @@ def train(
         shuffle=True,
         num_workers=num_workers,
         pin_memory=True,
+        persistent_workers=num_workers > 0,
+        prefetch_factor=2 if num_workers > 0 else None,
     )
     val_loader = DataLoader(
         Subset(eval_dataset, val_indices),
@@ -524,6 +628,8 @@ def train(
         shuffle=False,
         num_workers=num_workers,
         pin_memory=True,
+        persistent_workers=num_workers > 0,
+        prefetch_factor=2 if num_workers > 0 else None,
     )
 
     # ------------------------------------------------------------------
@@ -535,16 +641,24 @@ def train(
         learning_rate=learning_rate,
         weight_decay=weight_decay,
         grad_clip=grad_clip,
+        augment_batches=augment,
     )
     print(f"Using model: {model_type}")
 
     # ------------------------------------------------------------------
     # Logger + callbacks
     # ------------------------------------------------------------------
+    checkpoint_dir = (
+        output_model_path.parent / "_lightning_checkpoints" / output_model_path.stem
+    )
+    checkpoint_dir.mkdir(parents=True, exist_ok=True)
+
     mlf_logger = MLFlowLogger(
-        experiment_name=mlflow_experiment,
+        experiment_name=resolved_experiment_name,
         run_name=mlflow_run_name,
-        tracking_uri=mlflow_tracking_uri,
+        tracking_uri=resolved_tracking_uri,
+        tags=None if logger_run_id else (logger_tags or None),
+        run_id=logger_run_id,
         log_model=False,  # we handle model saving ourselves
     )
 
@@ -567,9 +681,7 @@ def train(
             "test_samples": len(test_indices),
             "parquet_file": str(parquet_file),
             "target_column": str(train_dataset.target_column),
-            "input_channels": ",".join(
-                str(ch) for ch in train_dataset.input_channels
-            ),
+            "input_channels": ",".join(str(ch) for ch in train_dataset.input_channels),
         }
     )
 
@@ -579,6 +691,7 @@ def train(
             mode="min",
             save_top_k=1,
             filename="best-{epoch:02d}-{val_loss:.4f}",
+            dirpath=str(checkpoint_dir),
         ),
         EarlyStopping(
             monitor="val_loss",
@@ -597,6 +710,7 @@ def train(
         accelerator="auto",
         devices="auto",
         gradient_clip_val=grad_clip,
+        default_root_dir=str(output_model_path.parent),
         callbacks=callbacks,
         logger=mlf_logger,
         log_every_n_steps=1,
@@ -636,23 +750,27 @@ def train(
         "val_samples": len(val_indices),
         "test_samples": len(test_indices),
         "target_column": str(train_dataset.target_column),
-        "input_channels": ",".join(
-            str(ch) for ch in train_dataset.input_channels
-        ),
+        "input_channels": ",".join(str(ch) for ch in train_dataset.input_channels),
     }
-    save_model(lightning_model, output_model, metadata)
+    save_model(lightning_model, output_model_path, metadata)
 
     # Log remaining summary metrics and artifacts via the active MLflow run
-    mlflow.set_tracking_uri(mlflow_tracking_uri)
+    mlflow.set_tracking_uri(resolved_tracking_uri)
     run_id = mlf_logger.run_id
-    with mlflow.start_run(run_id=run_id):
-        mlflow.log_metrics(
-            {"best_val_loss": best_val_loss, "final_epoch": final_epoch}
-        )
-        mlflow.log_artifact(output_model)
+    with start_managed_mlflow_run(
+        run_id=run_id,
+        mlflow_tracking_uri=resolved_tracking_uri,
+    ):
+        mlflow.log_metrics({"best_val_loss": best_val_loss, "final_epoch": final_epoch})
+        mlflow.log_param("lightning_checkpoint_dir", str(checkpoint_dir))
+        mlflow.log_artifact(str(output_model_path))
 
         # Infer device used by the trainer for evaluation
-        device = lightning_model.device if hasattr(lightning_model, "device") else torch.device("cpu")
+        device = (
+            lightning_model.device
+            if hasattr(lightning_model, "device")
+            else torch.device("cpu")
+        )
 
         eval_metrics = _run_evaluation(
             lightning_model,
@@ -662,11 +780,11 @@ def train(
             test_indices,
             batch_size,
             device,
-            output_excel,
+            str(output_excel_path),
         )
         if eval_metrics:
             mlflow.log_metrics(eval_metrics)
-        mlflow.log_artifact(output_excel)
+        mlflow.log_artifact(str(output_excel_path))
 
     print(f"\nMLflow run ID: {run_id}")
 
@@ -706,9 +824,10 @@ def evaluate(
     dataset = JaccardDataset(
         parquet_file,
         data_root=data_root,
-        transform=get_transform(),
+        transform=None,
         target_column=effective_target_column,
         input_channels=effective_input_channels,
+        preload_images=True,
     )
     print(f"Using target column: {dataset.target_column}")
     print(f"Using input channels: {dataset.input_channels}")

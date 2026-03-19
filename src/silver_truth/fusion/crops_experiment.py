@@ -14,11 +14,18 @@ import numpy as np
 import pandas as pd
 import tifffile
 
+from silver_truth.data_processing.utils.dataset_dataframe_creation import (
+    SILVER_TRUTH_COLUMN,
+)
 from silver_truth.experiment_tracking import (
     DEFAULT_MLFLOW_TRACKING_URI,
     infer_dataset_name_from_text,
     infer_split_from_dataframe,
+    log_standardized_split_metrics,
+    resolve_mlflow_tracking_uri,
+    start_managed_mlflow_run,
     set_common_mlflow_tags,
+    set_evaluation_tags,
 )
 from silver_truth.fusion.fusion import FusionModel, fuse_segmentations
 from silver_truth.metrics.evaluation_logic import evaluate_by_split
@@ -882,6 +889,7 @@ def run_crops_fusion_experiment(
     num_threads: int = 4,
     mlflow_experiment: str = "fusion-crops-baseline",
     mlflow_tracking_path: Union[Path, str] = MLFLOW_TRACKING_PATH,
+    mlflow_run_name: Optional[str] = None,
     weights_column: Optional[str] = None,
     skip_fusion: bool = False,
     keep_job_dir: bool = False,
@@ -903,15 +911,25 @@ def run_crops_fusion_experiment(
     output_base_dir = _resolve_output_path(output_dir)
     output_base_dir.mkdir(parents=True, exist_ok=True)
 
-    tracking_uri = _resolve_tracking_path(mlflow_tracking_path)
-    tracking_uri.mkdir(parents=True, exist_ok=True)
-    mlflow.set_tracking_uri(str(tracking_uri))
-    mlflow.set_experiment(mlflow_experiment)
+    requested_tracking_path = str(_resolve_tracking_path(mlflow_tracking_path))
+    tracking_uri = resolve_mlflow_tracking_uri(requested_tracking_path)
+    if tracking_uri.startswith("file:"):
+        Path(tracking_uri.removeprefix("file:")).mkdir(parents=True, exist_ok=True)
 
     if not DEFAULT_JAR_PATH.exists():
         raise FileNotFoundError(f"Fusion JAR not found: {DEFAULT_JAR_PATH}")
 
     df = pd.read_parquet(qa_parquet_path)
+    if "competitor" in df.columns:
+        reference_mask = df["competitor"].astype(str) == SILVER_TRUTH_COLUMN
+        reference_count = int(reference_mask.sum())
+        if reference_count:
+            df = df.loc[~reference_mask].copy()
+            logger.warning(
+                "Dropped %d '%s' reference rows before preparing fusion jobs.",
+                reference_count,
+                SILVER_TRUTH_COLUMN,
+            )
     validate_columns(df)
     cell_groups, cell_splits, cell_metadata = build_cell_groups(df, qa_parquet_path)
     if not cell_groups:
@@ -992,7 +1010,7 @@ def run_crops_fusion_experiment(
     logger.info("  Output dir: %s", output_base_dir)
     logger.info("=" * 70)
 
-    run_name = (
+    run_name = mlflow_run_name or (
         f"{_safe_run_token(dataset_tag)}_{_safe_run_token(split_tag)}_"
         f"{datetime.now().strftime('%Y%m%d_%H%M%S')}"
     )
@@ -1047,11 +1065,20 @@ def run_crops_fusion_experiment(
             chunks = [all_indices]
             chunking_enabled = False
 
-        with mlflow.start_run(run_name=run_name) as parent_run:
+        with start_managed_mlflow_run(
+            mlflow_tracking_uri=tracking_uri,
+            mlflow_experiment=mlflow_experiment,
+            run_name=run_name,
+        ) as parent_run:
             set_common_mlflow_tags(
                 dataset=dataset_tag,
                 split=split_tag,
                 repo_root=PROJECT_ROOT,
+            )
+            set_evaluation_tags(
+                pipeline_family="fusion",
+                evaluation_level="cell_crop",
+                setup_name=run_name,
             )
             mlflow.set_tag("run_kind", "experiment_parent")
             mlflow.set_tag("parent_scope", "dataset_split")
@@ -1079,11 +1106,27 @@ def run_crops_fusion_experiment(
                 model_output_dir = output_base_dir / model_lower
                 model_output_dir.mkdir(parents=True, exist_ok=True)
 
-                with mlflow.start_run(run_name=model, nested=True) as model_run:
+                child_run_name = (
+                    f"{run_name}__{model_lower}" if mlflow_run_name else model
+                )
+                with start_managed_mlflow_run(
+                    mlflow_tracking_uri=tracking_uri,
+                    mlflow_experiment=mlflow_experiment,
+                    run_name=child_run_name,
+                    nested=True,
+                ) as model_run:
                     set_common_mlflow_tags(
                         dataset=dataset_tag,
                         split=split_tag,
                         repo_root=PROJECT_ROOT,
+                    )
+                    set_evaluation_tags(
+                        pipeline_family="fusion",
+                        evaluation_level="cell_crop",
+                        setup_name=model.lower(),
+                        extra_tags={
+                            "fusion_model": model,
+                        },
                     )
                     needs_user_weights = model in USER_WEIGHTED_MODELS
                     needs_weighted_job_format = model in JOB_WEIGHT_FORMAT_MODELS
@@ -1338,6 +1381,7 @@ def run_crops_fusion_experiment(
                         mlflow_metrics["selection_mean_f1"] = float(ranking_mean_f1)
                     if mlflow_metrics:
                         mlflow.log_metrics(mlflow_metrics)
+                    log_standardized_split_metrics(split_core_metrics)
 
                     if fusion_success:
                         mlflow.set_tag("fusion_status", "success")

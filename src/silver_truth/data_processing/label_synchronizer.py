@@ -301,21 +301,21 @@ def verify_dataset_synchronization_logic(
     # Verify the synchronization for each dataset type
     desynchronized_subfolders = set()
     for dataset_type, data in tqdm.tqdm(dataset_data.items()):
-        if data["segmentations"] is None:
+        if not data["segmentations"]:
             logging.error(
                 f"⚠️ Segmentation folder not found for dataset, type {dataset_type}"
             )
         else:
             # Choose the corresponding tracking folder based on dataset type
             tracking_folder = data["tracking_folder"]
-            desynchronized_images = []
+            has_desynchronization = False
             for label_folder in data["segmentations"]:
-                desynchronized_images.append(
-                    verify_folder_synchronization_logic(
-                        label_folder, str(tracking_folder)
-                    )
+                desynchronized_images = verify_folder_synchronization_logic(
+                    label_folder, str(tracking_folder)
                 )
-            if len(desynchronized_images) > 0:
+                if desynchronized_images:
+                    has_desynchronization = True
+            if has_desynchronization:
                 desynchronized_subfolders.add(dataset_type)
     return desynchronized_subfolders
 

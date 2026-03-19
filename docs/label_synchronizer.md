@@ -36,10 +36,10 @@ The JAR file will be generated in the `target` directory.
 
 ### Using python interface
 
-You can use the provided Python wrapper script to run the synchronization process in the preprocessing.py file. The script reads the configuration file and runs the synchronization process using the standalone JAR. 
+You can use the maintained CLI wrapper in `src/silver_truth/cli/preprocessing.py` to run the synchronization process.
 
 ````bash
-python cli_preprocessing.py synchronize_dataset data/inputs-2020-07 data/synchronize_data
+silver-preprocessing synchronize-datasets data/inputs-2020-07 data/synchronize_data
 ````
 **Notes:**
 - Replace `data/inputs-2020-07` with the path to the input data directory (it should contain folders with datasets).

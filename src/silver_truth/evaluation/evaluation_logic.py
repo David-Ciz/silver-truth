@@ -4,8 +4,18 @@ from typing import Optional
 
 import pandas as pd
 
+from silver_truth.data_processing.utils.dataset_dataframe_creation import (
+    REFERENCE_COLUMNS_ATTR,
+    SILVER_TRUTH_COLUMN,
+)
 from silver_truth.metrics.evaluation_logic import run_evaluation
-from silver_truth.experiment_tracking import DEFAULT_MLFLOW_TRACKING_URI
+from silver_truth.experiment_tracking import (
+    DEFAULT_MLFLOW_TRACKING_URI,
+    log_standardized_single_split_metrics,
+    set_common_mlflow_tags,
+    set_evaluation_tags,
+    start_managed_mlflow_run,
+)
 
 
 def evaluate_competitor_logic(
@@ -72,6 +82,7 @@ def evaluate_competitor_logic(
                     competitor, campaign_col
                 )
             else:
+                reference_columns = set(df.attrs.get(REFERENCE_COLUMNS_ATTR, []))
                 # Auto-detect competitors and evaluate all
                 potential_competitors = [
                     col
@@ -86,6 +97,8 @@ def evaluate_competitor_logic(
                         "time_id",
                         "tracking_markers",
                     ]
+                    and col not in reference_columns
+                    and col != SILVER_TRUTH_COLUMN
                     and df[col].dtype == "object"
                     and df[col].notna().any()
                 ]
@@ -153,24 +166,42 @@ def _log_competitor_metrics_to_mlflow(
         return
 
     overall_averages = results.get("overall_averages", {})
+    overall_f1_averages = results.get("overall_f1_averages", {})
     per_campaign_averages = results.get("per_campaign_averages", {})
     per_split_averages = results.get("per_split_averages", {})
+    per_split_f1_averages = results.get("per_split_f1_averages", {})
     competitors = list(overall_averages.keys())
-
-    mlflow.set_tracking_uri(mlflow_tracking_uri)
-    mlflow.set_experiment(mlflow_experiment)
 
     dataset_name = dataset_dataframe_path.stem
 
     for comp in competitors:
-        run_name = f"{mlflow_run_name}_{comp}" if mlflow_run_name else comp
-        with mlflow.start_run(run_name=run_name):
+        run_name = f"{mlflow_run_name}__{comp}" if mlflow_run_name else comp
+        with start_managed_mlflow_run(
+            mlflow_tracking_uri=mlflow_tracking_uri,
+            mlflow_experiment=mlflow_experiment,
+            run_name=run_name,
+        ):
             run = mlflow.active_run()
             if run:
                 logging.info(
                     f"MLflow: logging '{comp}' → experiment '{mlflow_experiment}' run {run.info.run_id}"
                 )
 
+            is_reference = comp == SILVER_TRUTH_COLUMN
+            set_common_mlflow_tags(dataset=dataset_name, split="full_image_label")
+            extra_tags = {
+                "competitor": comp,
+                "f1_available": "true",
+            }
+            if is_reference:
+                extra_tags["reference_kind"] = "silver_truth"
+
+            set_evaluation_tags(
+                pipeline_family="reference" if is_reference else "competitor",
+                evaluation_level="full_image_label",
+                setup_name="silver_truth" if is_reference else comp,
+                extra_tags=extra_tags,
+            )
             mlflow.log_param("competitor", comp)
             mlflow.log_param("dataset", dataset_name)
             mlflow.log_param("parquet", str(dataset_dataframe_path))
@@ -179,6 +210,9 @@ def _log_competitor_metrics_to_mlflow(
             overall = overall_averages.get(comp, float("nan"))
             if not pd.isna(overall):
                 mlflow.log_metric("jaccard_overall", overall)
+            overall_f1 = overall_f1_averages.get(comp, float("nan"))
+            if not pd.isna(overall_f1):
+                mlflow.log_metric("f1_overall", overall_f1)
 
             # Per-split  (test = the paper number you care about)
             for split_name, metric_key in [
@@ -189,6 +223,37 @@ def _log_competitor_metrics_to_mlflow(
                 val = per_split_averages.get(comp, {}).get(split_name, float("nan"))
                 if not pd.isna(val):
                     mlflow.log_metric(metric_key, val)
+            for split_name, metric_key in [
+                ("train", "f1_train"),
+                ("validation", "f1_val"),
+                ("test", "f1_test"),
+            ]:
+                val = per_split_f1_averages.get(comp, {}).get(split_name, float("nan"))
+                if not pd.isna(val):
+                    mlflow.log_metric(metric_key, val)
+
+            log_standardized_single_split_metrics(
+                split="test",
+                iou=per_split_averages.get(comp, {}).get("test"),
+                f1=per_split_f1_averages.get(comp, {}).get("test"),
+            )
+            log_standardized_single_split_metrics(
+                split="validation",
+                iou=per_split_averages.get(comp, {}).get("validation"),
+                f1=per_split_f1_averages.get(comp, {}).get("validation"),
+                count=None,
+            )
+            log_standardized_single_split_metrics(
+                split="train",
+                iou=per_split_averages.get(comp, {}).get("train"),
+                f1=per_split_f1_averages.get(comp, {}).get("train"),
+                count=None,
+            )
+            overall_iou = overall_averages.get(comp, float("nan"))
+            if not pd.isna(overall_iou):
+                mlflow.log_metric("overall_iou", float(overall_iou))
+            if not pd.isna(overall_f1):
+                mlflow.log_metric("overall_f1", float(overall_f1))
 
             # Per-campaign
             for campaign, camp_avg in per_campaign_averages.get(comp, {}).items():

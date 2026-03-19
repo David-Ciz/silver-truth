@@ -9,11 +9,27 @@ from silver_truth.ensemble import utils
 from silver_truth.ensemble.datasets import Version
 import silver_truth.ensemble.external as ext
 import silver_truth.data_processing.utils.parquet_utils as p_utils
+from silver_truth.data_processing.utils.dataset_dataframe_creation import (
+    SILVER_TRUTH_COLUMN,
+)
 
 # Kept for backwards compatibility with any code that still references Databank_type
 Databank_type = Version
 
 SPLIT_COL = p_utils.SPLITS_COLUMN
+
+
+def _load_training_qa_dataframe(qa_dataset_path: str) -> pd.DataFrame:
+    df = ext.load_parquet(qa_dataset_path)
+    if "competitor" in df.columns:
+        reference_mask = df["competitor"].astype(str) == SILVER_TRUTH_COLUMN
+        reference_count = int(reference_mask.sum())
+        if reference_count:
+            df = df.loc[~reference_mask].copy()
+            print(
+                f"Warning: dropped {reference_count} '{SILVER_TRUTH_COLUMN}' reference rows from ensemble databank input."
+            )
+    return df
 
 
 def build_analysis_databank_full(qa_dataset_path: str, output_path: str) -> None:
@@ -23,7 +39,7 @@ def build_analysis_databank_full(qa_dataset_path: str, output_path: str) -> None
     # create output path if it doesn't exist
     Path(output_path).mkdir(parents=True, exist_ok=True)
     # load the dataframe
-    df = ext.load_parquet(qa_dataset_path)
+    df = _load_training_qa_dataframe(qa_dataset_path)
 
     done_imgs = []
 
@@ -62,7 +78,7 @@ def build_analysis_databank(qa_dataset_path: str, output_path: str) -> None:
     # create output path if it doesn't exist
     Path(output_path).mkdir(parents=True, exist_ok=True)
     # load the dataframe
-    df = ext.load_parquet(qa_dataset_path)
+    df = _load_training_qa_dataframe(qa_dataset_path)
 
     for row in tqdm(df.itertuples(), total=len(df), desc="Processing images"):
         # campaign - image id - cell id - competitor
@@ -145,7 +161,7 @@ def build_databank_Single(
     Path(images_output_path).mkdir(parents=True, exist_ok=True)
 
     # load the dataframe
-    df = ext.load_parquet(qa_dataset_path)
+    df = _load_training_qa_dataframe(qa_dataset_path)
 
     # output parquet support file
     data_list = []
@@ -214,11 +230,17 @@ def build_databank_Single(
             {
                 "full_cell_id": full_cell_id,
                 "campaign": campaign,
+                "campaign_number": campaign,
                 "image_id": img_id,
+                "original_image_key": img_id,
                 "label": row.label,
                 "crop_size": row.crop_size,
                 "image_path": new_img_path,
                 "gt_image": row.gt_image,
+                "recon_crop_y_start": crop_y_start,
+                "recon_crop_y_end": crop_y_end,
+                "recon_crop_x_start": crop_x_start,
+                "recon_crop_x_end": crop_x_end,
                 SPLIT_COL: getattr(row, SPLIT_COL),
                 # TODO: add jaccard?
                 # "qa_jaccard": qa_jaccard,
@@ -259,7 +281,7 @@ def build_databank_Norm(build_opt: dict, qa_dataset_path: str, output_path: str)
     data_list = []
 
     # loads the QA dataset
-    df = ext.load_parquet(qa_dataset_path)
+    df = _load_training_qa_dataframe(qa_dataset_path)
 
     # get the gt images
     unique_gt_images = df["gt_image"].unique()
@@ -432,11 +454,17 @@ def build_databank_Norm(build_opt: dict, qa_dataset_path: str, output_path: str)
             data_list.append(
                 {
                     "campaign": campaign,
+                    "campaign_number": campaign,
                     "image_id": img_id,
+                    "original_image_key": img_id,
                     "label": label,
                     "crop_size": crop_size,
                     "image_path": new_image_path,
                     "gt_image": gt_image_path,
+                    "recon_crop_y_start": gt_crop_min_y,
+                    "recon_crop_y_end": gt_crop_max_y,
+                    "recon_crop_x_start": gt_crop_min_x,
+                    "recon_crop_x_end": gt_crop_max_x,
                     SPLIT_COL: first_row[SPLIT_COL],
                     "qa_jaccard_avg": df_same_cell[build_opt["qa"]].mean()
                     if build_opt["qa"]

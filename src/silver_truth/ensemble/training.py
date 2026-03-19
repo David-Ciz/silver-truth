@@ -103,10 +103,7 @@ def _get_eval_sets(dataset, is_single_input):
         img, gt = dataset[i]
         imgs.append(img)
         gts.append(gt)
-    if is_single_input:
-        return torch.stack(imgs, dim=0), torch.stack(gts, dim=0)
-    else:
-        return torch.cat(imgs, dim=0), torch.cat(gts, dim=0)
+    return _batch_eval_tensors(imgs), _batch_eval_tensors(gts)
 
 
 def _get_stacked_images(dataset, num, is_single_input):
@@ -115,10 +112,76 @@ def _get_stacked_images(dataset, num, is_single_input):
         img, gt = dataset[i]
         imgs.append(img)
         gts.append(gt)
-    if is_single_input:
-        return torch.stack(imgs, dim=0), torch.stack(gts, dim=0)
-    else:
-        return torch.cat(imgs, dim=0), torch.cat(gts, dim=0)
+    return _batch_eval_tensors(imgs), _batch_eval_tensors(gts)
+
+
+def _batch_eval_tensors(samples: list[torch.Tensor]) -> torch.Tensor:
+    if not samples:
+        raise ValueError("Cannot batch an empty sample list.")
+
+    first = samples[0]
+    # Multi-image datasets (for example B3) already carry a singleton batch axis.
+    if first.ndim >= 4 and first.shape[0] == 1:
+        return torch.cat(samples, dim=0)
+    return torch.stack(samples, dim=0)
+
+
+def _build_transform(augmentation: str, rand_seed: int) -> A.Compose:
+    match augmentation:
+        case "strong":
+            transforms = [
+                A.HorizontalFlip(),
+                A.VerticalFlip(),
+                A.RandomRotate90(),
+                A.ElasticTransform(alpha=30, sigma=5, p=0.3),
+                A.RandomBrightnessContrast(
+                    brightness_limit=0.1, contrast_limit=0.1, p=0.3
+                ),
+                A.GaussNoise(var_limit=(5.0, 25.0), p=0.2),
+                A.GaussianBlur(blur_limit=(3, 5), p=0.2),
+                A.ToTensorV2(),
+            ]
+        case "basic_vflip":
+            transforms = [
+                A.HorizontalFlip(),
+                A.VerticalFlip(),
+                A.RandomRotate90(),
+                A.ToTensorV2(),
+            ]
+        case "basic_brightness":
+            transforms = [
+                A.HorizontalFlip(),
+                A.RandomRotate90(),
+                A.RandomBrightnessContrast(
+                    brightness_limit=0.1, contrast_limit=0.1, p=0.3
+                ),
+                A.ToTensorV2(),
+            ]
+        case "basic_noise":
+            transforms = [
+                A.HorizontalFlip(),
+                A.RandomRotate90(),
+                A.GaussNoise(var_limit=(5.0, 25.0), p=0.2),
+                A.ToTensorV2(),
+            ]
+        case "basic_vflip_brightness":
+            transforms = [
+                A.HorizontalFlip(),
+                A.VerticalFlip(),
+                A.RandomRotate90(),
+                A.RandomBrightnessContrast(
+                    brightness_limit=0.1, contrast_limit=0.1, p=0.3
+                ),
+                A.ToTensorV2(),
+            ]
+        case _:
+            transforms = [
+                A.HorizontalFlip(),
+                A.RandomRotate90(),
+                A.ToTensorV2(),
+            ]
+
+    return A.Compose(transforms, seed=rand_seed)
 
 
 def _train_model(
@@ -151,6 +214,9 @@ def _train_model(
 
     model_type = run_params["model_type"]
     max_epochs = run_params["max_epochs"]
+    encoder_name = run_params.get("encoder_name", "resnet34")
+    encoder_weights = run_params.get("encoder_weights", None)
+    init_from_checkpoint = run_params.get("init_from_checkpoint")
     if model_type == ModelType.Unet_Mult_Input:
         model_pl = Unet_Mult_Input(device)
     elif model_type == ModelType.Unet_Dynamic:
@@ -158,11 +224,25 @@ def _train_model(
 
     else:
         num_inputs = 1 if is_single_input else 2
-        model_pl = SMP_Model(model_type, num_inputs=num_inputs)
+        model_pl = SMP_Model(
+            model_type,
+            num_inputs=num_inputs,
+            encoder_name=encoder_name,
+            encoder_weights=encoder_weights,
+        )
+
+    if init_from_checkpoint:
+        checkpoint = torch.load(init_from_checkpoint, map_location="cpu")
+        state_dict = checkpoint.get("state_dict", checkpoint)
+        load_result = model_pl.load_state_dict(state_dict, strict=True)
+        print(f"Initialized model weights from checkpoint: {init_from_checkpoint}")
+        print(f"Checkpoint load result: {load_result}")
 
     mlflow.log_param("model_type", model_type)
     mlflow.log_param("model", model_pl.model)
     mlflow.log_param("loss_type", model_pl.loss_type)
+    if init_from_checkpoint:
+        mlflow.log_param("init_from_checkpoint", init_from_checkpoint)
 
     # Create a PyTorch Lightning trainer with the generation callback
     # Build safe filename for checkpoint to avoid nested quotes in f-string
@@ -289,19 +369,20 @@ def run(
 
     latent_dim = None  # 32
 
-    transform = A.Compose(
-        [
-            A.HorizontalFlip(),
-            A.RandomRotate90(),
-            A.ToTensorV2(),
-        ],
-        seed=rand_seed,
-    )
+    # ── Augmentation preset ──────────────────────────────────────────
+    augmentation = run_params.get("augmentation", "basic")
+    transform = _build_transform(augmentation, rand_seed)
 
     mlflow.log_param("dataset_transform", str(transform))
+    mlflow.log_param("augmentation_preset", augmentation)
 
-    # When called without a databank_opt (new explicit-parquet path), default to C1.
-    dataset_version = databank_opt.get("dataset", Version.C1)
+    # ── Dataset version ──────────────────────────────────────────────
+    # CLI-specified version takes priority; fall back to databank_opt
+    version_str = run_params.get("dataset_version", None)
+    if version_str is not None:
+        dataset_version = Version[version_str]
+    else:
+        dataset_version = databank_opt.get("dataset", Version.C1)
     is_single_input = dataset_version in (Version.A1, Version.B1, Version.C1)
 
     # get datasets
@@ -317,9 +398,7 @@ def run(
     # TODO: note: use this to see the difference in learning with and without data augmentation
     # train_set.dataset = EnsembleDatasetC1(parquet_path, None)
 
-    batch_size = None
-    if is_single_input:
-        batch_size = 7
+    batch_size = 7
     # dataloaders
     train_loader = data.DataLoader(
         train_set,

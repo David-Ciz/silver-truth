@@ -8,7 +8,11 @@ import mlflow
 import numpy as np
 import pandas as pd
 
-from silver_truth.experiment_tracking import DEFAULT_MLFLOW_TRACKING_URI
+from silver_truth.experiment_tracking import (
+    DEFAULT_MLFLOW_TRACKING_URI,
+    start_managed_mlflow_run,
+    set_evaluation_tags,
+)
 
 TRUE_COLUMN_CANDIDATES = ("Jaccard index", "jaccard_index")
 PRED_COLUMN_CANDIDATES = ("Predicted Jaccard index", "predicted_jaccard_index")
@@ -231,19 +235,29 @@ def _log_qa_filtering_metrics_to_mlflow(
                     float(getattr(row, metric_name)),
                 )
 
-    mlflow.set_tracking_uri(mlflow_tracking_uri)
-
     if mlflow_run_id:
-        with mlflow.start_run(run_id=mlflow_run_id):
+        with start_managed_mlflow_run(
+            run_id=mlflow_run_id,
+            mlflow_tracking_uri=mlflow_tracking_uri,
+        ):
             log_threshold_metrics()
             mlflow.log_artifact(str(excel_path))
             mlflow.log_artifacts(str(output_dir), artifact_path="qa_filtering")
         return
 
-    if mlflow_experiment:
-        mlflow.set_experiment(mlflow_experiment)
-
-    with mlflow.start_run(run_name=mlflow_run_name):
+    with start_managed_mlflow_run(
+        mlflow_tracking_uri=mlflow_tracking_uri,
+        mlflow_experiment=mlflow_experiment,
+        run_name=mlflow_run_name,
+    ):
+        set_evaluation_tags(
+            pipeline_family="qa_filtering",
+            evaluation_level="qa_threshold_filtering",
+            setup_name=excel_path.stem,
+            extra_tags={
+                "filtering_semantics": "thresholded_quality_classification",
+            },
+        )
         mlflow.log_param("excel_path", str(excel_path))
         log_threshold_metrics()
         mlflow.log_artifact(str(excel_path))

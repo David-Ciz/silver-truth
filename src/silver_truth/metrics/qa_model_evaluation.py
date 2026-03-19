@@ -22,6 +22,10 @@ from sklearn.metrics import r2_score, mean_absolute_error, mean_squared_error
 from scipy import stats
 import matplotlib.pyplot as plt
 
+from silver_truth.data_processing.utils.dataset_dataframe_creation import (
+    SILVER_TRUTH_COLUMN,
+)
+
 # Setup logging
 logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
 
@@ -493,6 +497,17 @@ def merge_predictions_to_parquet(
     # Load parquet
     df = pd.read_parquet(parquet_path)
     logging.info(f"Loaded parquet with {len(df)} rows")
+
+    if "competitor" in df.columns:
+        reference_mask = df["competitor"].astype(str) == SILVER_TRUTH_COLUMN
+        reference_count = int(reference_mask.sum())
+        if reference_count:
+            df = df.loc[~reference_mask].copy()
+            logging.warning(
+                "Dropped %d '%s' reference rows before merging QA predictions.",
+                reference_count,
+                SILVER_TRUTH_COLUMN,
+            )
 
     # Load Excel sheets
     xl = pd.ExcelFile(excel_path)

@@ -10,6 +10,7 @@ import logging
 
 from silver_truth.data_processing.utils.dataset_dataframe_creation import (
     load_dataframe_from_parquet_with_metadata,
+    SILVER_TRUTH_COLUMN,
 )
 
 # Basic Logging Setup
@@ -78,6 +79,9 @@ def create_qa_dataset(
     output_path = Path(output_dir).resolve()
     output_path.mkdir(parents=True, exist_ok=True)
     logging.info(f"Ensured output directory exists: {output_path}")
+    output_parquet = Path(output_parquet_path).resolve()
+    output_parquet.parent.mkdir(parents=True, exist_ok=True)
+    logging.info(f"Ensured parquet directory exists: {output_parquet.parent}")
 
     # Find project root (directory containing 'data' folder) for relative path conversion
     project_root = None
@@ -111,9 +115,19 @@ def create_qa_dataset(
             "tracking_markers",
             "source_image",
             "tracking_marker",  # Typo in some datasets
+            SILVER_TRUTH_COLUMN,
         ]
         competitor_columns = [col for col in df.columns if col not in excluded_columns]
         logging.info(f"Inferred competitor columns: {competitor_columns}")
+
+    if SILVER_TRUTH_COLUMN in competitor_columns:
+        competitor_columns = [
+            column for column in competitor_columns if column != SILVER_TRUTH_COLUMN
+        ]
+        logging.warning(
+            "Excluded reference column '%s' from QA competitors.",
+            SILVER_TRUTH_COLUMN,
+        )
 
     if exclude_competitors:
         competitor_columns = [
@@ -488,7 +502,7 @@ def create_qa_dataset(
                     )
 
     output_df = pd.DataFrame(data_list)
-    output_df.to_parquet(output_parquet_path)
+    output_df.to_parquet(output_parquet)
 
     logging.info("QA dataset creation complete.")
     if crop:
@@ -499,7 +513,7 @@ def create_qa_dataset(
         logging.info(
             f"  - {len(output_df)} full-size images with cell masks created in {output_path}"
         )
-    logging.info(f"  - QA dataframe saved to {output_parquet_path}")
+    logging.info(f"  - QA dataframe saved to {output_parquet}")
 
 
 def attach_split_to_qa_dataset(

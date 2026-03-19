@@ -2,6 +2,10 @@
 
 This roadmap outlines the strategic progression of the "Silver Truth" project, moving from the current recreation phase towards advanced research and development in Quality Assurance (QA) and Dynamic Ensemble methods.
 
+Important:
+- this page is a high-level research backlog, not the canonical status tracker
+- for current implementation status and runnable protocol, use `PAPER_STATUS.md`, `docs/paper_protocol.md`, and `docs/repository_workflow_map.md`
+
 **Status Key:**
 *   `[ ] TODO`: Not yet started.
 *   `[x] DONE`: Completed.
@@ -14,21 +18,18 @@ This roadmap outlines the strategic progression of the "Silver Truth" project, m
 
 **Goal:** To accurately reproduce the existing silver truth generation process using the provided tools and data.
 
-*   **[x] DONE** Data synchronization (`cli_preprocessing.py synchronize-datasets`)
+*   **[x] DONE** Data synchronization (`silver-preprocessing synchronize-datasets`)
     *   _Status_: Completed.
     *   _Details_: Initial setup and verification of synchronization process.
-*   **[x] DONE** Dataset DataFrame creation (`cli_preprocessing.py create-dataset-dataframe`)
+*   **[x] DONE** Dataset DataFrame creation (`silver-preprocessing create-dataset-dataframe`)
     *   _Status_: Completed.
     *   _Details_: Generation of `.parquet` files for downstream use.
-*   **[ ] IN PROGRESS** Job file generation (`cli_fusion.py generate-jobfiles`)
-    *   _Status_: Currently implementing and testing.
-    *   _Details_: [Link to Job File Generation Design Doc (TODO)]
-*   **[ ] TODO** Fusion execution (`cli_fusion.py run-fusion`) using the established CTC fusion algorithm
-    *   _Status_: Pending.
-    *   _Details_: [Link to Fusion Implementation Notes (TODO)]
-*   **[ ] TODO** Evaluation of recreated silver truth against known benchmarks (`cli_evaluation.py evaluate-competitor`)
-    *   _Status_: Pending.
-    *   _Details_: [Link to Evaluation Plan (TODO)]
+*   **[x] DONE** Job file generation (`silver-fusion generate-jobfiles`)
+    *   _Status_: Implemented and used in DVC stages.
+*   **[x] DONE** Fusion execution (`silver-fusion run-fusion` / `silver-fusion run-fusion-crops`)
+    *   _Status_: Implemented and used for both direct fusion and crop-oriented experiments.
+*   **[x] DONE** Evaluation of recreated silver truth against known benchmarks (`silver-evaluation evaluate-competitor`)
+    *   _Status_: Implemented and used in current experiment runs.
 
 ---
 
