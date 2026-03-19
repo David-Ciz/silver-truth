@@ -1,0 +1,11 @@
+# Reusable base for ensemble-only sweeps.
+# Keeps the existing ablation runner, but disables unrelated competitor/fusion/QA phases.
+extends: base
+
+run_phaseA_competitors: false
+run_phaseA_silver_truth: false
+run_phaseA_fusion: false
+run_phaseA_ensemble: true
+run_phaseB_qa: false
+run_phaseC_ablation: false
+

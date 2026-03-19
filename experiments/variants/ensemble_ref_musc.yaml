@@ -1,0 +1,10 @@
+# Pretraining run on the related brightfield dataset.
+extends: ensemble_sweep_base.yaml
+
+dataset: BF-C2DL-MuSC
+ensemble_model_type: UnetPlusPlus
+ensemble_version: C1
+ensemble_augmentation: basic
+ensemble_encoder_name: resnet34
+ensemble_encoder_weights: null
+

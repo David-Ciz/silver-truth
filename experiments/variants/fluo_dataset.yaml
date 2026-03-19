@@ -1,0 +1,5 @@
+# Variant: run on a different dataset.
+# Requires that DVC prep stages exist for this dataset (create_fold1@Fluo-N2DL-HeLa etc.)
+extends: base
+dataset: Fluo-N2DL-HeLa
+

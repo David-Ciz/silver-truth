@@ -1,0 +1,4 @@
+# Variant: use plain U-Net instead of U-Net++ as the ensemble (deep fusion) model.
+extends: base
+ensemble_model_type: Unet
+

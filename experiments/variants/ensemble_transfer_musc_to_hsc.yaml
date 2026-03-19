@@ -1,0 +1,11 @@
+# Fine-tune BF-C2DL-HSC from the matching BF-C2DL-MuSC fold checkpoint.
+# Run ensemble_ref_musc.yaml on the same fold first so the source checkpoint exists.
+extends: ensemble_sweep_base.yaml
+
+dataset: BF-C2DL-HSC
+ensemble_model_type: UnetPlusPlus
+ensemble_version: C1
+ensemble_augmentation: basic
+ensemble_encoder_name: resnet34
+ensemble_encoder_weights: null
+ensemble_init_checkpoint: "{project_root}/data/paper_runs/ensemble/ensemble_ref_musc/{split_name}/checkpoints_baseline/M2--.ckpt"

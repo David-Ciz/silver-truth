@@ -1,0 +1,53 @@
+# Base experiment configuration.
+# All variant files inherit these defaults via `extends: base`.
+# Only override what changes in the variant file.
+
+dataset: BF-C2DL-HSC
+folds: [1, 2, mixed]
+crop_size: 64
+
+# ── Models ────────────────────────────────────────────────────────────────────
+qa_model_type: resnet18
+qa_input_channels: "0,1"
+ensemble_model_type: UnetPlusPlus
+ensemble_version: C1
+ensemble_max_epochs: 100
+ensemble_augmentation: basic
+ensemble_encoder_name: resnet34
+ensemble_encoder_weights: null
+ensemble_init_checkpoint: null
+fusion_models: [SIMPLE, MAJORITY_FLAT, THRESHOLD_FLAT, BIC_FLAT_VOTING]
+
+# ── QA filtering ──────────────────────────────────────────────────────────────
+qa_threshold: 0.75
+qa_threshold_sweep: [0.50, 0.60, 0.70, 0.75]
+
+# ── Phase C ablation modes to run ─────────────────────────────────────────────
+# Comment out any mode you want to skip.
+ablation_modes:
+  - fusion_only
+  - qa_only
+  - full_pipeline
+  - ensemble_only
+  - ensemble_qa
+  - ensemble_qa_retrained
+
+# ── Phase toggles ─────────────────────────────────────────────────────────────
+run_phaseA_competitors: true
+run_phaseA_silver_truth: true
+run_phaseA_fusion: true
+run_phaseA_ensemble: true
+run_phaseB_qa: true
+run_phaseC_ablation: true
+
+# ── Paths (templates — {project_root}, {dataset}, {fold} are substituted) ─────
+mlflow_tracking_uri: "file:{project_root}/data/mlflow/mlruns"
+data_root: "{project_root}/data/dataframes/{dataset}"
+paper_runs_root: "{project_root}/data/paper_runs"
+qa_parquet_template: "{project_root}/data/dataframes/{dataset}/qa_crops/{split_name}_sz{crop_size}_qa_dataset.parquet"
+whole_image_parquet_template: "{project_root}/data/dataframes/{dataset}/whole_image/{dataset}_split_{split_name}.parquet"
+paper_ready_parquet_template: "{project_root}/data/dataframes/{dataset}/qa_crops/paper_inputs/{split_name}_paper_ready.parquet"
+qa_model_template: "{project_root}/data/paper_runs/qa_models/{variant}_qa_{qa_model_type}_{split_name}.pt"
+qa_excel_template: "{project_root}/data/paper_runs/qa_results/{variant}_qa_predictions_{split_name}.xlsx"
+fusion_output_template: "{project_root}/data/paper_runs/fusion/{variant}/{split_name}"
+ablation_output_template: "{project_root}/data/paper_runs/ablation/{variant}/{split_name}/{mode}"

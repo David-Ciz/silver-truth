@@ -1,0 +1,5 @@
+# Variant: 32×32 crop size instead of 64×64.
+# Requires that DVC prep stages were run with crop_size=32 to produce the matching parquet.
+extends: base
+crop_size: 32
+

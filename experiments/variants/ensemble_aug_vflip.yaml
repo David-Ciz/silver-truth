@@ -1,0 +1,7 @@
+# Light augmentation sweep: add vertical flips only.
+extends: ensemble_sweep_base.yaml
+
+ensemble_model_type: UnetPlusPlus
+ensemble_version: C1
+ensemble_augmentation: basic_vflip
+

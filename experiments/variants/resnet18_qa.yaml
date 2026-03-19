@@ -1,0 +1,5 @@
+# Variant: swap the QA model from ResNet50 to ResNet18.
+# Everything else (dataset, folds, fusion strategy, etc.) stays as in base.yaml.
+extends: base
+qa_model_type: resnet18
+

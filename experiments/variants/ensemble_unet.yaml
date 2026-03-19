@@ -1,0 +1,7 @@
+# Narrow architecture check: plain U-Net instead of U-Net++.
+extends: ensemble_sweep_base.yaml
+
+ensemble_model_type: Unet
+ensemble_version: C1
+ensemble_augmentation: basic
+
