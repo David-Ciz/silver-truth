@@ -36,7 +36,7 @@ def build_analysis_databank_full(qa_dataset_path: str, output_path: str) -> None
         done_imgs.append(id)
 
         # load gt image
-        seg_img = tifffile.imread(row.segmentation_path)  # type: ignore
+        seg_img = tifffile.imread(row.stacked_path)  # type: ignore
         gt_image = tifffile.imread(row.gt_image)  # type: ignore
         ori_image = tifffile.imread(row.original_image_path)  # type: ignore
 
