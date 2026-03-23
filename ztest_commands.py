@@ -1,4 +1,6 @@
 import os
+
+import matplotlib.pyplot as plt
 # from src.data_processing.label_synchronizer import verify_dataset_synchronization_logic
 from silver_truth.ensemble.databanks_builds import Databank_type
 from silver_truth.ensemble.datasets import Version
@@ -49,6 +51,22 @@ def build_qa_databank(
     ##### 2) add splits to QA parquet
     ds_qa_split = add_split_type(qa_parquet_path, build_opt)
     return ds_qa_split
+
+
+def show_cell_size_hist(build_opt, qa_parquet_dir="data/ensemble_data/qa", num_bins=20):
+    hist = utils.get_cell_size_hist(os.path.join(qa_parquet_dir, f"qa_{build_opt['name']}.parquet"), num_bins)
+    height_n, height_bins = hist["height_hist"]
+    width_n, width_bins = hist["width_hist"]
+    #plt.plot(height_bins[:-1], height_n)
+    plt.hist(hist["height_raw"], num_bins)
+    plt.title(f"{build_opt['name']} cell height histogram")
+    plt.show()
+    plt.waitforbuttonpress()
+    #plt.plot(width_bins[:-1], width_n)
+    plt.hist(hist["width_raw"], num_bins)
+    plt.title(f"{build_opt['name']} cell width histogram")
+    plt.show()
+    plt.waitforbuttonpress()
 
 
 def integrate_qa_results(build_opt_list, qa_parquet_dir="data/ensemble_data/qa"):
@@ -215,9 +233,9 @@ build_opt_list = [
 
 build_opt_list = [
     {
-        "name": "BF-C2DL-HSC",
+        "name": "BF-C2DL-MuSC",
         "databank": Databank_type.Norm,
-        "dataset": Version.A1,
+        "dataset": Version.C1,
         "crop_size": 64,
         "split_seed": 42,
         "split_sets": [0.7, 0.15, 0.15],
@@ -231,10 +249,14 @@ build_opt_list = [
 ##### 4)
 #integrate_qa_results(build_opt_list)
 
-## OPTIONAL: build analysis databanks in order to better visualize the data
-# ensemble.build_analysis_databanks(build_opt_list[0]["name"], qa_parquet_path, 'all')
 
-#ensemble_databanks = build_ensemble_databanks(build_opt_list)
+## OPTIONAL: build analysis databanks in order to better visualize the data
+#ensemble.build_analysis_databanks(build_opt_list[0]["name"], os.path.join("data/ensemble_data/qa", f"qa_{build_opt_list[0]['name']}.parquet"), 'crop')
+
+## OPTIONAL: check cell size histogram
+#show_cell_size_hist(build_opt_list[0])
+
+ensemble_databanks = build_ensemble_databanks(build_opt_list)
 
 databank_opt = build_opt_list[0]
 run_sequence = [
