@@ -1,6 +1,8 @@
 # params.yaml
 datasets:
   BF-C2DL-HSC:
-    crop_size: 64
+    default_crop_size: 64
+    crop_sizes: [64]
   BF-C2DL-MuSC:
-    crop_size: 256
+    default_crop_size: 256
+    crop_sizes: [64, 128, 256]
