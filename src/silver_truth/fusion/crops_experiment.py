@@ -3,6 +3,7 @@ from __future__ import annotations
 from contextlib import contextmanager
 from datetime import datetime
 import logging
+import os
 import re
 import shutil
 import tempfile
@@ -152,7 +153,8 @@ def _resolve_stacked_path(path_value: Any, qa_parquet: Path) -> Optional[Path]:
     if candidate.is_absolute():
         return candidate
 
-    project_candidate = PROJECT_ROOT / candidate
+    runtime_root = Path(os.getenv("ABLATION_DATA_ROOT", str(PROJECT_ROOT))).expanduser()
+    project_candidate = runtime_root / candidate
     parquet_relative_candidate = qa_parquet.parent / candidate
 
     if project_candidate.exists():

@@ -68,6 +68,8 @@ logger = logging.getLogger(__name__)
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 EXPERIMENTS_DIR = PROJECT_ROOT / "experiments"
 STATE_DIR = PROJECT_ROOT / ".state"
+ABLATION_DATA_ROOT_ENV = "ABLATION_DATA_ROOT"
+ABLATION_OUTPUT_DIR_ENV = "ABLATION_OUTPUT_DIR"
 
 # Base directory that mirrors training._checkpoint_path — used when no explicit
 # --checkpoints-dir is passed to ensemble-experiment.
@@ -168,6 +170,16 @@ def load_config(variant_path: Path, fold: str) -> dict[str, Any]:
 
     # Inject runtime values.
     config["project_root"] = str(PROJECT_ROOT)
+    runtime_root = Path(
+        os.getenv(ABLATION_DATA_ROOT_ENV, str(PROJECT_ROOT))
+    ).expanduser()
+    paper_runs_root = Path(
+        os.getenv(ABLATION_OUTPUT_DIR_ENV, str(PROJECT_ROOT / "data/paper_runs"))
+    ).expanduser()
+    config["runtime_root"] = str(runtime_root.resolve())
+    config["paper_runs_root"] = str(paper_runs_root.resolve())
+    if os.getenv("MLFLOW_TRACKING_URI"):
+        config["mlflow_tracking_uri"] = os.environ["MLFLOW_TRACKING_URI"]
     split_name = _normalise_split_name(fold)
     config["fold"] = split_name
     config["split_name"] = split_name
@@ -312,7 +324,8 @@ def build_steps(cfg: dict[str, Any]) -> list[dict[str, Any]]:
                     f"  {'  '.join(f'--models {m}' for m in cfg['fusion_models'])} "
                     f"  --output-dir {fusion_out} "
                     f"  --mlflow-experiment {phasea_fusion_experiment} "
-                    f"  --mlflow-run-name fusion_baseline"
+                    f"  --mlflow-run-name fusion_baseline "
+                    f"  --mlflow-tracking-path {mlflow_uri.replace('file:', '')}"
                 ),
             }
         )
@@ -407,6 +420,7 @@ def build_steps(cfg: dict[str, Any]) -> list[dict[str, Any]]:
                     f"mkdir -p {paper_runs}/qa_models {paper_runs}/qa_results && "
                     f"silver-qa cnn train "
                     f"  --parquet-file {qa_parquet} "
+                    f"  --data-root {cfg['runtime_root']} "
                     f"  --output-model {qa_model} "
                     f"  --output-excel {qa_excel} "
                     f"  --model-type {cfg['qa_model_type']} "
