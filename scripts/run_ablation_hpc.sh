@@ -18,7 +18,11 @@ PHASE="all"
 EXTRA_ARGS=()
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
+if [[ -n "${SLURM_SUBMIT_DIR:-}" ]]; then
+    REPO_ROOT="${SLURM_SUBMIT_DIR}"
+else
+    REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
+fi
 DURABLE_ROOT="/mnt/proj1/eu-25-40/innovaite/silver-truth-hpc"
 SCRATCH_ROOT="/scratch/project/eu-25-40/silver-truth/ablation/${SLURM_JOB_ID:-manual}"
 VENV_DIR="${REPO_ROOT}/.venv"
