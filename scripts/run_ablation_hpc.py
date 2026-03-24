@@ -34,7 +34,7 @@ DEFAULT_TIME = "24:00:00"
 DEFAULT_GPUS = 1
 DEFAULT_CPUS_PER_TASK = 16
 DEFAULT_PROJECT_STORAGE_ROOT = Path("/mnt/proj1/eu-25-40/innovaite")
-DEFAULT_VENV_DIRNAME = "silver-truth-venv"
+DEFAULT_VENV_DIRNAME = ".venv"
 DEFAULT_DURABLE_DIRNAME = "silver-truth-hpc"
 DEFAULT_SCRATCH_ROOT = Path("/scratch/project/eu-25-40/silver-truth/ablation")
 DEFAULT_MODULES = (
@@ -394,8 +394,8 @@ def main(
     scratch_root = scratch_root.resolve()
 
     cfg = load_config(config, fold)
-    default_job_name = (
-        f"ablation_{cfg['variant']}_{cfg['split_name']}".replace("-", "_")
+    default_job_name = f"ablation_{cfg['variant']}_{cfg['split_name']}".replace(
+        "-", "_"
     )
     effective_job_name = job_name or default_job_name
 
@@ -428,7 +428,9 @@ def main(
     job_script_path.write_text(job_script)
 
     click.echo(f"Wrote batch script: {job_script_path}")
-    click.echo(f"Scratch workspace: {scratch_root / cfg['dataset'] / cfg['variant'] / cfg['split_name']}")
+    click.echo(
+        f"Scratch workspace: {scratch_root / cfg['dataset'] / cfg['variant'] / cfg['split_name']}"
+    )
     click.echo(f"Durable outputs: {durable_root}")
 
     if not submit:
