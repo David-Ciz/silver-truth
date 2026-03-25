@@ -264,6 +264,14 @@ def build_steps(cfg: dict[str, Any]) -> list[dict[str, Any]]:
     def _threshold_label(value: float) -> str:
         return f"{value:.2f}"
 
+    def _fused_parquet_path(
+        source_parquet: str, output_dir: str, model_lower: str
+    ) -> str:
+        source_stem = Path(source_parquet).stem
+        return (
+            f"{output_dir}/{model_lower}/{source_stem}_{model_lower}_with_fused.parquet"
+        )
+
     # Shorthand path helpers
     qa_parquet = cfg["qa_parquet_template"]
     whole_image_parquet = cfg["whole_image_parquet_template"]
@@ -520,10 +528,7 @@ def build_steps(cfg: dict[str, Any]) -> list[dict[str, Any]]:
         )
         for model in cfg["fusion_models"]:
             model_lower = model.lower()
-            fused_pq = (
-                f"{mode_out}/{model_lower}/"
-                f"{split_name}_paper_ready_{model_lower}_with_fused.parquet"
-            )
+            fused_pq = _fused_parquet_path(paper_ready, mode_out, model_lower)
             steps.append(
                 {
                     "id": f"phaseC_fusion_only_eval_{model_lower}",
@@ -606,10 +611,7 @@ def build_steps(cfg: dict[str, Any]) -> list[dict[str, Any]]:
             )
             for model in cfg["fusion_models"]:
                 model_lower = model.lower()
-                fused_pq = (
-                    f"{mode_out}/{model_lower}/"
-                    f"filtered_{model_lower}_with_fused.parquet"
-                )
+                fused_pq = _fused_parquet_path(filtered_pq, mode_out, model_lower)
                 steps.append(
                     {
                         "id": f"phaseC_full_pipeline_run_t{threshold_label}_{model_lower}",
