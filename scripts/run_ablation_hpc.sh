@@ -15,6 +15,7 @@ set -euo pipefail
 CONFIG=""
 FOLD=""
 PHASE="all"
+KEEP_SCRATCH=0
 EXTRA_ARGS=()
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -50,6 +51,7 @@ Options:
   --durable-root PATH   Durable storage for paper_runs and MLflow.
   --scratch-root PATH   Scratch runtime root. Default uses SLURM_JOB_ID.
   --venv-dir PATH       Virtualenv to activate. Default: <repo>/.venv
+  --keep-scratch        Do not delete the per-job scratch directory on exit.
   --help                Show this message.
 
 Override Slurm resources at submit time, for example:
@@ -82,6 +84,10 @@ while [[ $# -gt 0 ]]; do
         --venv-dir)
             VENV_DIR="${2:-}"
             shift 2
+            ;;
+        --keep-scratch)
+            KEEP_SCRATCH=1
+            shift
             ;;
         --reset)
             EXTRA_ARGS+=(--reset)
@@ -144,7 +150,7 @@ VENV_DIR="$(make_abs "${VENV_DIR}")"
 CONFIG="$(make_abs "${CONFIG}")"
 
 cleanup() {
-    if [[ -n "${SCRATCH_ROOT:-}" && -d "${SCRATCH_ROOT}" ]]; then
+    if [[ "${KEEP_SCRATCH}" -eq 0 && -n "${SCRATCH_ROOT:-}" && -d "${SCRATCH_ROOT}" ]]; then
         rm -rf "${SCRATCH_ROOT}"
     fi
 }
@@ -158,6 +164,7 @@ echo "Fold: ${FOLD}"
 echo "Phase: ${PHASE}"
 echo "Scratch root: ${SCRATCH_ROOT}"
 echo "Durable root: ${DURABLE_ROOT}"
+echo "Keep scratch: ${KEEP_SCRATCH}"
 
 command -v ml >/dev/null 2>&1 && ml purge >/dev/null 2>&1 || true
 ml CUDA/12.8.0
@@ -182,6 +189,35 @@ export PYTHONUNBUFFERED=1
 export OMP_NUM_THREADS="${SLURM_CPUS_PER_TASK:-16}"
 
 cd "${SCRATCH_ROOT}"
+
+echo "Validating staged inputs..."
+python - <<PY
+from pathlib import Path
+import sys
+
+sys.path.insert(0, "${REPO_ROOT}")
+from scripts.run_ablation import load_config
+
+config_path = Path("${CONFIG}")
+fold = "${FOLD}"
+cfg = load_config(config_path, fold)
+
+required_paths = {
+    "whole_image_parquet": Path(cfg["whole_image_parquet_template"]),
+    "qa_parquet": Path(cfg["qa_parquet_template"]),
+}
+
+missing = [name for name, path in required_paths.items() if not path.exists()]
+for name, path in required_paths.items():
+    print(f"  {name}: {path}")
+
+if missing:
+    print("")
+    print("Missing staged inputs:")
+    for name in missing:
+        print(f"  - {name}: {required_paths[name]}")
+    raise SystemExit(1)
+PY
 
 echo "Running ablation pipeline..."
 python "${REPO_ROOT}/scripts/run_ablation.py" \
