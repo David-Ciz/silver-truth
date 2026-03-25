@@ -59,6 +59,20 @@ Override Slurm resources at submit time, for example:
 EOF
 }
 
+resolve_dataset() {
+    python - <<PY
+from pathlib import Path
+import sys
+
+sys.path.insert(0, "${REPO_ROOT}")
+from scripts.run_ablation import _load_config_with_inheritance
+
+config_path = Path("${CONFIG}")
+cfg = _load_config_with_inheritance(config_path)
+print(cfg.get("dataset", ""))
+PY
+}
+
 while [[ $# -gt 0 ]]; do
     case "$1" in
         --config)
@@ -175,10 +189,28 @@ source "${VENV_DIR}/bin/activate"
 
 mkdir -p "${SCRATCH_ROOT}/data" "${DURABLE_ROOT}/paper_runs" "${DURABLE_ROOT}/mlflow/mlruns"
 
+DATASET_NAME="$(resolve_dataset)"
+if [[ -z "${DATASET_NAME}" ]]; then
+    echo "ERROR: Could not resolve dataset from config: ${CONFIG}" >&2
+    exit 1
+fi
+
 echo "Staging data to scratch..."
-rsync -a --delete "${REPO_ROOT}/data/synchronized_data/" "${SCRATCH_ROOT}/data/synchronized_data/"
-rsync -a --delete "${REPO_ROOT}/data/dataframes/" "${SCRATCH_ROOT}/data/dataframes/"
-rsync -a --delete "${REPO_ROOT}/data/qa_crops/" "${SCRATCH_ROOT}/data/qa_crops/"
+mkdir -p \
+    "${SCRATCH_ROOT}/data/synchronized_data" \
+    "${SCRATCH_ROOT}/data/dataframes/${DATASET_NAME}" \
+    "${SCRATCH_ROOT}/data/qa_crops"
+rsync -aL --delete \
+    "${REPO_ROOT}/data/synchronized_data/${DATASET_NAME}/" \
+    "${SCRATCH_ROOT}/data/synchronized_data/${DATASET_NAME}/"
+rsync -aL --delete \
+    "${REPO_ROOT}/data/dataframes/${DATASET_NAME}/" \
+    "${SCRATCH_ROOT}/data/dataframes/${DATASET_NAME}/"
+if [[ -d "${REPO_ROOT}/data/qa_crops/${DATASET_NAME}" ]]; then
+    rsync -aL --delete \
+        "${REPO_ROOT}/data/qa_crops/${DATASET_NAME}/" \
+        "${SCRATCH_ROOT}/data/qa_crops/${DATASET_NAME}/"
+fi
 
 export MLFLOW_TRACKING_URI="file://${DURABLE_ROOT}/mlflow/mlruns"
 export ABLATION_OUTPUT_DIR="${DURABLE_ROOT}/paper_runs"
