@@ -15,6 +15,9 @@ vars:
       musc_sz256:
         dataset: BF-C2DL-MuSC
         crop_size: 256
+      musc_sz512:
+        dataset: BF-C2DL-MuSC
+        crop_size: 512
 
 stages:
 
