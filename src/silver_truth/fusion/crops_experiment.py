@@ -869,11 +869,14 @@ def _resolve_output_path(output_dir: Union[Path, str]) -> Path:
     return PROJECT_ROOT / output_path
 
 
-def _resolve_tracking_path(tracking_path: Union[Path, str]) -> Path:
-    path = Path(tracking_path)
+def _resolve_tracking_path(tracking_path: Union[Path, str]) -> str:
+    tracking_str = str(tracking_path)
+    if tracking_str.startswith("file:") or "://" in tracking_str:
+        return tracking_str
+    path = Path(tracking_str)
     if path.is_absolute():
-        return path
-    return PROJECT_ROOT / path
+        return str(path)
+    return str(PROJECT_ROOT / path)
 
 
 def _safe_run_token(value: str) -> str:
@@ -913,7 +916,7 @@ def run_crops_fusion_experiment(
     output_base_dir = _resolve_output_path(output_dir)
     output_base_dir.mkdir(parents=True, exist_ok=True)
 
-    requested_tracking_path = str(_resolve_tracking_path(mlflow_tracking_path))
+    requested_tracking_path = _resolve_tracking_path(mlflow_tracking_path)
     tracking_uri = resolve_mlflow_tracking_uri(requested_tracking_path)
     if tracking_uri.startswith("file:"):
         Path(tracking_uri.removeprefix("file:")).mkdir(parents=True, exist_ok=True)

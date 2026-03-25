@@ -187,7 +187,7 @@ ml libjpeg-turbo/2.1.5.1-GCCcore-12.3.0
 
 source "${VENV_DIR}/bin/activate"
 
-mkdir -p "${SCRATCH_ROOT}/data" "${DURABLE_ROOT}/paper_runs" "${DURABLE_ROOT}/mlflow/mlruns"
+mkdir -p "${SCRATCH_ROOT}/data" "${DURABLE_ROOT}/paper_runs" "${DURABLE_ROOT}/mlflow/mlartifacts"
 
 DATASET_NAME="$(resolve_dataset)"
 if [[ -z "${DATASET_NAME}" ]]; then
@@ -212,7 +212,8 @@ if [[ -d "${REPO_ROOT}/data/qa_crops/${DATASET_NAME}" ]]; then
         "${SCRATCH_ROOT}/data/qa_crops/${DATASET_NAME}/"
 fi
 
-export MLFLOW_TRACKING_URI="file://${DURABLE_ROOT}/mlflow/mlruns"
+export MLFLOW_TRACKING_URI="sqlite:////${DURABLE_ROOT#/}/mlflow/mlflow.db"
+export SILVER_TRUTH_MLFLOW_ARTIFACT_ROOT="file://${DURABLE_ROOT}/mlflow/mlartifacts"
 export ABLATION_OUTPUT_DIR="${DURABLE_ROOT}/paper_runs"
 export ABLATION_DATA_ROOT="${SCRATCH_ROOT}"
 

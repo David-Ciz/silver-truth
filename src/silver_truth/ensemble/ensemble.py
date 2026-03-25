@@ -10,6 +10,7 @@ import silver_truth.ensemble.training as training
 from silver_truth.ensemble.models import SMP_Model
 import silver_truth.ensemble.utils as utils
 from silver_truth.experiment_tracking import (
+    ensure_mlflow_experiment,
     infer_dataset_name_from_text,
     infer_split_from_dataframe,
     resolve_mlflow_experiment_name,
@@ -94,14 +95,10 @@ def build_databanks(datasets: list[str]):
 def _set_mlflow_experiment(name: str) -> None:
     tracking_uri = resolve_mlflow_tracking_uri(envs.mlflow_mlruns_path)
     experiment_name = resolve_mlflow_experiment_name(name) or name
-    mlflow.set_tracking_uri(
-        tracking_uri
-    )  # needs to be set before mlflow.get_experiment_by_name()
-    # find or create mlflow experiment, then always set it as active
-    experiment = mlflow.get_experiment_by_name(experiment_name)
-    if experiment is None:
-        mlflow.create_experiment(experiment_name, tracking_uri)
-    mlflow.set_experiment(experiment_name)
+    ensure_mlflow_experiment(
+        experiment_name,
+        tracking_uri=tracking_uri,
+    )
 
 
 def run_experiment(

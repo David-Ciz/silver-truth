@@ -51,6 +51,7 @@ from silver_truth.experiment_tracking import (
     ABLATION_ROOT_RUN_ENV,
     ABLATION_RUN_KEY_ENV,
     ABLATION_TRACKING_URI_ENV,
+    ensure_mlflow_experiment,
     resolve_mlflow_tracking_uri,
 )
 
@@ -920,7 +921,10 @@ def _build_mlflow_context(
     )
 
     mlflow.set_tracking_uri(tracking_uri)
-    experiment = mlflow.set_experiment(experiment_name)
+    experiment = ensure_mlflow_experiment(
+        experiment_name,
+        tracking_uri=tracking_uri,
+    )
     client = MlflowClient(tracking_uri=tracking_uri)
     parent_run = client.create_run(
         experiment_id=experiment.experiment_id,

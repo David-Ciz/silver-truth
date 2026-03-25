@@ -9,15 +9,19 @@ import math
 
 import mlflow
 import pandas as pd
+from mlflow.entities import Experiment
+from mlflow.tracking import MlflowClient
 
 # Anchor to the project root (two levels up from this file: src/silver_truth → project root)
 # so the path resolves correctly regardless of the working directory.
 _PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
 DEFAULT_MLFLOW_TRACKING_URI = str(_PROJECT_ROOT / "data" / "mlflow" / "mlruns")
+DEFAULT_MLFLOW_ARTIFACT_ROOT = str(_PROJECT_ROOT / "data" / "mlflow" / "mlartifacts")
 
 ABLATION_EXPERIMENT_ENV = "SILVER_TRUTH_MLFLOW_EXPERIMENT_NAME"
 ABLATION_PARENT_RUN_ENV = "SILVER_TRUTH_MLFLOW_PARENT_RUN_ID"
 ABLATION_TRACKING_URI_ENV = "SILVER_TRUTH_MLFLOW_TRACKING_URI"
+MLFLOW_ARTIFACT_ROOT_ENV = "SILVER_TRUTH_MLFLOW_ARTIFACT_ROOT"
 ABLATION_ROOT_RUN_ENV = "SILVER_TRUTH_ABLATION_ROOT_RUN_ID"
 ABLATION_RUN_KEY_ENV = "SILVER_TRUTH_ABLATION_STATE_RUN_ID"
 ABLATION_CONFIG_ENV = "SILVER_TRUTH_ABLATION_CONFIG_PATH"
@@ -49,6 +53,66 @@ def normalize_mlflow_tracking_uri(uri: Optional[str]) -> str:
 
 def resolve_mlflow_tracking_uri(uri: Optional[str] = None) -> str:
     return normalize_mlflow_tracking_uri(os.getenv(ABLATION_TRACKING_URI_ENV) or uri)
+
+
+def uses_database_backend(tracking_uri: Optional[str]) -> bool:
+    if not tracking_uri:
+        return False
+    normalized = tracking_uri.lower()
+    return normalized.startswith(
+        (
+            "sqlite:",
+            "postgresql:",
+            "postgresql+",
+            "mysql:",
+            "mysql+",
+            "mssql:",
+            "mssql+",
+        )
+    )
+
+
+def normalize_mlflow_artifact_root(path: Optional[str]) -> Optional[str]:
+    if not path:
+        return None
+    if path.startswith("file:") or "://" in path:
+        return path
+    return Path(path).expanduser().resolve().as_uri()
+
+
+def resolve_mlflow_artifact_root(path: Optional[str] = None) -> Optional[str]:
+    configured = os.getenv(MLFLOW_ARTIFACT_ROOT_ENV) or path
+    if configured:
+        return normalize_mlflow_artifact_root(configured)
+    if uses_database_backend(resolve_mlflow_tracking_uri()):
+        return normalize_mlflow_artifact_root(DEFAULT_MLFLOW_ARTIFACT_ROOT)
+    return None
+
+
+def ensure_mlflow_experiment(
+    experiment_name: str,
+    *,
+    tracking_uri: Optional[str] = None,
+    artifact_root: Optional[str] = None,
+) -> Experiment:
+    resolved_tracking_uri = resolve_mlflow_tracking_uri(tracking_uri)
+    mlflow.set_tracking_uri(resolved_tracking_uri)
+    client = MlflowClient(tracking_uri=resolved_tracking_uri)
+
+    experiment = client.get_experiment_by_name(experiment_name)
+    if experiment is not None:
+        return experiment
+
+    create_kwargs: dict[str, Any] = {}
+    resolved_artifact_root = resolve_mlflow_artifact_root(artifact_root)
+    if resolved_artifact_root is not None:
+        create_kwargs["artifact_location"] = resolved_artifact_root
+
+    experiment_id = client.create_experiment(experiment_name, **create_kwargs)
+    created = client.get_experiment(experiment_id)
+    if created is None:
+        raise RuntimeError(f"Failed to create MLflow experiment: {experiment_name}")
+    return created
 
 
 def resolve_mlflow_experiment_name(name: Optional[str] = None) -> Optional[str]:
@@ -98,7 +162,10 @@ def start_managed_mlflow_run(
     experiment_name = resolve_mlflow_experiment_name(mlflow_experiment)
     experiment_id: Optional[str] = None
     if experiment_name:
-        experiment_id = mlflow.set_experiment(experiment_name).experiment_id
+        experiment_id = ensure_mlflow_experiment(
+            experiment_name,
+            tracking_uri=tracking_uri,
+        ).experiment_id
 
     effective_parent_run_id = parent_run_id
     if (
@@ -266,6 +333,16 @@ def _is_finite_number(value: object) -> bool:
         return False
 
 
+def _to_finite_float(value: object) -> Optional[float]:
+    try:
+        numeric = float(value)
+    except (TypeError, ValueError):
+        return None
+    if not math.isfinite(numeric):
+        return None
+    return numeric
+
+
 def set_evaluation_tags(
     pipeline_family: str,
     evaluation_level: str,
@@ -320,12 +397,15 @@ def log_standardized_split_metrics(
         f1_key = f"{split}_mean_f1"
         count_key = f"{split}_count"
 
-        if _is_finite_number(split_metrics.get(jaccard_key)):
-            emitted[f"{split_alias}_iou"] = float(split_metrics[jaccard_key])
-        if _is_finite_number(split_metrics.get(f1_key)):
-            emitted[f"{split_alias}_f1"] = float(split_metrics[f1_key])
-        if split == "test" and _is_finite_number(split_metrics.get(count_key)):
-            emitted[count_metric_name] = float(split_metrics[count_key])
+        jaccard_value = _to_finite_float(split_metrics.get(jaccard_key))
+        if jaccard_value is not None:
+            emitted[f"{split_alias}_iou"] = jaccard_value
+        f1_value = _to_finite_float(split_metrics.get(f1_key))
+        if f1_value is not None:
+            emitted[f"{split_alias}_f1"] = f1_value
+        test_count_value = _to_finite_float(split_metrics.get(count_key))
+        if split == "test" and test_count_value is not None:
+            emitted[count_metric_name] = test_count_value
 
     if emitted:
         mlflow.log_metrics(emitted)
@@ -342,12 +422,15 @@ def log_standardized_single_split_metrics(
     """Log canonical metrics for a single evaluated split, e.g. a final test run."""
     split_alias = metric_split_alias(split)
     emitted: dict[str, float] = {}
-    if _is_finite_number(iou):
-        emitted[f"{split_alias}_iou"] = float(iou)
-    if _is_finite_number(f1):
-        emitted[f"{split_alias}_f1"] = float(f1)
-    if count is not None and _is_finite_number(count):
-        emitted[count_metric_name] = float(count)
+    iou_value = _to_finite_float(iou)
+    if iou_value is not None:
+        emitted[f"{split_alias}_iou"] = iou_value
+    f1_value = _to_finite_float(f1)
+    if f1_value is not None:
+        emitted[f"{split_alias}_f1"] = f1_value
+    count_value = _to_finite_float(count)
+    if count_value is not None:
+        emitted[count_metric_name] = count_value
     if emitted:
         mlflow.log_metrics(emitted)
     return emitted

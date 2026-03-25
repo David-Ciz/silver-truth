@@ -40,6 +40,7 @@ from silver_truth.metrics.qa_model_evaluation import (
 from silver_truth.experiment_tracking import (
     DEFAULT_MLFLOW_TRACKING_URI,
     MLFLOW_PARENT_RUN_TAG,
+    ensure_mlflow_experiment,
     get_ablation_context_tags,
     get_inherited_parent_run_id,
     resolve_mlflow_experiment_name,
@@ -566,7 +567,10 @@ def train(
 
     if inherited_parent_run_id or logger_tags:
         mlflow.set_tracking_uri(resolved_tracking_uri)
-        experiment = mlflow.set_experiment(resolved_experiment_name)
+        experiment = ensure_mlflow_experiment(
+            resolved_experiment_name,
+            tracking_uri=resolved_tracking_uri,
+        )
         create_tags = dict(logger_tags)
         if inherited_parent_run_id:
             create_tags[MLFLOW_PARENT_RUN_TAG] = inherited_parent_run_id
