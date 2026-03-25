@@ -19,7 +19,7 @@ Options:
                          <target-db stem>_export.db
   --backup-dir PATH      Backup directory. Default:
                          <target-db dir>/backups
-  --skip-source-backup   Do not create a tar.gz backup of the source mlruns dir.
+  --with-source-backup   Also create a tar.gz backup of the source mlruns dir.
   --keep-target-db       Reuse existing target DB instead of removing it first.
   --help                 Show this help.
 
@@ -34,7 +34,7 @@ SOURCE_DIR="/mnt/proj1/eu-25-40/innovaite/silver-truth-hpc/mlflow/mlruns"
 TARGET_DB="/mnt/proj1/eu-25-40/innovaite/silver-truth-hpc/mlflow/mlflow.db"
 EXPORT_DB=""
 BACKUP_DIR=""
-SKIP_SOURCE_BACKUP=0
+WITH_SOURCE_BACKUP=0
 KEEP_TARGET_DB=0
 
 while [[ $# -gt 0 ]]; do
@@ -55,8 +55,8 @@ while [[ $# -gt 0 ]]; do
       BACKUP_DIR="$2"
       shift 2
       ;;
-    --skip-source-backup)
-      SKIP_SOURCE_BACKUP=1
+    --with-source-backup)
+      WITH_SOURCE_BACKUP=1
       shift
       ;;
     --keep-target-db)
@@ -112,7 +112,7 @@ echo "Export DB  : $EXPORT_DB"
 echo "Backup dir : $BACKUP_DIR"
 echo "Timestamp  : $TIMESTAMP"
 
-if [[ $SKIP_SOURCE_BACKUP -eq 0 ]]; then
+if [[ $WITH_SOURCE_BACKUP -eq 1 ]]; then
   SOURCE_PARENT="$(dirname "$SOURCE_DIR")"
   SOURCE_NAME="$(basename "$SOURCE_DIR")"
   SOURCE_BACKUP="${BACKUP_DIR}/${SOURCE_NAME}_${TIMESTAMP}.tar.gz"
