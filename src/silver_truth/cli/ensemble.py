@@ -351,6 +351,13 @@ def build_databank(
     help="Directory to write evaluation parquets into. Defaults to the checkpoint directory.",
 )
 @click.option(
+    "--batch-size",
+    type=int,
+    default=8,
+    show_default=True,
+    help="Evaluation batch size for checkpoint inference.",
+)
+@click.option(
     "--mlflow-tracking-uri",
     type=str,
     default=DEFAULT_MLFLOW_TRACKING_URI,
@@ -393,6 +400,7 @@ def evaluate_checkpoint(
     split_type: str,
     dataset_version: Optional[str],
     output_dir: Optional[Path],
+    batch_size: int,
     mlflow_tracking_uri: str,
     mlflow_experiment: Optional[str],
     mlflow_run_name: Optional[str],
@@ -407,6 +415,7 @@ def evaluate_checkpoint(
         split_type,
         output_dir=str(output_dir) if output_dir is not None else None,
         dataset_version=dataset_version,
+        batch_size=batch_size,
     )
     _log_ensemble_evaluation_to_mlflow(
         summary=summary,
@@ -466,6 +475,13 @@ def evaluate_checkpoint(
     help="Directory to write evaluation parquets into. Defaults to the checkpoint directory.",
 )
 @click.option(
+    "--batch-size",
+    type=int,
+    default=8,
+    show_default=True,
+    help="Evaluation batch size for checkpoint inference.",
+)
+@click.option(
     "--mlflow-tracking-uri",
     type=str,
     default=DEFAULT_MLFLOW_TRACKING_URI,
@@ -509,6 +525,7 @@ def evaluate_best_checkpoint(
     dataset_version: Optional[str],
     pattern: str,
     output_dir: Optional[Path],
+    batch_size: int,
     mlflow_tracking_uri: str,
     mlflow_experiment: Optional[str],
     mlflow_run_name: Optional[str],
@@ -532,6 +549,7 @@ def evaluate_best_checkpoint(
         split_type,
         output_dir=str(output_dir) if output_dir is not None else None,
         dataset_version=dataset_version,
+        batch_size=batch_size,
     )
     _log_ensemble_evaluation_to_mlflow(
         summary=summary,

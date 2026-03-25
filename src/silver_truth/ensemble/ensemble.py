@@ -21,6 +21,7 @@ from silver_truth.experiment_tracking import (
 from silver_truth.data_processing.utils.parquet_utils import same_splits
 import segmentation_models_pytorch as smp
 import torch
+import torch.utils.data as data
 import pandas as pd
 import os
 from typing import Dict, Optional, Union
@@ -222,6 +223,7 @@ def generate_evaluation(
     split_type: str = "test",
     output_dir: Optional[str] = None,
     dataset_version: Optional[Union[str, Version]] = None,
+    batch_size: int = 8,
 ) -> str:
     """
     Generate a parquet file with the evaluation of the given model checkpoint against the given set of a databank.
@@ -257,19 +259,44 @@ def generate_evaluation(
     resolved_dataset_version = _resolve_dataset_version(model, dataset_version)
     dataset_class = get_dataset_class(resolved_dataset_version)
     dataset = dataset_class(databank_path, split_type)
-    input_set, target_set = _get_eval_sets(dataset)
-    input_set = input_set.to(model.device)
-    target_set = target_set.to(model.device)
+    dataloader = data.DataLoader(
+        dataset,
+        batch_size=batch_size,
+        shuffle=False,
+        drop_last=False,
+    )
+
+    reconst_parts = []
+    tp_parts = []
+    fp_parts = []
+    fn_parts = []
+    tn_parts = []
 
     with torch.no_grad():
         model.eval()
-        # inference
-        reconst_imgs = model(input_set)
+        for input_batch, target_batch in dataloader:
+            input_batch = input_batch.to(model.device)
+            target_batch = target_batch.to(model.device)
+            reconst_batch = model(input_batch)
+            tp, fp, fn, tn = smp.metrics.get_stats(
+                reconst_batch, target_batch.long(), mode="binary", threshold=0.5
+            )  # type: ignore
+            reconst_parts.append(reconst_batch.detach().cpu())
+            tp_parts.append(tp.detach().cpu())
+            fp_parts.append(fp.detach().cpu())
+            fn_parts.append(fn.detach().cpu())
+            tn_parts.append(tn.detach().cpu())
+
+    if not reconst_parts:
+        raise ValueError(f"No samples found for split '{split_type}' in {databank_path}.")
+
+    reconst_imgs = torch.cat(reconst_parts, dim=0)
+    tp = torch.cat(tp_parts, dim=0)
+    fp = torch.cat(fp_parts, dim=0)
+    fn = torch.cat(fn_parts, dim=0)
+    tn = torch.cat(tn_parts, dim=0)
 
     # calculate metrics
-    tp, fp, fn, tn = smp.metrics.get_stats(
-        reconst_imgs, target_set.long(), mode="binary", threshold=0.5
-    )  # type: ignore
     iou = smp.metrics.iou_score(tp, fp, fn, tn)
     f1 = smp.metrics.f1_score(tp, fp, fn, tn)
     # iou_total = smp.metrics.iou_score(tp, fp, fn, tn, reduction="micro")
@@ -300,6 +327,8 @@ def generate_evaluation(
         # evaluate after placing predicted crops back into full-image coordinates
         # using the same label-wise metric as the competitor baseline.
         if reconstruction.has_reconstruction_metadata(df) and "label" in df.columns:
+            if torch.cuda.is_available():
+                torch.cuda.empty_cache()
             reconstructed_dir = os.path.join(
                 model_dir, f"{dataset_name}_{model_name}_set-{split_type}_reconstructed"
             )
@@ -333,6 +362,7 @@ def evaluate_checkpoint(
     split_type: str = "test",
     output_dir: Optional[str] = None,
     dataset_version: Optional[Union[str, Version]] = None,
+    batch_size: int = 8,
 ) -> Dict[str, Union[float, int, str]]:
     """
     Run inference for a checkpoint on a databank split and return aggregated metrics.
@@ -343,6 +373,7 @@ def evaluate_checkpoint(
         split_type,
         output_dir=output_dir,
         dataset_version=dataset_version,
+        batch_size=batch_size,
     )
     output_df = pd.read_parquet(output_parquet_path)
     cell_output_parquet_path = output_parquet_path.replace(".parquet", "_cell.parquet")
