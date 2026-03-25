@@ -493,7 +493,7 @@ def build_steps(cfg: dict[str, Any]) -> list[dict[str, Any]]:
                 "phase": "B",
                 "name": "Merge QA predictions into paper-ready parquet",
                 "cmd": (
-                    f"mkdir -p {cfg['data_root']}/qa_crops/paper_inputs && "
+                    f"mkdir -p {Path(paper_ready).parent} && "
                     f"cp {qa_parquet} {paper_base} && "
                     f"silver-evaluation merge-qa-predictions "
                     f"  {paper_base} "
@@ -679,8 +679,8 @@ def build_steps(cfg: dict[str, Any]) -> list[dict[str, Any]]:
                 {**cfg, "mode": f"ensemble_qa_t{threshold_label}"}
             )
             filtered_pq = (
-                f"{cfg['data_root']}/qa_crops/paper_inputs/"
-                f"{split_name}_{variant}_{crop_tag}_full_pipeline_t{threshold_label}.parquet"
+                f"{paper_runs}/paper_inputs/{dataset}/{crop_tag}/{variant}/"
+                f"{split_name}_full_pipeline_t{threshold_label}.parquet"
             )
             _qa_db_dir = _databank_dir(
                 paper_runs,
@@ -752,8 +752,8 @@ def build_steps(cfg: dict[str, Any]) -> list[dict[str, Any]]:
             {**cfg, "mode": f"ensemble_qa_retrained_t{threshold}"}
         )
         filtered_pq = (
-            f"{cfg['data_root']}/qa_crops/paper_inputs/"
-            f"{split_name}_{variant}_{crop_tag}_full_pipeline_t{threshold:.2f}.parquet"
+            f"{paper_runs}/paper_inputs/{dataset}/{crop_tag}/{variant}/"
+            f"{split_name}_full_pipeline_t{threshold:.2f}.parquet"
         )
         _retrain_db_dir = _databank_dir(
             paper_runs,
