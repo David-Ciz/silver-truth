@@ -16,6 +16,7 @@ CONFIG=""
 FOLD=""
 PHASE="all"
 KEEP_SCRATCH=0
+MLFLOW_BACKEND="file"
 EXTRA_ARGS=()
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -51,6 +52,7 @@ Options:
   --durable-root PATH   Durable storage for paper_runs and MLflow.
   --scratch-root PATH   Scratch runtime root. Default uses SLURM_JOB_ID.
   --venv-dir PATH       Virtualenv to activate. Default: <repo>/.venv
+  --mlflow-backend MODE MLflow backend: file or sqlite. Default: file
   --keep-scratch        Do not delete the per-job scratch directory on exit.
   --help                Show this message.
 
@@ -99,6 +101,10 @@ while [[ $# -gt 0 ]]; do
             VENV_DIR="${2:-}"
             shift 2
             ;;
+        --mlflow-backend)
+            MLFLOW_BACKEND="${2:-}"
+            shift 2
+            ;;
         --keep-scratch)
             KEEP_SCRATCH=1
             shift
@@ -144,6 +150,14 @@ case "${PHASE}" in
         ;;
 esac
 
+case "${MLFLOW_BACKEND}" in
+    file|sqlite) ;;
+    *)
+        echo "ERROR: --mlflow-backend must be one of: file, sqlite" >&2
+        exit 2
+        ;;
+esac
+
 if [[ ! -f "${REPO_ROOT}/${CONFIG}" && ! -f "${CONFIG}" ]]; then
     echo "ERROR: Config not found: ${CONFIG}" >&2
     exit 1
@@ -179,6 +193,7 @@ echo "Phase: ${PHASE}"
 echo "Scratch root: ${SCRATCH_ROOT}"
 echo "Durable root: ${DURABLE_ROOT}"
 echo "Keep scratch: ${KEEP_SCRATCH}"
+echo "MLflow backend: ${MLFLOW_BACKEND}"
 
 command -v ml >/dev/null 2>&1 && ml purge >/dev/null 2>&1 || true
 ml CUDA/12.8.0
@@ -187,7 +202,7 @@ ml libjpeg-turbo/2.1.5.1-GCCcore-12.3.0
 
 source "${VENV_DIR}/bin/activate"
 
-mkdir -p "${SCRATCH_ROOT}/data" "${DURABLE_ROOT}/paper_runs" "${DURABLE_ROOT}/mlflow/mlartifacts"
+mkdir -p "${SCRATCH_ROOT}/data" "${DURABLE_ROOT}/paper_runs" "${DURABLE_ROOT}/mlflow/mlartifacts" "${DURABLE_ROOT}/mlflow/mlruns"
 
 DATASET_NAME="$(resolve_dataset)"
 if [[ -z "${DATASET_NAME}" ]]; then
@@ -212,8 +227,13 @@ if [[ -d "${REPO_ROOT}/data/qa_crops/${DATASET_NAME}" ]]; then
         "${SCRATCH_ROOT}/data/qa_crops/${DATASET_NAME}/"
 fi
 
-export MLFLOW_TRACKING_URI="sqlite:////${DURABLE_ROOT#/}/mlflow/mlflow.db"
-export SILVER_TRUTH_MLFLOW_ARTIFACT_ROOT="file://${DURABLE_ROOT}/mlflow/mlartifacts"
+if [[ "${MLFLOW_BACKEND}" == "sqlite" ]]; then
+    export MLFLOW_TRACKING_URI="sqlite:////${DURABLE_ROOT#/}/mlflow/mlflow.db"
+    export SILVER_TRUTH_MLFLOW_ARTIFACT_ROOT="file://${DURABLE_ROOT}/mlflow/mlartifacts"
+else
+    export MLFLOW_TRACKING_URI="file://${DURABLE_ROOT}/mlflow/mlruns"
+    unset SILVER_TRUTH_MLFLOW_ARTIFACT_ROOT || true
+fi
 export ABLATION_OUTPUT_DIR="${DURABLE_ROOT}/paper_runs"
 export ABLATION_DATA_ROOT="${SCRATCH_ROOT}"
 
