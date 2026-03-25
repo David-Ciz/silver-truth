@@ -3,7 +3,7 @@ from __future__ import annotations
 import logging
 import re
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 import numpy as np
 import pandas as pd
@@ -42,7 +42,11 @@ def bootstrap_mean_ci(
     array = array[np.isfinite(array)]
 
     if len(array) == 0:
-        return {"mean": float("nan"), "ci_lower": float("nan"), "ci_upper": float("nan")}
+        return {
+            "mean": float("nan"),
+            "ci_lower": float("nan"),
+            "ci_upper": float("nan"),
+        }
     if len(array) == 1:
         value = float(array[0])
         return {"mean": value, "ci_lower": value, "ci_upper": value}
@@ -114,6 +118,8 @@ def paired_wilcoxon_test(
 def generate_hsc_reporting_bundle(
     *,
     paper_runs_root: Path,
+    dataset: str = "BF-C2DL-HSC",
+    crop_tag: str = "sz64",
     variant: str = "baseline",
     qa_threshold: float = 0.75,
     fusion_model: str = "simple",
@@ -124,6 +130,8 @@ def generate_hsc_reporting_bundle(
 ) -> dict[str, pd.DataFrame]:
     inventory = _discover_hsc_inventory(
         paper_runs_root=paper_runs_root,
+        dataset=dataset,
+        crop_tag=crop_tag,
         variant=variant,
         qa_threshold=qa_threshold,
         fusion_model=fusion_model,
@@ -148,7 +156,9 @@ def generate_hsc_reporting_bundle(
     }
 
 
-def write_hsc_reporting_bundle(output_dir: Path, bundle: dict[str, pd.DataFrame]) -> dict[str, Path]:
+def write_hsc_reporting_bundle(
+    output_dir: Path, bundle: dict[str, pd.DataFrame]
+) -> dict[str, Path]:
     output_dir.mkdir(parents=True, exist_ok=True)
 
     paths = {
@@ -180,12 +190,16 @@ def analyze_overflow_impact(
     """Join per-cell result tables with overflow flags derived from GT bbox size."""
     project_root = _find_project_root_for_paths(dataset_dataframe_path)
     results_df = _load_result_table(results_path)
-    standardized_results = _standardize_result_rows(results_df, project_root=project_root)
+    standardized_results = _standardize_result_rows(
+        results_df, project_root=project_root
+    )
 
     dataset_df = load_dataframe_from_parquet_with_metadata(str(dataset_dataframe_path))
     split_lookup = _build_dataset_split_lookup(dataset_df, project_root=project_root)
 
-    stats_df = collect_segmentation_object_stats_from_dataframes([dataset_dataframe_path])
+    stats_df = collect_segmentation_object_stats_from_dataframes(
+        [dataset_dataframe_path]
+    )
     overflow_lookup = _build_overflow_lookup(stats_df, crop_size=crop_size)
 
     enriched = standardized_results.merge(
@@ -281,7 +295,9 @@ def _load_result_table(results_path: Path) -> pd.DataFrame:
     return pd.read_parquet(results_path)
 
 
-def _standardize_result_rows(results_df: pd.DataFrame, *, project_root: Path) -> pd.DataFrame:
+def _standardize_result_rows(
+    results_df: pd.DataFrame, *, project_root: Path
+) -> pd.DataFrame:
     df = results_df.copy()
     if "gt_image" not in df.columns and "gt_seg_path" in df.columns:
         df["gt_image"] = df["gt_seg_path"]
@@ -305,7 +321,9 @@ def _standardize_result_rows(results_df: pd.DataFrame, *, project_root: Path) ->
     return df
 
 
-def _build_dataset_split_lookup(dataset_df: pd.DataFrame, *, project_root: Path) -> pd.DataFrame:
+def _build_dataset_split_lookup(
+    dataset_df: pd.DataFrame, *, project_root: Path
+) -> pd.DataFrame:
     available_columns = [
         column
         for column in ["gt_image", "split", "composite_key", "campaign_number"]
@@ -314,22 +332,28 @@ def _build_dataset_split_lookup(dataset_df: pd.DataFrame, *, project_root: Path)
     if "gt_image" not in available_columns:
         return pd.DataFrame(columns=["gt_image_resolved"])
 
-    lookup = dataset_df[available_columns].dropna(subset=["gt_image"]).drop_duplicates(
-        subset=["gt_image"]
+    lookup = (
+        dataset_df[available_columns]
+        .dropna(subset=["gt_image"])
+        .drop_duplicates(subset=["gt_image"])
     )
     lookup = lookup.copy()
     lookup["gt_image_resolved"] = lookup["gt_image"].apply(
         lambda value: _resolve_path_for_reporting(value, project_root)
     )
     keep_columns = ["gt_image_resolved"] + [
-        column for column in ["split", "composite_key", "campaign_number"] if column in lookup.columns
+        column
+        for column in ["split", "composite_key", "campaign_number"]
+        if column in lookup.columns
     ]
     return lookup[keep_columns]
 
 
 def _build_overflow_lookup(stats_df: pd.DataFrame, *, crop_size: int) -> pd.DataFrame:
     lookup = stats_df.copy()
-    lookup["gt_image_resolved"] = lookup["gt_image"].apply(lambda value: str(Path(str(value)).resolve()))
+    lookup["gt_image_resolved"] = lookup["gt_image"].apply(
+        lambda value: str(Path(str(value)).resolve())
+    )
     lookup["label"] = lookup["label_id"].astype(int)
     lookup["is_overflow"] = (lookup["bbox_height_px"] > crop_size) | (
         lookup["bbox_width_px"] > crop_size
@@ -367,7 +391,8 @@ def _resolve_metric_columns(
     numeric_columns = [
         column
         for column in df.columns
-        if pd.api.types.is_numeric_dtype(df[column]) and column not in {"label", "crop_size"}
+        if pd.api.types.is_numeric_dtype(df[column])
+        and column not in {"label", "crop_size"}
     ]
     return numeric_columns
 
@@ -382,7 +407,9 @@ def _summarize_metric_groups(
             group_key = (group_key,)
         row = {column: value for column, value in zip(group_cols, group_key)}
         row["n_rows"] = int(len(group_df))
-        row["n_cells"] = int(group_df[["gt_image_resolved", "label"]].drop_duplicates().shape[0])
+        row["n_cells"] = int(
+            group_df[["gt_image_resolved", "label"]].drop_duplicates().shape[0]
+        )
         row["n_gt_images"] = int(group_df["gt_image_resolved"].nunique())
 
         if "is_overflow" in group_df.columns:
@@ -391,7 +418,9 @@ def _summarize_metric_groups(
         for metric in metric_columns:
             values = pd.to_numeric(group_df[metric], errors="coerce").dropna()
             row[f"{metric}_count"] = int(len(values))
-            row[f"{metric}_mean"] = float(values.mean()) if not values.empty else float("nan")
+            row[f"{metric}_mean"] = (
+                float(values.mean()) if not values.empty else float("nan")
+            )
             row[f"{metric}_median"] = (
                 float(values.median()) if not values.empty else float("nan")
             )
@@ -410,6 +439,8 @@ def _summarize_metric_groups(
 def _discover_hsc_inventory(
     *,
     paper_runs_root: Path,
+    dataset: str,
+    crop_tag: str,
     variant: str,
     qa_threshold: float,
     fusion_model: str,
@@ -419,14 +450,16 @@ def _discover_hsc_inventory(
     records: list[dict[str, Any]] = []
 
     for fold in _FOLDS:
-        fold_records = [
+        fold_records: list[dict[str, Any]] = [
             {
                 "artifact_key": f"{fold}__competitors",
                 "method_group": "competitor",
                 "method_label": "Competitor baselines",
                 "fold": fold,
                 "source_type": "competitor_csv",
-                "path": paper_runs_root / "baselines" / f"BF-C2DL-HSC_{fold}_competitors.csv",
+                "path": paper_runs_root
+                / "baselines"
+                / f"{dataset}_{crop_tag}_{variant}_{fold}_competitors.csv",
             },
             {
                 "artifact_key": f"{fold}__silver_truth",
@@ -434,7 +467,9 @@ def _discover_hsc_inventory(
                 "method_label": "SILVER-TRUTH",
                 "fold": fold,
                 "source_type": "silver_truth_csv",
-                "path": paper_runs_root / "baselines" / f"BF-C2DL-HSC_{fold}_silver_truth.csv",
+                "path": paper_runs_root
+                / "baselines"
+                / f"{dataset}_{crop_tag}_{variant}_{fold}_silver_truth.csv",
             },
             {
                 "artifact_key": f"{fold}__qa_only",
@@ -442,7 +477,14 @@ def _discover_hsc_inventory(
                 "method_label": "qa_only / top-1",
                 "fold": fold,
                 "source_type": "fullimage_eval_csv",
-                "path": paper_runs_root / "ablation" / variant / fold / "qa_only" / "fullimage_eval.csv",
+                "path": paper_runs_root
+                / "ablation"
+                / dataset
+                / crop_tag
+                / variant
+                / fold
+                / "qa_only"
+                / "fullimage_eval.csv",
             },
             {
                 "artifact_key": f"{fold}__fusion_only__{fusion_model}",
@@ -452,6 +494,8 @@ def _discover_hsc_inventory(
                 "source_type": "fullimage_eval_csv",
                 "path": paper_runs_root
                 / "ablation"
+                / dataset
+                / crop_tag
                 / variant
                 / fold
                 / "fusion_only"
@@ -466,6 +510,8 @@ def _discover_hsc_inventory(
                 "source_type": "fullimage_eval_csv",
                 "path": paper_runs_root
                 / "ablation"
+                / dataset
+                / crop_tag
                 / variant
                 / fold
                 / f"full_pipeline_t{threshold_tag}"
@@ -479,7 +525,13 @@ def _discover_hsc_inventory(
                 "fold": fold,
                 "source_type": "ensemble_parquet",
                 "path": _first_matching_path(
-                    paper_runs_root / "ablation" / variant / fold / "ensemble_only",
+                    paper_runs_root
+                    / "ablation"
+                    / dataset
+                    / crop_tag
+                    / variant
+                    / fold
+                    / "ensemble_only",
                     "*_set-test.parquet",
                 ),
             },
@@ -490,7 +542,13 @@ def _discover_hsc_inventory(
                 "fold": fold,
                 "source_type": "ensemble_parquet",
                 "path": _first_matching_path(
-                    paper_runs_root / "ablation" / variant / fold / f"ensemble_qa_t{threshold_tag}",
+                    paper_runs_root
+                    / "ablation"
+                    / dataset
+                    / crop_tag
+                    / variant
+                    / fold
+                    / f"ensemble_qa_t{threshold_tag}",
                     "*_set-test.parquet",
                 ),
             },
@@ -508,14 +566,17 @@ def _discover_hsc_inventory(
 
 def _load_inventory_records(inventory: pd.DataFrame) -> pd.DataFrame:
     frames: list[pd.DataFrame] = []
-    for record in inventory.to_dict("records"):
+    for raw_record in inventory.to_dict("records"):
+        record = cast(dict[str, Any], raw_record)
         if not record["exists"]:
             continue
         path = Path(record["path"])
         source_type = record["source_type"]
         fold = record["fold"]
         if source_type in {"competitor_csv", "silver_truth_csv"}:
-            frames.append(_load_competitor_metrics(path, fold=fold, source_type=source_type))
+            frames.append(
+                _load_competitor_metrics(path, fold=fold, source_type=source_type)
+            )
         elif source_type == "fullimage_eval_csv":
             frames.append(
                 _load_fullimage_eval(
@@ -553,7 +614,9 @@ def _load_inventory_records(inventory: pd.DataFrame) -> pd.DataFrame:
 
     combined = pd.concat(frames, ignore_index=True)
     combined = combined.drop_duplicates(subset=["method_key", "fold", "image_id"])
-    return combined.sort_values(["method_group", "method_label", "fold", "image_id"]).reset_index(drop=True)
+    return combined.sort_values(
+        ["method_group", "method_label", "fold", "image_id"]
+    ).reset_index(drop=True)
 
 
 def _summarize_methods(
@@ -566,13 +629,12 @@ def _summarize_methods(
     if per_image.empty:
         return pd.DataFrame()
 
-    fold_summary = (
-        per_image.groupby(["method_key", "method_group", "method_label", "fold"], as_index=False)
-        .agg(
-            n_images=("image_id", "nunique"),
-            fold_iou=("iou", "mean"),
-            fold_f1=("f1", "mean"),
-        )
+    fold_summary = per_image.groupby(
+        ["method_key", "method_group", "method_label", "fold"], as_index=False
+    ).agg(
+        n_images=("image_id", "nunique"),
+        fold_iou=("iou", "mean"),
+        fold_f1=("f1", "mean"),
     )
 
     overall_rows: list[dict[str, Any]] = []
@@ -607,19 +669,33 @@ def _summarize_methods(
         for fold in _FOLDS:
             fold_row = method_fold_summary[method_fold_summary["fold"] == fold]
             row[f"{fold}_n_images"] = (
-                int(fold_row["n_images"].iloc[0]) if not fold_row.empty else float("nan")
+                int(fold_row["n_images"].iloc[0])
+                if not fold_row.empty
+                else float("nan")
             )
-            row[f"{fold}_iou"] = float(fold_row["fold_iou"].iloc[0]) if not fold_row.empty else float("nan")
-            row[f"{fold}_f1"] = float(fold_row["fold_f1"].iloc[0]) if not fold_row.empty else float("nan")
+            row[f"{fold}_iou"] = (
+                float(fold_row["fold_iou"].iloc[0])
+                if not fold_row.empty
+                else float("nan")
+            )
+            row[f"{fold}_f1"] = (
+                float(fold_row["fold_f1"].iloc[0])
+                if not fold_row.empty
+                else float("nan")
+            )
         overall_rows.append(row)
 
     summary = pd.DataFrame.from_records(overall_rows)
     summary["group_order"] = summary["method_group"].map(_CORE_GROUP_ORDER).fillna(50)
-    summary = summary.sort_values(["group_order", "mean_iou", "method_label"], ascending=[True, False, True])
+    summary = summary.sort_values(
+        ["group_order", "mean_iou", "method_label"], ascending=[True, False, True]
+    )
     return summary.drop(columns="group_order").reset_index(drop=True)
 
 
-def _build_default_comparisons(per_image: pd.DataFrame, summary: pd.DataFrame) -> pd.DataFrame:
+def _build_default_comparisons(
+    per_image: pd.DataFrame, summary: pd.DataFrame
+) -> pd.DataFrame:
     if per_image.empty or summary.empty:
         return pd.DataFrame()
 
@@ -633,7 +709,9 @@ def _build_default_comparisons(per_image: pd.DataFrame, summary: pd.DataFrame) -
     records: list[dict[str, Any]] = []
     for candidate_token, reference_token in comparison_specs:
         candidate_row = _resolve_method_token(summary, candidate_token)
-        reference_row = _resolve_method_token(summary, reference_token, best_competitor=best_competitor)
+        reference_row = _resolve_method_token(
+            summary, reference_token, best_competitor=best_competitor
+        )
         if candidate_row is None or reference_row is None:
             continue
 
@@ -663,20 +741,31 @@ def _build_core_summary(summary: pd.DataFrame) -> pd.DataFrame:
     if best_competitor is not None:
         keep_keys.add(best_competitor["method_key"])
 
-    for group in ("silver_truth", "fusion_only", "qa_only", "full_pipeline", "ensemble_only", "ensemble_qa"):
+    for group in (
+        "silver_truth",
+        "fusion_only",
+        "qa_only",
+        "full_pipeline",
+        "ensemble_only",
+        "ensemble_qa",
+    ):
         group_rows = summary[summary["method_group"] == group]
         if not group_rows.empty:
             keep_keys.add(group_rows.iloc[0]["method_key"])
 
     core = summary[summary["method_key"].isin(keep_keys)].copy()
     if best_competitor is not None:
-        core.loc[core["method_key"] == best_competitor["method_key"], "method_group"] = "best_competitor"
-        core.loc[core["method_key"] == best_competitor["method_key"], "method_label"] = (
-            f"{best_competitor['method_label']} (best competitor)"
-        )
+        core.loc[
+            core["method_key"] == best_competitor["method_key"], "method_group"
+        ] = "best_competitor"
+        core.loc[
+            core["method_key"] == best_competitor["method_key"], "method_label"
+        ] = f"{best_competitor['method_label']} (best competitor)"
 
     core["group_order"] = core["method_group"].map(_CORE_GROUP_ORDER).fillna(50)
-    core = core.sort_values(["group_order", "mean_iou", "method_label"], ascending=[True, False, True])
+    core = core.sort_values(
+        ["group_order", "mean_iou", "method_label"], ascending=[True, False, True]
+    )
     return core.drop(columns="group_order").reset_index(drop=True)
 
 
@@ -687,12 +776,12 @@ def _paired_metric_rows(
     candidate_key: str,
     metric: str,
 ) -> dict[str, Any]:
-    reference = per_image[per_image["method_key"] == reference_key][["fold", "image_id", metric]].rename(
-        columns={metric: "reference_value"}
-    )
-    candidate = per_image[per_image["method_key"] == candidate_key][["fold", "image_id", metric]].rename(
-        columns={metric: "candidate_value"}
-    )
+    reference = per_image[per_image["method_key"] == reference_key][
+        ["fold", "image_id", metric]
+    ].rename(columns={metric: "reference_value"})
+    candidate = per_image[per_image["method_key"] == candidate_key][
+        ["fold", "image_id", metric]
+    ].rename(columns={metric: "candidate_value"})
     merged = reference.merge(candidate, on=["fold", "image_id"], how="inner")
     stats = paired_wilcoxon_test(merged["reference_value"], merged["candidate_value"])
     stats["paired_images"] = int(len(merged))
@@ -703,7 +792,9 @@ def _best_competitor_row(summary: pd.DataFrame) -> pd.Series | None:
     competitors = summary[summary["method_group"] == "competitor"]
     if competitors.empty:
         return None
-    return competitors.sort_values(["mean_iou", "method_label"], ascending=[False, True]).iloc[0]
+    return competitors.sort_values(
+        ["mean_iou", "method_label"], ascending=[False, True]
+    ).iloc[0]
 
 
 def _resolve_method_token(
@@ -726,7 +817,9 @@ def _resolve_method_token(
     return None
 
 
-def _load_competitor_metrics(path: Path, *, fold: str, source_type: str) -> pd.DataFrame:
+def _load_competitor_metrics(
+    path: Path, *, fold: str, source_type: str
+) -> pd.DataFrame:
     df = pd.read_csv(path)
     image_col = "image_key"
     required = {"competitor", image_col, "image_average", "image_f1_average"}
@@ -749,12 +842,9 @@ def _load_competitor_metrics(path: Path, *, fold: str, source_type: str) -> pd.D
         filtered["method_group"] = "competitor"
         filtered["method_label"] = filtered["competitor"].astype(str)
 
-    grouped = (
-        filtered.groupby(
-            ["method_key", "method_group", "method_label", "image_id"], as_index=False
-        )
-        .agg(iou=("image_average", "first"), f1=("image_f1_average", "first"))
-    )
+    grouped = filtered.groupby(
+        ["method_key", "method_group", "method_label", "image_id"], as_index=False
+    ).agg(iou=("image_average", "first"), f1=("image_f1_average", "first"))
     grouped["fold"] = fold
     grouped["source_path"] = str(path)
     return grouped
@@ -778,7 +868,9 @@ def _load_fullimage_eval(
         df = df[df["split"].astype(str) == "test"].copy()
 
     df["image_id"] = df.apply(
-        lambda row: _normalize_fullimage_eval_id(row["campaign_number"], row["original_image_key"]),
+        lambda row: _normalize_fullimage_eval_id(
+            row["campaign_number"], row["original_image_key"]
+        ),
         axis=1,
     )
     normalized = df[["image_id", "iou", "f1"]].copy()
@@ -788,7 +880,16 @@ def _load_fullimage_eval(
     normalized["fold"] = fold
     normalized["source_path"] = str(path)
     return normalized[
-        ["method_key", "method_group", "method_label", "fold", "image_id", "iou", "f1", "source_path"]
+        [
+            "method_key",
+            "method_group",
+            "method_label",
+            "fold",
+            "image_id",
+            "iou",
+            "f1",
+            "source_path",
+        ]
     ]
 
 
@@ -810,7 +911,9 @@ def _load_ensemble_eval(
         df = df[df["split"].astype(str) == "test"].copy()
 
     df["image_id"] = df.apply(
-        lambda row: _normalize_fullimage_eval_id(row["campaign_number"], row["original_image_key"]),
+        lambda row: _normalize_fullimage_eval_id(
+            row["campaign_number"], row["original_image_key"]
+        ),
         axis=1,
     )
     normalized = df[["image_id", "iou", "f1"]].copy()
@@ -820,7 +923,16 @@ def _load_ensemble_eval(
     normalized["fold"] = fold
     normalized["source_path"] = str(path)
     return normalized[
-        ["method_key", "method_group", "method_label", "fold", "image_id", "iou", "f1", "source_path"]
+        [
+            "method_key",
+            "method_group",
+            "method_label",
+            "fold",
+            "image_id",
+            "iou",
+            "f1",
+            "source_path",
+        ]
     ]
 
 

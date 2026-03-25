@@ -41,7 +41,7 @@ from typing import Any
 
 import click
 import mlflow
-import yaml
+import yaml  # type: ignore[import-untyped]
 from mlflow.tracking import MlflowClient
 
 from silver_truth.experiment_tracking import (
@@ -237,7 +237,6 @@ def _resolve_templates(obj: Any, ctx: dict[str, Any]) -> Any:
 
 def build_steps(cfg: dict[str, Any]) -> list[dict[str, Any]]:
     """Build the ordered list of steps from a resolved config."""
-    fold = cfg["fold"]
     split_name = cfg["split_name"]
     variant = cfg["variant"]
     dataset = cfg["dataset"]
@@ -278,9 +277,7 @@ def build_steps(cfg: dict[str, Any]) -> list[dict[str, Any]]:
 
     paper_runs = cfg["paper_runs_root"]
     experiment_suffix = f"{dataset}-{crop_tag}-{variant}-{split_name}"
-    competitor_csv = (
-        f"{paper_runs}/baselines/{dataset}_{crop_tag}_{variant}_{split_name}_competitors.csv"
-    )
+    competitor_csv = f"{paper_runs}/baselines/{dataset}_{crop_tag}_{variant}_{split_name}_competitors.csv"
     compare_experiment = f"paper-compare-{experiment_suffix}"
     phasea_fusion_experiment = f"phaseA-fusion-baselines-{experiment_suffix}"
     phaseb_qa_train_experiment = f"phaseB-qa-train-{experiment_suffix}"
@@ -1070,6 +1067,38 @@ def _resolve_step_cmd(step: dict[str, Any]) -> str:
     except KeyError as exc:
         logger.warning("Could not resolve placeholder %s in cmd — leaving as-is.", exc)
         return cmd
+
+
+def _find_mlflow_checkpoint(mlflow_uri: str, experiment: str) -> str:
+    """
+    Resolve the artifact directory of the most recent run in an MLflow experiment.
+
+    This is used by the optional ``resolve`` step hook for late-bound paths.
+    When the backing store is local (``file:``), the URI is converted to a plain
+    filesystem path so it can be embedded into shell commands.
+    """
+    tracking_uri = resolve_mlflow_tracking_uri(mlflow_uri)
+    client = MlflowClient(tracking_uri=tracking_uri)
+    experiment_info = client.get_experiment_by_name(experiment)
+    if experiment_info is None:
+        raise click.ClickException(
+            f"MLflow experiment '{experiment}' not found at '{tracking_uri}'."
+        )
+
+    runs = client.search_runs(
+        experiment_ids=[experiment_info.experiment_id],
+        order_by=["attributes.start_time DESC"],
+        max_results=1,
+    )
+    if not runs:
+        raise click.ClickException(
+            f"No MLflow runs found in experiment '{experiment}' at '{tracking_uri}'."
+        )
+
+    artifact_uri = runs[0].info.artifact_uri
+    if artifact_uri.startswith("file:"):
+        return artifact_uri.removeprefix("file:")
+    return artifact_uri
 
 
 def run_step(

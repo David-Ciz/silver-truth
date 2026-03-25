@@ -306,11 +306,13 @@ def generate_evaluation(
             reconstructed_dir = os.path.join(
                 model_dir, f"{dataset_name}_{model_name}_set-{split_type}_reconstructed"
             )
-            reconstructed_eval_df = reconstruction.reconstruct_labeled_full_images_from_arrays(
-                databank_df=df.reset_index(drop=True),
-                predicted_crops=list(reconst_imgs),
-                output_dir=Path(reconstructed_dir),
-                threshold=0.5,
+            reconstructed_eval_df = (
+                reconstruction.reconstruct_labeled_full_images_from_arrays(
+                    databank_df=df.reset_index(drop=True),
+                    predicted_crops=list(reconst_imgs),
+                    output_dir=Path(reconstructed_dir),
+                    threshold=0.5,
+                )
             )
             if len(reconstructed_eval_df) > 0:
                 reconstructed_eval_df.to_parquet(output_parquet_path)

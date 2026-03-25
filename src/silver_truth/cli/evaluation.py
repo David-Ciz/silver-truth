@@ -905,9 +905,7 @@ def report_hsc_results(
 
 @click.command("report-overflow-impact")
 @click.argument("results_path", type=click.Path(exists=True, path_type=Path))
-@click.argument(
-    "dataset_dataframe_path", type=click.Path(exists=True, path_type=Path)
-)
+@click.argument("dataset_dataframe_path", type=click.Path(exists=True, path_type=Path))
 @click.option(
     "--crop-size",
     required=True,
