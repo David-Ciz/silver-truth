@@ -5,4 +5,4 @@ datasets:
     crop_sizes: [64]
   BF-C2DL-MuSC:
     default_crop_size: 256
-    crop_sizes: [64, 128, 256, 512]
+    crop_sizes: [64, 128, 192, 256, 320, 512]

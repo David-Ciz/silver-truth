@@ -1270,7 +1270,9 @@ stages:
         datasets.BF-C2DL-MuSC.crop_sizes:
         - 64
         - 128
+        - 192
         - 256
+        - 320
         - 512
     outs:
     - path: data/dataframes/BF-C2DL-MuSC/qa_crops/base_sz512_qa_dataset.parquet
@@ -1318,7 +1320,9 @@ stages:
         datasets.BF-C2DL-MuSC.crop_sizes:
         - 64
         - 128
+        - 192
         - 256
+        - 320
         - 512
     outs:
     - path: data/dataframes/BF-C2DL-MuSC/qa_crops/mixed_sz512_qa_dataset.parquet
@@ -1361,7 +1365,9 @@ stages:
         datasets.BF-C2DL-MuSC.crop_sizes:
         - 64
         - 128
+        - 192
         - 256
+        - 320
         - 512
     outs:
     - path: 
@@ -1405,7 +1411,9 @@ stages:
         datasets.BF-C2DL-MuSC.crop_sizes:
         - 64
         - 128
+        - 192
         - 256
+        - 320
         - 512
     outs:
     - path: 
@@ -1413,3 +1421,351 @@ stages:
       hash: md5
       md5: eab7e98d7bd849b04397a2a7f1e9899a
       size: 95722
+  create_qa_crops_base@musc_sz320:
+    cmd: "silver-qa create-dataset  --dataset-dataframe-path data/dataframes/BF-C2DL-MuSC/whole_image/BF-C2DL-MuSC_split_mixed.parquet\
+      \  --output-dir data/qa_crops/BF-C2DL-MuSC/sz320/  --output-parquet-path data/dataframes/BF-C2DL-MuSC/qa_crops/base_sz320_qa_dataset.parquet\
+      \  --crop --crop-size 320 --centering competitor_consensus\n"
+    deps:
+    - path: 
+        data/dataframes/BF-C2DL-MuSC/whole_image/BF-C2DL-MuSC_split_mixed.parquet
+      hash: md5
+      md5: 83c251b798e5e0e8b038429b5fed3b6c
+      size: 200344
+    - path: src/silver_truth/cli/qa.py
+      hash: md5
+      md5: 32277f9be1e50d612e1f543f3cc66467
+      size: 11437
+    - path: src/silver_truth/qa/preprocessing.py
+      hash: md5
+      md5: 4ea41c93df1f1a40590bdb6962a52b75
+      size: 25017
+    params:
+      params.yaml:
+        datasets.BF-C2DL-MuSC.crop_sizes:
+        - 64
+        - 128
+        - 192
+        - 256
+        - 320
+        - 512
+    outs:
+    - path: data/dataframes/BF-C2DL-MuSC/qa_crops/base_sz320_qa_dataset.parquet
+      hash: md5
+      md5: 0859ecaffbd03db80d83ac3d7ea09034
+      size: 66686
+    - path: data/qa_crops/BF-C2DL-MuSC/sz320/
+      hash: md5
+      md5: a62fe2687bbb4e8bdacd20861a726c15.dir
+      size: 837056640
+      nfiles: 2042
+  create_qa_crops_split_fold2@musc_sz320:
+    cmd: "silver-qa attach-split --qa-base-parquet data/dataframes/BF-C2DL-MuSC/qa_crops/base_sz320_qa_dataset.parquet
+      --dataset-dataframe-path data/dataframes/BF-C2DL-MuSC/whole_image/BF-C2DL-MuSC_split_fold-2.parquet
+      --output-parquet-path data/dataframes/BF-C2DL-MuSC/qa_crops/fold-2_sz320_qa_dataset.parquet
+      && silver-evaluation calculate-evaluation-metrics-cli --mode cropped data/dataframes/BF-C2DL-MuSC/qa_crops/fold-2_sz320_qa_dataset.parquet\n"
+    deps:
+    - path: data/dataframes/BF-C2DL-MuSC/qa_crops/base_sz320_qa_dataset.parquet
+      hash: md5
+      md5: 0859ecaffbd03db80d83ac3d7ea09034
+      size: 66686
+    - path: 
+        data/dataframes/BF-C2DL-MuSC/whole_image/BF-C2DL-MuSC_split_fold-2.parquet
+      hash: md5
+      md5: 911f4b654eab492bc7529bc48afe39c4
+      size: 201303
+    - path: src/silver_truth/cli/evaluation.py
+      hash: md5
+      md5: 5c887aedc404a7ecd78859b514a1cde9
+      size: 32101
+    - path: src/silver_truth/cli/qa.py
+      hash: md5
+      md5: 32277f9be1e50d612e1f543f3cc66467
+      size: 11437
+    - path: src/silver_truth/evaluation/stacked_jaccard_logic.py
+      hash: md5
+      md5: 26d76152c9dc5c06754571fafc749d1c
+      size: 10516
+    - path: src/silver_truth/qa/preprocessing.py
+      hash: md5
+      md5: 4ea41c93df1f1a40590bdb6962a52b75
+      size: 25017
+    params:
+      params.yaml:
+        datasets.BF-C2DL-MuSC.crop_sizes:
+        - 64
+        - 128
+        - 192
+        - 256
+        - 320
+        - 512
+    outs:
+    - path: 
+        data/dataframes/BF-C2DL-MuSC/qa_crops/fold-2_sz320_qa_dataset.parquet
+      hash: md5
+      md5: 3ebf406a2b0ab411eb0e3d6eb0ef18fd
+      size: 101210
+  create_qa_crops_base@musc_sz192:
+    cmd: "silver-qa create-dataset  --dataset-dataframe-path data/dataframes/BF-C2DL-MuSC/whole_image/BF-C2DL-MuSC_split_mixed.parquet\
+      \  --output-dir data/qa_crops/BF-C2DL-MuSC/sz192/  --output-parquet-path data/dataframes/BF-C2DL-MuSC/qa_crops/base_sz192_qa_dataset.parquet\
+      \  --crop --crop-size 192 --centering competitor_consensus\n"
+    deps:
+    - path: 
+        data/dataframes/BF-C2DL-MuSC/whole_image/BF-C2DL-MuSC_split_mixed.parquet
+      hash: md5
+      md5: 83c251b798e5e0e8b038429b5fed3b6c
+      size: 200344
+    - path: src/silver_truth/cli/qa.py
+      hash: md5
+      md5: 32277f9be1e50d612e1f543f3cc66467
+      size: 11437
+    - path: src/silver_truth/qa/preprocessing.py
+      hash: md5
+      md5: 4ea41c93df1f1a40590bdb6962a52b75
+      size: 25017
+    params:
+      params.yaml:
+        datasets.BF-C2DL-MuSC.crop_sizes:
+        - 64
+        - 128
+        - 192
+        - 256
+        - 320
+        - 512
+    outs:
+    - path: data/dataframes/BF-C2DL-MuSC/qa_crops/base_sz192_qa_dataset.parquet
+      hash: md5
+      md5: 1bc0670350551573088c38069e15372c
+      size: 66682
+    - path: data/qa_crops/BF-C2DL-MuSC/sz192/
+      hash: md5
+      md5: 52c2d24ac2193085b270498330f71ac7.dir
+      size: 301758592
+      nfiles: 2042
+  create_qa_crops_split_mixed@musc_sz320:
+    cmd: "silver-qa attach-split --qa-base-parquet data/dataframes/BF-C2DL-MuSC/qa_crops/base_sz320_qa_dataset.parquet
+      --dataset-dataframe-path data/dataframes/BF-C2DL-MuSC/whole_image/BF-C2DL-MuSC_split_mixed.parquet
+      --output-parquet-path data/dataframes/BF-C2DL-MuSC/qa_crops/mixed_sz320_qa_dataset.parquet
+      && silver-evaluation calculate-evaluation-metrics-cli --mode cropped data/dataframes/BF-C2DL-MuSC/qa_crops/mixed_sz320_qa_dataset.parquet\n"
+    deps:
+    - path: data/dataframes/BF-C2DL-MuSC/qa_crops/base_sz320_qa_dataset.parquet
+      hash: md5
+      md5: 0859ecaffbd03db80d83ac3d7ea09034
+      size: 66686
+    - path: 
+        data/dataframes/BF-C2DL-MuSC/whole_image/BF-C2DL-MuSC_split_mixed.parquet
+      hash: md5
+      md5: 83c251b798e5e0e8b038429b5fed3b6c
+      size: 200344
+    - path: src/silver_truth/cli/evaluation.py
+      hash: md5
+      md5: 5c887aedc404a7ecd78859b514a1cde9
+      size: 32101
+    - path: src/silver_truth/cli/qa.py
+      hash: md5
+      md5: 32277f9be1e50d612e1f543f3cc66467
+      size: 11437
+    - path: src/silver_truth/evaluation/stacked_jaccard_logic.py
+      hash: md5
+      md5: 26d76152c9dc5c06754571fafc749d1c
+      size: 10516
+    - path: src/silver_truth/qa/preprocessing.py
+      hash: md5
+      md5: 4ea41c93df1f1a40590bdb6962a52b75
+      size: 25017
+    params:
+      params.yaml:
+        datasets.BF-C2DL-MuSC.crop_sizes:
+        - 64
+        - 128
+        - 192
+        - 256
+        - 320
+        - 512
+    outs:
+    - path: data/dataframes/BF-C2DL-MuSC/qa_crops/mixed_sz320_qa_dataset.parquet
+      hash: md5
+      md5: 7025c5e5b02578af940e0413b5b5fe6a
+      size: 101158
+  create_qa_crops_split_fold1@musc_sz192:
+    cmd: "silver-qa attach-split --qa-base-parquet data/dataframes/BF-C2DL-MuSC/qa_crops/base_sz192_qa_dataset.parquet
+      --dataset-dataframe-path data/dataframes/BF-C2DL-MuSC/whole_image/BF-C2DL-MuSC_split_fold-1.parquet
+      --output-parquet-path data/dataframes/BF-C2DL-MuSC/qa_crops/fold-1_sz192_qa_dataset.parquet
+      && silver-evaluation calculate-evaluation-metrics-cli --mode cropped data/dataframes/BF-C2DL-MuSC/qa_crops/fold-1_sz192_qa_dataset.parquet\n"
+    deps:
+    - path: data/dataframes/BF-C2DL-MuSC/qa_crops/base_sz192_qa_dataset.parquet
+      hash: md5
+      md5: 1bc0670350551573088c38069e15372c
+      size: 66682
+    - path: 
+        data/dataframes/BF-C2DL-MuSC/whole_image/BF-C2DL-MuSC_split_fold-1.parquet
+      hash: md5
+      md5: cb5fdd3b1876c82574c0b0a0b2b1eed1
+      size: 201330
+    - path: src/silver_truth/cli/evaluation.py
+      hash: md5
+      md5: 5c887aedc404a7ecd78859b514a1cde9
+      size: 32101
+    - path: src/silver_truth/cli/qa.py
+      hash: md5
+      md5: 32277f9be1e50d612e1f543f3cc66467
+      size: 11437
+    - path: src/silver_truth/evaluation/stacked_jaccard_logic.py
+      hash: md5
+      md5: 26d76152c9dc5c06754571fafc749d1c
+      size: 10516
+    - path: src/silver_truth/qa/preprocessing.py
+      hash: md5
+      md5: 4ea41c93df1f1a40590bdb6962a52b75
+      size: 25017
+    params:
+      params.yaml:
+        datasets.BF-C2DL-MuSC.crop_sizes:
+        - 64
+        - 128
+        - 192
+        - 256
+        - 320
+        - 512
+    outs:
+    - path: 
+        data/dataframes/BF-C2DL-MuSC/qa_crops/fold-1_sz192_qa_dataset.parquet
+      hash: md5
+      md5: 09311dba70ee88a66a509e6e2e600a67
+      size: 105028
+  create_qa_crops_split_fold2@musc_sz192:
+    cmd: "silver-qa attach-split --qa-base-parquet data/dataframes/BF-C2DL-MuSC/qa_crops/base_sz192_qa_dataset.parquet
+      --dataset-dataframe-path data/dataframes/BF-C2DL-MuSC/whole_image/BF-C2DL-MuSC_split_fold-2.parquet
+      --output-parquet-path data/dataframes/BF-C2DL-MuSC/qa_crops/fold-2_sz192_qa_dataset.parquet
+      && silver-evaluation calculate-evaluation-metrics-cli --mode cropped data/dataframes/BF-C2DL-MuSC/qa_crops/fold-2_sz192_qa_dataset.parquet\n"
+    deps:
+    - path: data/dataframes/BF-C2DL-MuSC/qa_crops/base_sz192_qa_dataset.parquet
+      hash: md5
+      md5: 1bc0670350551573088c38069e15372c
+      size: 66682
+    - path: 
+        data/dataframes/BF-C2DL-MuSC/whole_image/BF-C2DL-MuSC_split_fold-2.parquet
+      hash: md5
+      md5: 911f4b654eab492bc7529bc48afe39c4
+      size: 201303
+    - path: src/silver_truth/cli/evaluation.py
+      hash: md5
+      md5: 5c887aedc404a7ecd78859b514a1cde9
+      size: 32101
+    - path: src/silver_truth/cli/qa.py
+      hash: md5
+      md5: 32277f9be1e50d612e1f543f3cc66467
+      size: 11437
+    - path: src/silver_truth/evaluation/stacked_jaccard_logic.py
+      hash: md5
+      md5: 26d76152c9dc5c06754571fafc749d1c
+      size: 10516
+    - path: src/silver_truth/qa/preprocessing.py
+      hash: md5
+      md5: 4ea41c93df1f1a40590bdb6962a52b75
+      size: 25017
+    params:
+      params.yaml:
+        datasets.BF-C2DL-MuSC.crop_sizes:
+        - 64
+        - 128
+        - 192
+        - 256
+        - 320
+        - 512
+    outs:
+    - path: 
+        data/dataframes/BF-C2DL-MuSC/qa_crops/fold-2_sz192_qa_dataset.parquet
+      hash: md5
+      md5: 9e0af66002dd88c94a3cca357e9b60c4
+      size: 105030
+  create_qa_crops_split_fold1@musc_sz320:
+    cmd: "silver-qa attach-split --qa-base-parquet data/dataframes/BF-C2DL-MuSC/qa_crops/base_sz320_qa_dataset.parquet
+      --dataset-dataframe-path data/dataframes/BF-C2DL-MuSC/whole_image/BF-C2DL-MuSC_split_fold-1.parquet
+      --output-parquet-path data/dataframes/BF-C2DL-MuSC/qa_crops/fold-1_sz320_qa_dataset.parquet
+      && silver-evaluation calculate-evaluation-metrics-cli --mode cropped data/dataframes/BF-C2DL-MuSC/qa_crops/fold-1_sz320_qa_dataset.parquet\n"
+    deps:
+    - path: data/dataframes/BF-C2DL-MuSC/qa_crops/base_sz320_qa_dataset.parquet
+      hash: md5
+      md5: 0859ecaffbd03db80d83ac3d7ea09034
+      size: 66686
+    - path: 
+        data/dataframes/BF-C2DL-MuSC/whole_image/BF-C2DL-MuSC_split_fold-1.parquet
+      hash: md5
+      md5: cb5fdd3b1876c82574c0b0a0b2b1eed1
+      size: 201330
+    - path: src/silver_truth/cli/evaluation.py
+      hash: md5
+      md5: 5c887aedc404a7ecd78859b514a1cde9
+      size: 32101
+    - path: src/silver_truth/cli/qa.py
+      hash: md5
+      md5: 32277f9be1e50d612e1f543f3cc66467
+      size: 11437
+    - path: src/silver_truth/evaluation/stacked_jaccard_logic.py
+      hash: md5
+      md5: 26d76152c9dc5c06754571fafc749d1c
+      size: 10516
+    - path: src/silver_truth/qa/preprocessing.py
+      hash: md5
+      md5: 4ea41c93df1f1a40590bdb6962a52b75
+      size: 25017
+    params:
+      params.yaml:
+        datasets.BF-C2DL-MuSC.crop_sizes:
+        - 64
+        - 128
+        - 192
+        - 256
+        - 320
+        - 512
+    outs:
+    - path: 
+        data/dataframes/BF-C2DL-MuSC/qa_crops/fold-1_sz320_qa_dataset.parquet
+      hash: md5
+      md5: 78438795ec9b5919b74a10126e3a1a76
+      size: 101208
+  create_qa_crops_split_mixed@musc_sz192:
+    cmd: "silver-qa attach-split --qa-base-parquet data/dataframes/BF-C2DL-MuSC/qa_crops/base_sz192_qa_dataset.parquet
+      --dataset-dataframe-path data/dataframes/BF-C2DL-MuSC/whole_image/BF-C2DL-MuSC_split_mixed.parquet
+      --output-parquet-path data/dataframes/BF-C2DL-MuSC/qa_crops/mixed_sz192_qa_dataset.parquet
+      && silver-evaluation calculate-evaluation-metrics-cli --mode cropped data/dataframes/BF-C2DL-MuSC/qa_crops/mixed_sz192_qa_dataset.parquet\n"
+    deps:
+    - path: data/dataframes/BF-C2DL-MuSC/qa_crops/base_sz192_qa_dataset.parquet
+      hash: md5
+      md5: 1bc0670350551573088c38069e15372c
+      size: 66682
+    - path: 
+        data/dataframes/BF-C2DL-MuSC/whole_image/BF-C2DL-MuSC_split_mixed.parquet
+      hash: md5
+      md5: 83c251b798e5e0e8b038429b5fed3b6c
+      size: 200344
+    - path: src/silver_truth/cli/evaluation.py
+      hash: md5
+      md5: 5c887aedc404a7ecd78859b514a1cde9
+      size: 32101
+    - path: src/silver_truth/cli/qa.py
+      hash: md5
+      md5: 32277f9be1e50d612e1f543f3cc66467
+      size: 11437
+    - path: src/silver_truth/evaluation/stacked_jaccard_logic.py
+      hash: md5
+      md5: 26d76152c9dc5c06754571fafc749d1c
+      size: 10516
+    - path: src/silver_truth/qa/preprocessing.py
+      hash: md5
+      md5: 4ea41c93df1f1a40590bdb6962a52b75
+      size: 25017
+    params:
+      params.yaml:
+        datasets.BF-C2DL-MuSC.crop_sizes:
+        - 64
+        - 128
+        - 192
+        - 256
+        - 320
+        - 512
+    outs:
+    - path: data/dataframes/BF-C2DL-MuSC/qa_crops/mixed_sz192_qa_dataset.parquet
+      hash: md5
+      md5: 1082949cb6c356362c4dfc3e00c280ca
+      size: 104978
