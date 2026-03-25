@@ -2,11 +2,13 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
-from typing import Any, Sequence
+from typing import Any, Optional, Sequence
 
 import numpy as np
 import pandas as pd
 import tifffile
+
+from silver_truth.metrics.metrics import calculate_labelwise_scores
 
 logger = logging.getLogger(__name__)
 
@@ -43,6 +45,15 @@ def _to_binary_crop(array_like: Any, threshold: float) -> np.ndarray:
     return (array > threshold).astype(np.uint8) * 255
 
 
+def _to_score_crop(array_like: Any) -> np.ndarray:
+    array = _to_numpy(array_like)
+    if array.ndim > 2:
+        array = np.squeeze(array)
+    if array.ndim != 2:
+        raise ValueError(f"Expected a 2D crop mask, got shape={array.shape}")
+    return array.astype(np.float32, copy=False)
+
+
 def _paste_crop(
     canvas: np.ndarray, crop: np.ndarray, y_start: int, x_start: int
 ) -> None:
@@ -77,6 +88,123 @@ def _compute_iou_f1(segmentation: np.ndarray, gt: np.ndarray) -> tuple[float, fl
     f1_denominator = (2 * tp) + fp + fn
     f1 = float((2 * tp) / f1_denominator) if f1_denominator > 0 else 1.0
     return iou, f1
+
+
+def _coerce_positive_label(value: Any) -> Optional[int]:
+    if pd.isna(value):
+        return None
+    if isinstance(value, (int, np.integer)):
+        return int(value) if int(value) > 0 else None
+    if isinstance(value, str) and value.strip().isdigit():
+        numeric = int(value.strip())
+        return numeric if numeric > 0 else None
+    try:
+        numeric = float(value)
+    except (TypeError, ValueError):
+        return None
+    if not float(numeric).is_integer():
+        return None
+    as_int = int(numeric)
+    return as_int if as_int > 0 else None
+
+
+def _resolve_priority_columns(
+    df: pd.DataFrame, priority_columns: Sequence[str] | None
+) -> list[str]:
+    requested = list(priority_columns) if priority_columns is not None else []
+    return [column for column in requested if column in df.columns]
+
+
+def _row_priority(row: pd.Series, priority_columns: Sequence[str]) -> float:
+    for column in priority_columns:
+        value = row.get(column)
+        if pd.notna(value):
+            try:
+                return float(value)
+            except (TypeError, ValueError):
+                continue
+    return 0.0
+
+
+def _group_sort_columns(
+    group_df: pd.DataFrame, priority_columns: Sequence[str]
+) -> pd.DataFrame:
+    enriched = group_df.copy()
+    enriched["_label_sort_key"] = enriched["label"].map(lambda value: str(value))
+    if not priority_columns:
+        return enriched.sort_values(["_label_sort_key"], kind="stable").reset_index(
+            drop=True
+        )
+    enriched["_reconstruction_priority"] = enriched.apply(
+        lambda row: _row_priority(row, priority_columns), axis=1
+    )
+    return enriched.sort_values(
+        ["_reconstruction_priority", "_label_sort_key"],
+        ascending=[False, True],
+        kind="stable",
+    ).reset_index(drop=True)
+
+
+def _paste_labeled_crop(
+    *,
+    label_canvas: np.ndarray,
+    score_canvas: np.ndarray,
+    priority_canvas: np.ndarray,
+    crop_scores: np.ndarray,
+    label_value: int,
+    threshold: float,
+    y_start: int,
+    x_start: int,
+    row_priority: float,
+) -> bool:
+    y0 = max(0, y_start)
+    x0 = max(0, x_start)
+    y1 = min(label_canvas.shape[0], y_start + crop_scores.shape[0])
+    x1 = min(label_canvas.shape[1], x_start + crop_scores.shape[1])
+    if y1 <= y0 or x1 <= x0:
+        return False
+
+    src_y0 = max(0, -y_start)
+    src_x0 = max(0, -x_start)
+    src_y1 = src_y0 + (y1 - y0)
+    src_x1 = src_x0 + (x1 - x0)
+
+    crop_region = crop_scores[src_y0:src_y1, src_x0:src_x1]
+    active_mask = crop_region > threshold
+    if not np.any(active_mask):
+        return False
+
+    canvas_priority = priority_canvas[y0:y1, x0:x1]
+    canvas_scores = score_canvas[y0:y1, x0:x1]
+    should_update = active_mask & (
+        (row_priority > canvas_priority)
+        | ((row_priority == canvas_priority) & (crop_region > canvas_scores))
+    )
+    if not np.any(should_update):
+        return False
+
+    label_canvas_view = label_canvas[y0:y1, x0:x1]
+    label_canvas_view[should_update] = label_value
+    canvas_priority[should_update] = row_priority
+    canvas_scores[should_update] = crop_region[should_update]
+    return True
+
+
+def _empty_reconstruction_df() -> pd.DataFrame:
+    return pd.DataFrame(
+        columns=[
+            "campaign_number",
+            "original_image_key",
+            "gt_image",
+            "reconstructed_path",
+            "split",
+            "cells_considered",
+            "cells_placed",
+            "labels_scored",
+            "iou",
+            "f1",
+        ]
+    )
 
 
 def reconstruct_full_images_from_arrays(
@@ -261,4 +389,193 @@ def reconstruct_full_images_from_paths(
         predicted_crops=predicted_crops,
         output_dir=output_dir,
         threshold=threshold,
+    )
+
+
+def reconstruct_labeled_full_images_from_arrays(
+    databank_df: pd.DataFrame,
+    predicted_crops: Sequence[Any],
+    output_dir: Path,
+    threshold: float = 0.5,
+    priority_columns: Sequence[str] | None = None,
+) -> pd.DataFrame:
+    """
+    Reconstruct labeled full-image segmentations and score them with the canonical
+    per-label full-image metric used for competitor/silver-truth baselines.
+
+    Each row must identify a logical cell via its ``label`` and reconstruction
+    coordinates. Predicted positive pixels are painted back into image space using
+    that label value. Overlapping cells are resolved deterministically:
+
+    1. Higher row-level priority wins when ``priority_columns`` are provided.
+    2. Within equal-priority rows, higher per-pixel score wins.
+    3. Exact ties preserve the first-written label (stable ordering).
+    """
+    if len(databank_df) != len(predicted_crops):
+        raise ValueError(
+            "Length mismatch between databank rows and predicted crops: "
+            f"{len(databank_df)} vs {len(predicted_crops)}."
+        )
+    databank_df = _ensure_recon_crop_columns(databank_df)
+    if not has_reconstruction_metadata(databank_df):
+        missing = [c for c in RECONSTRUCTION_COLUMNS if c not in databank_df.columns]
+        raise ValueError(
+            "Databank is missing reconstruction metadata columns: " + ", ".join(missing)
+        )
+    if "label" not in databank_df.columns:
+        raise ValueError(
+            "Databank must include a 'label' column for labeled reconstruction."
+        )
+
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    rows = databank_df.reset_index(drop=True).copy()
+    rows["_prediction_index"] = np.arange(len(rows))
+    active_priority_columns = _resolve_priority_columns(rows, priority_columns)
+
+    result_rows = []
+    for gt_image, group_df in rows.groupby("gt_image", dropna=False):
+        if pd.isna(gt_image):
+            logger.warning("Skipping reconstruction group with missing gt_image.")
+            continue
+
+        gt_path = Path(str(gt_image))
+        if not gt_path.exists():
+            logger.warning("GT image not found for labeled reconstruction: %s", gt_path)
+            continue
+
+        gt_full = tifffile.imread(gt_path)
+        if gt_full.ndim > 2:
+            gt_full = np.squeeze(gt_full)
+        if gt_full.ndim != 2:
+            logger.warning(
+                "Skipping GT with unsupported shape %s: %s", gt_full.shape, gt_path
+            )
+            continue
+
+        reconstructed = np.zeros(gt_full.shape, dtype=gt_full.dtype)
+        pixel_scores = np.full(gt_full.shape, -np.inf, dtype=np.float32)
+        pixel_priorities = np.full(gt_full.shape, -np.inf, dtype=np.float32)
+
+        ordered_group = _group_sort_columns(group_df, active_priority_columns)
+        cells_considered = int(len(ordered_group))
+        cells_placed = 0
+        for _, row in ordered_group.iterrows():
+            pred_idx = int(row["_prediction_index"])
+            label_value = _coerce_positive_label(row.get("label"))
+            if label_value is None:
+                logger.warning(
+                    "Skipping reconstruction row with invalid label=%r for gt=%s",
+                    row.get("label"),
+                    gt_path,
+                )
+                continue
+
+            crop_scores = _to_score_crop(predicted_crops[pred_idx])
+            row_priority = _row_priority(row, active_priority_columns)
+            pasted = _paste_labeled_crop(
+                label_canvas=reconstructed,
+                score_canvas=pixel_scores,
+                priority_canvas=pixel_priorities,
+                crop_scores=crop_scores,
+                label_value=label_value,
+                threshold=threshold,
+                y_start=int(row["recon_crop_y_start"]),
+                x_start=int(row["recon_crop_x_start"]),
+                row_priority=row_priority,
+            )
+            if pasted:
+                cells_placed += 1
+
+        first_row = ordered_group.iloc[0]
+        campaign = str(
+            first_row.get(
+                "campaign_number", first_row.get("campaign", "unknown_campaign")
+            )
+        )
+        image_key = str(
+            first_row.get(
+                "original_image_key", first_row.get("image_id", "unknown_image")
+            )
+        )
+        output_path = output_dir / f"{campaign}_{image_key}_reconstructed.tif"
+        tifffile.imwrite(output_path, reconstructed)
+
+        labelwise_scores = calculate_labelwise_scores(gt_full, reconstructed)
+        if labelwise_scores:
+            mean_iou = float(
+                np.mean([score["jaccard"] for score in labelwise_scores.values()])
+            )
+            mean_f1 = float(
+                np.mean([score["f1"] for score in labelwise_scores.values()])
+            )
+        else:
+            mean_iou = float("nan")
+            mean_f1 = float("nan")
+
+        result_rows.append(
+            {
+                "campaign_number": campaign,
+                "original_image_key": image_key,
+                "gt_image": str(gt_path),
+                "reconstructed_path": str(output_path),
+                "split": first_row.get("split", None),
+                "cells_considered": cells_considered,
+                "cells_placed": cells_placed,
+                "labels_scored": int(len(labelwise_scores)),
+                "iou": mean_iou,
+                "f1": mean_f1,
+            }
+        )
+
+    if not result_rows:
+        return _empty_reconstruction_df()
+    return pd.DataFrame(result_rows)
+
+
+def reconstruct_labeled_full_images_from_paths(
+    databank_df: pd.DataFrame,
+    fused_path_column: str,
+    output_dir: Path,
+    threshold: float = 0.5,
+    priority_columns: Sequence[str] | None = None,
+) -> pd.DataFrame:
+    """
+    Reconstruct labeled full images from on-disk per-cell mask paths and score them
+    with the same per-label metric used for competitor and silver-truth baselines.
+    """
+    if fused_path_column not in databank_df.columns:
+        raise ValueError(
+            f"Missing fused path column '{fused_path_column}' in databank dataframe."
+        )
+    databank_df = _ensure_recon_crop_columns(databank_df)
+
+    predicted_crops = []
+    valid_indices = []
+    for index, row in databank_df.iterrows():
+        fused_path = row[fused_path_column]
+        if pd.isna(fused_path):
+            continue
+        mask_path = Path(str(fused_path))
+        if not mask_path.exists():
+            logger.warning("Fused mask not found: %s", mask_path)
+            continue
+        img = tifffile.imread(mask_path)
+        # Stacked QA crops are multi-channel (C, H, W); channel 1 is the
+        # competitor segmentation mask. Single-channel fused outputs are used as-is.
+        if img.ndim == 3:
+            img = img[1]
+        predicted_crops.append(img)
+        valid_indices.append(index)
+
+    if not valid_indices:
+        return _empty_reconstruction_df()
+
+    valid_df = databank_df.loc[valid_indices].reset_index(drop=True)
+    return reconstruct_labeled_full_images_from_arrays(
+        databank_df=valid_df,
+        predicted_crops=predicted_crops,
+        output_dir=output_dir,
+        threshold=threshold,
+        priority_columns=priority_columns,
     )

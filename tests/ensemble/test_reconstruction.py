@@ -92,3 +92,121 @@ def test_reconstruct_full_images_from_arrays_handles_negative_offsets(
 
     assert len(out_df) == 1
     assert 0.0 <= float(out_df.loc[0, "iou"]) <= 1.0
+
+
+def test_reconstruct_labeled_full_images_from_arrays_uses_labelwise_metric(
+    tmp_path: Path,
+) -> None:
+    gt = np.zeros((8, 8), dtype=np.uint8)
+    gt[1:3, 1:3] = 1
+    gt[5:7, 5:7] = 2
+    gt_path = tmp_path / "gt_labeled.tif"
+    tifffile.imwrite(gt_path, gt)
+
+    df = pd.DataFrame(
+        [
+            {
+                "campaign_number": "01",
+                "original_image_key": "t0003",
+                "label": 1,
+                "gt_image": str(gt_path),
+                "split": "test",
+                "recon_crop_y_start": 1,
+                "recon_crop_y_end": 3,
+                "recon_crop_x_start": 1,
+                "recon_crop_x_end": 3,
+            },
+            {
+                "campaign_number": "01",
+                "original_image_key": "t0003",
+                "label": 2,
+                "gt_image": str(gt_path),
+                "split": "test",
+                "recon_crop_y_start": 5,
+                "recon_crop_y_end": 7,
+                "recon_crop_x_start": 5,
+                "recon_crop_x_end": 7,
+            },
+        ]
+    )
+
+    out_df = reconstruction.reconstruct_labeled_full_images_from_arrays(
+        databank_df=df,
+        predicted_crops=[
+            np.ones((2, 2), dtype=np.float32),
+            np.ones((2, 2), dtype=np.float32),
+        ],
+        output_dir=tmp_path / "reconstructed_labeled",
+        threshold=0.5,
+    )
+
+    assert len(out_df) == 1
+    assert float(out_df.loc[0, "iou"]) == 1.0
+    assert float(out_df.loc[0, "f1"]) == 1.0
+    assert int(out_df.loc[0, "labels_scored"]) == 2
+
+    reconstructed_path = Path(out_df.loc[0, "reconstructed_path"])
+    assert reconstructed_path.exists()
+    reconstructed_img = tifffile.imread(reconstructed_path)
+    assert reconstructed_img[1, 1] == 1
+    assert reconstructed_img[5, 5] == 2
+
+
+def test_reconstruct_labeled_full_images_from_arrays_resolves_overlap_by_priority(
+    tmp_path: Path,
+) -> None:
+    gt = np.zeros((5, 5), dtype=np.uint8)
+    gt[1:3, 1] = 1
+    gt[1:3, 2:4] = 2
+    gt_path = tmp_path / "gt_overlap.tif"
+    tifffile.imwrite(gt_path, gt)
+
+    df = pd.DataFrame(
+        [
+            {
+                "campaign_number": "01",
+                "original_image_key": "t0004",
+                "label": 1,
+                "priority": 0.6,
+                "gt_image": str(gt_path),
+                "split": "validation",
+                "recon_crop_y_start": 1,
+                "recon_crop_y_end": 3,
+                "recon_crop_x_start": 1,
+                "recon_crop_x_end": 3,
+            },
+            {
+                "campaign_number": "01",
+                "original_image_key": "t0004",
+                "label": 2,
+                "priority": 0.9,
+                "gt_image": str(gt_path),
+                "split": "validation",
+                "recon_crop_y_start": 1,
+                "recon_crop_y_end": 3,
+                "recon_crop_x_start": 2,
+                "recon_crop_x_end": 4,
+            },
+        ]
+    )
+
+    out_df = reconstruction.reconstruct_labeled_full_images_from_arrays(
+        databank_df=df,
+        predicted_crops=[
+            np.ones((2, 2), dtype=np.float32),
+            np.ones((2, 2), dtype=np.float32),
+        ],
+        output_dir=tmp_path / "reconstructed_priority",
+        threshold=0.5,
+        priority_columns=("priority",),
+    )
+
+    assert len(out_df) == 1
+    assert float(out_df.loc[0, "iou"]) == 1.0
+    assert float(out_df.loc[0, "f1"]) == 1.0
+
+    reconstructed_path = Path(out_df.loc[0, "reconstructed_path"])
+    reconstructed_img = tifffile.imread(reconstructed_path)
+    assert reconstructed_img[1, 1] == 1
+    assert reconstructed_img[1, 2] == 2
+    assert reconstructed_img[2, 2] == 2

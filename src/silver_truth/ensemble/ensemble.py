@@ -299,13 +299,14 @@ def generate_evaluation(
         cell_level_df = pd.DataFrame(data_list)
         cell_level_df.to_parquet(cell_level_output_parquet_path)
 
-        # For cell-level databanks with reconstruction metadata, evaluate after
-        # placing predicted crops back into full-image coordinates.
-        if reconstruction.has_reconstruction_metadata(df):
+        # For cell-level databanks with reconstruction metadata and labels,
+        # evaluate after placing predicted crops back into full-image coordinates
+        # using the same label-wise metric as the competitor baseline.
+        if reconstruction.has_reconstruction_metadata(df) and "label" in df.columns:
             reconstructed_dir = os.path.join(
                 model_dir, f"{dataset_name}_{model_name}_set-{split_type}_reconstructed"
             )
-            reconstructed_eval_df = reconstruction.reconstruct_full_images_from_arrays(
+            reconstructed_eval_df = reconstruction.reconstruct_labeled_full_images_from_arrays(
                 databank_df=df.reset_index(drop=True),
                 predicted_crops=list(reconst_imgs),
                 output_dir=Path(reconstructed_dir),
@@ -362,8 +363,10 @@ def evaluate_checkpoint(
         f1_col = "f1"
 
     evaluation_level = (
-        "image_reconstructed"
-        if {"reconstructed_path", "gt_image"}.issubset(set(output_df.columns))
+        "full_image_label"
+        if {"reconstructed_path", "gt_image", "labels_scored"}.issubset(
+            set(output_df.columns)
+        )
         else "cell_crop"
     )
 

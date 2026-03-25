@@ -6,14 +6,18 @@ import logging
 import mlflow
 import pandas as pd
 
-from silver_truth.ensemble.reconstruction import reconstruct_full_images_from_paths
+from silver_truth.ensemble.reconstruction import (
+    reconstruct_labeled_full_images_from_paths,
+)
 from silver_truth.evaluation.evaluation_logic import evaluate_competitor_logic
 from silver_truth.evaluation.stacked_jaccard_logic import (
     calculate_evaluation_metrics,
     calculate_evaluation_metrics_cropped,
 )
 from silver_truth.evaluation.reporting import (
+    analyze_overflow_impact,
     generate_hsc_reporting_bundle,
+    write_overflow_impact_bundle,
     write_hsc_reporting_bundle,
 )
 from silver_truth.metrics.qa_model_evaluation import (
@@ -489,6 +493,15 @@ def cli():
     default=None,
     help="Optional QA threshold tag for MLflow.",
 )
+@click.option(
+    "--priority-column",
+    "priority_columns",
+    multiple=True,
+    help=(
+        "Optional column(s) used to resolve overlapping reconstructed labels. "
+        "Higher values win; columns are tried in the order provided."
+    ),
+)
 def evaluate_fusion_crops(
     parquet_path: Path,
     fused_path_column: str,
@@ -502,37 +515,41 @@ def evaluate_fusion_crops(
     pipeline_family: str,
     qa_mode: Optional[str],
     qa_threshold: Optional[float],
+    priority_columns: tuple[str, ...],
 ) -> None:
     """
-    Reconstruct full-image segmentations from per-cell fused crops and evaluate IoU/F1.
+    Reconstruct labeled full-image segmentations from per-cell crops and evaluate
+    them with the canonical full-image, per-label IoU/F1 metric.
 
     Reads the parquet produced by ``silver-fusion run-crops-experiment``, places each
-    fused crop back into the full image at its recorded coordinates, and scores the
-    result against the full GT mask.
+    fused crop back into the full image at its recorded coordinates using its row's
+    ``label`` value, and then scores the reconstructed labeled image exactly like the
+    competitor / silver-truth baseline evaluator does.
 
     The parquet must contain ``gt_image``, ``crop_y_start/end/x_start/x_end`` (or
-    their ``recon_crop_*`` equivalents), and the fused-path column specified by
-    ``--fused-path-column``.
+    their ``recon_crop_*`` equivalents), ``label``, and the fused-path column
+    specified by ``--fused-path-column``.
     """
     df = pd.read_parquet(parquet_path)
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    results_df = reconstruct_full_images_from_paths(
+    results_df = reconstruct_labeled_full_images_from_paths(
         databank_df=df,
         fused_path_column=fused_path_column,
         output_dir=output_dir,
         threshold=threshold,
+        priority_columns=priority_columns,
     )
 
     if results_df.empty:
         logging.warning(
-            "No images could be reconstructed — check paths and GT columns."
+            "No images could be reconstructed — check paths, labels, and GT columns."
         )
     else:
         mean_iou = results_df["iou"].mean()
         mean_f1 = results_df["f1"].mean()
         logging.info(
-            "Reconstructed %d images — mean IoU=%.4f  mean F1=%.4f",
+            "Reconstructed %d labeled images — mean IoU=%.4f  mean F1=%.4f",
             len(results_df),
             mean_iou,
             mean_f1,
@@ -564,21 +581,24 @@ def evaluate_fusion_crops(
             mlflow_experiment=mlflow_experiment,
             run_name=mlflow_run_name or fused_path_column,
         ):
-            set_common_mlflow_tags(dataset=dataset_tag, split="image_reconstructed")
+            set_common_mlflow_tags(dataset=dataset_tag, split="full_image_label")
             set_evaluation_tags(
                 pipeline_family=pipeline_family,
-                evaluation_level="image_reconstructed",
+                evaluation_level="full_image_label",
                 setup_name=setup_name or fused_path_column,
                 qa_mode=qa_mode,
                 qa_threshold=qa_threshold,
                 extra_tags={
                     "fused_path_column": fused_path_column,
+                    "reconstruction_source": "cell_crops",
                 },
             )
             mlflow.log_param("parquet_path", str(parquet_path))
             mlflow.log_param("fused_path_column", fused_path_column)
             mlflow.log_param("output_csv", str(csv_path))
             mlflow.log_param("threshold", threshold)
+            if priority_columns:
+                mlflow.log_param("priority_columns", ",".join(priority_columns))
             log_standardized_split_metrics(split_metrics)
             mlflow.log_artifact(str(csv_path))
 
@@ -883,6 +903,63 @@ def report_hsc_results(
     click.echo(f"Markdown summary: {written['markdown']}")
 
 
+@click.command("report-overflow-impact")
+@click.argument("results_path", type=click.Path(exists=True, path_type=Path))
+@click.argument(
+    "dataset_dataframe_path", type=click.Path(exists=True, path_type=Path)
+)
+@click.option(
+    "--crop-size",
+    required=True,
+    type=int,
+    help="Square crop size used to define overflow vs fit.",
+)
+@click.option(
+    "--output-dir",
+    "-o",
+    required=True,
+    type=click.Path(path_type=Path),
+    help="Directory where enriched and summary tables will be written.",
+)
+@click.option(
+    "--metric-column",
+    "metric_columns",
+    multiple=True,
+    help=(
+        "Optional metric column(s) to summarize. "
+        "Defaults to jaccard/f1-style columns when present."
+    ),
+)
+def report_overflow_impact(
+    results_path: Path,
+    dataset_dataframe_path: Path,
+    crop_size: int,
+    output_dir: Path,
+    metric_columns: tuple[str, ...],
+) -> None:
+    """
+    Summarize per-cell metrics split by whether the GT bbox overflows a chosen crop size.
+
+    Typical input is a detailed per-cell result parquet/CSV, for example the output of
+    `silver-evaluation evaluate-competitor --detailed`.
+    """
+    bundle = analyze_overflow_impact(
+        results_path=results_path,
+        dataset_dataframe_path=dataset_dataframe_path,
+        crop_size=crop_size,
+        metric_columns=list(metric_columns) if metric_columns else None,
+    )
+    written = write_overflow_impact_bundle(output_dir, bundle)
+
+    overall = bundle.get("overall_summary", pd.DataFrame())
+    if not overall.empty:
+        click.echo(overall.to_string(index=False))
+        click.echo("")
+
+    for name, path in written.items():
+        click.echo(f"{name}: {path}")
+
+
 cli.add_command(evaluate_competitor)
 cli.add_command(calculate_evaluation_metrics_cli)
 cli.add_command(evaluate_qa_model)
@@ -891,6 +968,7 @@ cli.add_command(merge_qa_predictions)
 cli.add_command(evaluate_fusion_crops)
 cli.add_command(filter_parquet)
 cli.add_command(report_hsc_results)
+cli.add_command(report_overflow_impact)
 
 
 if __name__ == "__main__":

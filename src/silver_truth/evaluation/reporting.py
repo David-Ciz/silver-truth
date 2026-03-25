@@ -9,6 +9,13 @@ import numpy as np
 import pandas as pd
 from scipy.stats import wilcoxon
 
+from silver_truth.data_processing.segmentation_stats import (
+    collect_segmentation_object_stats_from_dataframes,
+)
+from silver_truth.data_processing.utils.dataset_dataframe_creation import (
+    load_dataframe_from_parquet_with_metadata,
+)
+
 logger = logging.getLogger(__name__)
 
 _FOLDS = ("fold-1", "fold-2")
@@ -161,6 +168,243 @@ def write_hsc_reporting_bundle(output_dir: Path, bundle: dict[str, pd.DataFrame]
     paths["markdown"].write_text(_render_markdown_report(bundle), encoding="utf-8")
 
     return paths
+
+
+def analyze_overflow_impact(
+    *,
+    results_path: Path,
+    dataset_dataframe_path: Path,
+    crop_size: int,
+    metric_columns: list[str] | None = None,
+) -> dict[str, pd.DataFrame]:
+    """Join per-cell result tables with overflow flags derived from GT bbox size."""
+    project_root = _find_project_root_for_paths(dataset_dataframe_path)
+    results_df = _load_result_table(results_path)
+    standardized_results = _standardize_result_rows(results_df, project_root=project_root)
+
+    dataset_df = load_dataframe_from_parquet_with_metadata(str(dataset_dataframe_path))
+    split_lookup = _build_dataset_split_lookup(dataset_df, project_root=project_root)
+
+    stats_df = collect_segmentation_object_stats_from_dataframes([dataset_dataframe_path])
+    overflow_lookup = _build_overflow_lookup(stats_df, crop_size=crop_size)
+
+    enriched = standardized_results.merge(
+        overflow_lookup,
+        on=["gt_image_resolved", "label"],
+        how="left",
+    ).merge(
+        split_lookup,
+        on="gt_image_resolved",
+        how="left",
+        suffixes=("", "_dataset"),
+    )
+
+    enriched["overflow_status"] = np.where(
+        enriched["is_overflow"].fillna(False), "overflow", "fits"
+    )
+    enriched["crop_size"] = int(crop_size)
+
+    resolved_metric_columns = _resolve_metric_columns(enriched, metric_columns)
+
+    outputs: dict[str, pd.DataFrame] = {
+        "enriched": enriched,
+        "overall_summary": _summarize_metric_groups(
+            enriched,
+            group_cols=["overflow_status"],
+            metric_columns=resolved_metric_columns,
+        ),
+    }
+
+    if "competitor" in enriched.columns:
+        outputs["by_competitor_summary"] = _summarize_metric_groups(
+            enriched,
+            group_cols=["competitor", "overflow_status"],
+            metric_columns=resolved_metric_columns,
+        )
+
+    if "split" in enriched.columns:
+        outputs["by_split_summary"] = _summarize_metric_groups(
+            enriched,
+            group_cols=["split", "overflow_status"],
+            metric_columns=resolved_metric_columns,
+        )
+
+    if {"competitor", "split"}.issubset(enriched.columns):
+        outputs["by_competitor_split_summary"] = _summarize_metric_groups(
+            enriched,
+            group_cols=["competitor", "split", "overflow_status"],
+            metric_columns=resolved_metric_columns,
+        )
+
+    return outputs
+
+
+def write_overflow_impact_bundle(
+    output_dir: Path, bundle: dict[str, pd.DataFrame]
+) -> dict[str, Path]:
+    """Persist overflow-impact analysis tables to disk."""
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    paths: dict[str, Path] = {}
+    for name, frame in bundle.items():
+        filename = f"{name}.parquet" if name == "enriched" else f"{name}.csv"
+        path = output_dir / filename
+        if name == "enriched":
+            frame.to_parquet(path, index=False)
+        else:
+            frame.to_csv(path, index=False)
+        paths[name] = path
+
+    return paths
+
+
+def _find_project_root_for_paths(dataset_dataframe_path: Path) -> Path:
+    start = dataset_dataframe_path.resolve().parent
+    for candidate in [start, *start.parents]:
+        if (candidate / "data").exists():
+            return candidate
+    return dataset_dataframe_path.resolve().parent
+
+
+def _resolve_path_for_reporting(path_value: Any, project_root: Path) -> str | None:
+    if path_value is None or pd.isna(path_value):
+        return None
+    path = Path(str(path_value))
+    if not path.is_absolute():
+        path = project_root / path
+    return str(path.resolve())
+
+
+def _load_result_table(results_path: Path) -> pd.DataFrame:
+    if results_path.suffix == ".csv":
+        return pd.read_csv(results_path)
+    return pd.read_parquet(results_path)
+
+
+def _standardize_result_rows(results_df: pd.DataFrame, *, project_root: Path) -> pd.DataFrame:
+    df = results_df.copy()
+    if "gt_image" not in df.columns and "gt_seg_path" in df.columns:
+        df["gt_image"] = df["gt_seg_path"]
+    if "label" not in df.columns and "cell_id" in df.columns:
+        df["label"] = df["cell_id"]
+
+    required = {"gt_image", "label"}
+    missing = required - set(df.columns)
+    if missing:
+        raise ValueError(
+            "Result table is missing required columns for overflow analysis: "
+            + ", ".join(sorted(missing))
+        )
+
+    df["gt_image_resolved"] = df["gt_image"].apply(
+        lambda value: _resolve_path_for_reporting(value, project_root)
+    )
+    df["label"] = pd.to_numeric(df["label"], errors="coerce").astype("Int64")
+    df = df.dropna(subset=["gt_image_resolved", "label"]).copy()
+    df["label"] = df["label"].astype(int)
+    return df
+
+
+def _build_dataset_split_lookup(dataset_df: pd.DataFrame, *, project_root: Path) -> pd.DataFrame:
+    available_columns = [
+        column
+        for column in ["gt_image", "split", "composite_key", "campaign_number"]
+        if column in dataset_df.columns
+    ]
+    if "gt_image" not in available_columns:
+        return pd.DataFrame(columns=["gt_image_resolved"])
+
+    lookup = dataset_df[available_columns].dropna(subset=["gt_image"]).drop_duplicates(
+        subset=["gt_image"]
+    )
+    lookup = lookup.copy()
+    lookup["gt_image_resolved"] = lookup["gt_image"].apply(
+        lambda value: _resolve_path_for_reporting(value, project_root)
+    )
+    keep_columns = ["gt_image_resolved"] + [
+        column for column in ["split", "composite_key", "campaign_number"] if column in lookup.columns
+    ]
+    return lookup[keep_columns]
+
+
+def _build_overflow_lookup(stats_df: pd.DataFrame, *, crop_size: int) -> pd.DataFrame:
+    lookup = stats_df.copy()
+    lookup["gt_image_resolved"] = lookup["gt_image"].apply(lambda value: str(Path(str(value)).resolve()))
+    lookup["label"] = lookup["label_id"].astype(int)
+    lookup["is_overflow"] = (lookup["bbox_height_px"] > crop_size) | (
+        lookup["bbox_width_px"] > crop_size
+    )
+    keep_columns = [
+        "gt_image_resolved",
+        "label",
+        "is_overflow",
+        "bbox_height_px",
+        "bbox_width_px",
+        "bbox_max_dim_px",
+        "bbox_aspect_ratio_wh",
+        "bbox_elongation_ratio",
+    ]
+    return lookup[keep_columns]
+
+
+def _resolve_metric_columns(
+    df: pd.DataFrame, metric_columns: list[str] | None
+) -> list[str]:
+    if metric_columns:
+        present = [column for column in metric_columns if column in df.columns]
+        if present:
+            return present
+        raise ValueError(
+            "Requested metric columns not found in result table: "
+            + ", ".join(metric_columns)
+        )
+
+    candidates = ["jaccard_score", "f1_score", "iou", "f1", "predicted_jaccard_index"]
+    present = [column for column in candidates if column in df.columns]
+    if present:
+        return present
+
+    numeric_columns = [
+        column
+        for column in df.columns
+        if pd.api.types.is_numeric_dtype(df[column]) and column not in {"label", "crop_size"}
+    ]
+    return numeric_columns
+
+
+def _summarize_metric_groups(
+    df: pd.DataFrame, *, group_cols: list[str], metric_columns: list[str]
+) -> pd.DataFrame:
+    records: list[dict[str, Any]] = []
+
+    for group_key, group_df in df.groupby(group_cols, dropna=False):
+        if not isinstance(group_key, tuple):
+            group_key = (group_key,)
+        row = {column: value for column, value in zip(group_cols, group_key)}
+        row["n_rows"] = int(len(group_df))
+        row["n_cells"] = int(group_df[["gt_image_resolved", "label"]].drop_duplicates().shape[0])
+        row["n_gt_images"] = int(group_df["gt_image_resolved"].nunique())
+
+        if "is_overflow" in group_df.columns:
+            row["overflow_rate"] = float(group_df["is_overflow"].fillna(False).mean())
+
+        for metric in metric_columns:
+            values = pd.to_numeric(group_df[metric], errors="coerce").dropna()
+            row[f"{metric}_count"] = int(len(values))
+            row[f"{metric}_mean"] = float(values.mean()) if not values.empty else float("nan")
+            row[f"{metric}_median"] = (
+                float(values.median()) if not values.empty else float("nan")
+            )
+            row[f"{metric}_p05"] = (
+                float(values.quantile(0.05)) if not values.empty else float("nan")
+            )
+            row[f"{metric}_p95"] = (
+                float(values.quantile(0.95)) if not values.empty else float("nan")
+            )
+
+        records.append(row)
+
+    return pd.DataFrame.from_records(records)
 
 
 def _discover_hsc_inventory(

@@ -3,6 +3,7 @@
 extends: ensemble_sweep_base.yaml
 
 dataset: BF-C2DL-HSC
+crop_size: 64
 ensemble_model_type: UnetPlusPlus
 ensemble_version: C1
 ensemble_augmentation: basic

@@ -89,16 +89,24 @@ def _normalise_split_name(split: str) -> str:
 
 
 def _databank_dir(
-    paper_runs: str, variant: str, split_name: str, tag: str = "unfiltered"
+    paper_runs: str,
+    dataset: str,
+    crop_tag: str,
+    variant: str,
+    split_name: str,
+    tag: str = "unfiltered",
 ) -> str:
     """
     Return a per-experiment databank output directory under paper_runs so that
     each variant/fold/tag combination gets its own isolated directory and files
     never overwrite each other.
 
-    Example: data/paper_runs/ensemble/baseline/fold-1/databank_unfiltered
+    Example: data/paper_runs/ensemble/BF-C2DL-HSC/sz64/baseline/fold-1/databank_unfiltered
     """
-    return f"{paper_runs}/ensemble/{variant}/{split_name}/databank_{tag}"
+    return (
+        f"{paper_runs}/ensemble/{dataset}/{crop_tag}/{variant}/{split_name}/"
+        f"databank_{tag}"
+    )
 
 
 def _databank_parquet(databank_dir: str, dataset: str, version: str = "C1") -> str:
@@ -113,10 +121,18 @@ def _databank_parquet(databank_dir: str, dataset: str, version: str = "C1") -> s
 
 
 def _ckpt_dir(
-    paper_runs: str, variant: str, split_name: str, tag: str = "baseline"
+    paper_runs: str,
+    dataset: str,
+    crop_tag: str,
+    variant: str,
+    split_name: str,
+    tag: str = "baseline",
 ) -> str:
     """Return a per-experiment checkpoint directory."""
-    return f"{paper_runs}/ensemble/{variant}/{split_name}/checkpoints_{tag}"
+    return (
+        f"{paper_runs}/ensemble/{dataset}/{crop_tag}/{variant}/{split_name}/"
+        f"checkpoints_{tag}"
+    )
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -184,6 +200,7 @@ def load_config(variant_path: Path, fold: str) -> dict[str, Any]:
     config["fold"] = split_name
     config["split_name"] = split_name
     config["variant"] = variant_path.stem  # e.g. "baseline", "resnet18_qa"
+    config["crop_tag"] = f"sz{config['crop_size']}"
 
     # Resolve template strings (two passes to handle nested references).
     for _ in range(2):
@@ -224,7 +241,7 @@ def build_steps(cfg: dict[str, Any]) -> list[dict[str, Any]]:
     split_name = cfg["split_name"]
     variant = cfg["variant"]
     dataset = cfg["dataset"]
-    crop_size = cfg["crop_size"]
+    crop_tag = cfg["crop_tag"]
     threshold = cfg["qa_threshold"]
     threshold_sweep = [float(t) for t in cfg.get("qa_threshold_sweep", [threshold])]
     mlflow_uri = cfg["mlflow_tracking_uri"]
@@ -260,18 +277,15 @@ def build_steps(cfg: dict[str, Any]) -> list[dict[str, Any]]:
     ablation_out = cfg["ablation_output_template"]
 
     paper_runs = cfg["paper_runs_root"]
-    competitor_csv = f"{paper_runs}/baselines/{dataset}_{split_name}_competitors.csv"
-    compare_experiment = f"paper-compare-{dataset}-{variant}-{split_name}"
-    phasea_fusion_experiment = (
-        f"phaseA-fusion-baselines-{dataset}-{variant}-{split_name}"
+    experiment_suffix = f"{dataset}-{crop_tag}-{variant}-{split_name}"
+    competitor_csv = (
+        f"{paper_runs}/baselines/{dataset}_{crop_tag}_{variant}_{split_name}_competitors.csv"
     )
-    phaseb_qa_train_experiment = f"phaseB-qa-train-{dataset}-{variant}-{split_name}"
-    phaseb_qa_regression_experiment = (
-        f"phaseB-qa-regression-{dataset}-{variant}-{split_name}"
-    )
-    phaseb_qa_filtering_experiment = (
-        f"phaseB-qa-thresholding-{dataset}-{variant}-{split_name}"
-    )
+    compare_experiment = f"paper-compare-{experiment_suffix}"
+    phasea_fusion_experiment = f"phaseA-fusion-baselines-{experiment_suffix}"
+    phaseb_qa_train_experiment = f"phaseB-qa-train-{experiment_suffix}"
+    phaseb_qa_regression_experiment = f"phaseB-qa-regression-{experiment_suffix}"
+    phaseb_qa_filtering_experiment = f"phaseB-qa-thresholding-{experiment_suffix}"
 
     steps: list[dict[str, Any]] = []
 
@@ -304,7 +318,7 @@ def build_steps(cfg: dict[str, Any]) -> list[dict[str, Any]]:
                     f"silver-evaluation evaluate-competitor "
                     f"  {whole_image_parquet} "
                     f"  --competitor SILVER-TRUTH "
-                    f"  --output {paper_runs}/baselines/{dataset}_{split_name}_silver_truth.csv "
+                    f"  --output {paper_runs}/baselines/{dataset}_{crop_tag}_{variant}_{split_name}_silver_truth.csv "
                     f"  --mlflow-experiment {compare_experiment}"
                 ),
             }
@@ -330,12 +344,16 @@ def build_steps(cfg: dict[str, Any]) -> list[dict[str, Any]]:
             }
         )
 
-    _baseline_db_dir = _databank_dir(paper_runs, variant, split_name, tag="unfiltered")
+    _baseline_db_dir = _databank_dir(
+        paper_runs, dataset, crop_tag, variant, split_name, tag="unfiltered"
+    )
     _baseline_db_parquet = _databank_parquet(
         _baseline_db_dir, dataset, cfg.get("ensemble_version", "C1")
     )
-    _baseline_ckpt_dir = _ckpt_dir(paper_runs, variant, split_name, tag="baseline")
-    _baseline_exp = f"phaseA-ensemble-{dataset}-{variant}-{split_name}"
+    _baseline_ckpt_dir = _ckpt_dir(
+        paper_runs, dataset, crop_tag, variant, split_name, tag="baseline"
+    )
+    _baseline_exp = f"phaseA-ensemble-{experiment_suffix}"
 
     if cfg.get("run_phaseA_ensemble", True):
         steps.append(
@@ -417,7 +435,8 @@ def build_steps(cfg: dict[str, Any]) -> list[dict[str, Any]]:
                 "phase": "B",
                 "name": f"Train QA model ({cfg['qa_model_type']}) — WILL BLOCK UNTIL TRAINING DONE",
                 "cmd": (
-                    f"mkdir -p {paper_runs}/qa_models {paper_runs}/qa_results && "
+                    f"mkdir -p {paper_runs}/qa_models/{dataset}/{crop_tag} "
+                    f"{paper_runs}/qa_results/{dataset}/{crop_tag} && "
                     f"silver-qa cnn train "
                     f"  --parquet-file {qa_parquet} "
                     f"  --data-root {cfg['runtime_root']} "
@@ -440,7 +459,7 @@ def build_steps(cfg: dict[str, Any]) -> list[dict[str, Any]]:
                 "cmd": (
                     f"silver-evaluation evaluate-qa-model "
                     f"  {qa_excel} "
-                    f"  --output-dir {paper_runs}/qa_results/{split_name}_{variant}_metrics "
+                    f"  --output-dir {paper_runs}/qa_results/{dataset}/{crop_tag}/{variant}/{split_name}_metrics "
                     f"  --mlflow-experiment {phaseb_qa_regression_experiment} "
                     f"  --mlflow-run-name qa_regression"
                 ),
@@ -456,7 +475,7 @@ def build_steps(cfg: dict[str, Any]) -> list[dict[str, Any]]:
                     f"silver-evaluation evaluate-qa-filtering "
                     f"  {qa_excel} "
                     f"  --thresholds 0.50,0.60,0.70,0.75,0.80,0.85,0.90 "
-                    f"  --output-dir {paper_runs}/qa_results/{split_name}_{variant}_filtering "
+                    f"  --output-dir {paper_runs}/qa_results/{dataset}/{crop_tag}/{variant}/{split_name}_filtering "
                     f"  --mlflow-experiment {phaseb_qa_filtering_experiment} "
                     f"  --mlflow-run-name qa_thresholding"
                 ),
@@ -496,7 +515,7 @@ def build_steps(cfg: dict[str, Any]) -> list[dict[str, Any]]:
                     f"  --qa-parquet {paper_ready} "
                     f"  {fusion_models} "
                     f"  --output-dir {mode_out} "
-                    f"  --mlflow-experiment phaseC-fusion-only-crop-eval-{dataset}-{variant}-{split_name} "
+                    f"  --mlflow-experiment phaseC-fusion-only-crop-eval-{experiment_suffix} "
                     f"  --mlflow-run-name fusion_only "
                     f"  --mlflow-tracking-path {mlflow_uri.replace('file:', '')}"
                 ),
@@ -556,6 +575,7 @@ def build_steps(cfg: dict[str, Any]) -> list[dict[str, Any]]:
                     f"  --fused-path-column stacked_path "
                     f"  --output-dir {mode_out}/fullimage "
                     f"  --output {mode_out}/fullimage_eval.csv "
+                    f"  --priority-column predicted_jaccard_index "
                     f"  --mlflow-experiment {compare_experiment} "
                     f"  --mlflow-run-name qa_only__top1 "
                     f"  --setup-name qa_only__top1 "
@@ -603,7 +623,7 @@ def build_steps(cfg: dict[str, Any]) -> list[dict[str, Any]]:
                             f"  --qa-parquet {filtered_pq} "
                             f"  --models {model} "
                             f"  --output-dir {mode_out} "
-                            f"  --mlflow-experiment phaseC-full-pipeline-crop-eval-{dataset}-{variant}-{split_name} "
+                            f"  --mlflow-experiment phaseC-full-pipeline-crop-eval-{experiment_suffix} "
                             f"  --mlflow-run-name full_pipeline_t{threshold_label} "
                             f"  --mlflow-tracking-path {mlflow_uri.replace('file:', '')}"
                         ),
@@ -620,6 +640,7 @@ def build_steps(cfg: dict[str, Any]) -> list[dict[str, Any]]:
                             f"  --fused-path-column {model_lower} "
                             f"  --output-dir {mode_out}/{model_lower}/fullimage "
                             f"  --output {mode_out}/{model_lower}/fullimage_eval.csv "
+                            f"  --priority-column predicted_jaccard_index "
                             f"  --mlflow-experiment {compare_experiment} "
                             f"  --mlflow-run-name full_pipeline_t{threshold_label}__{model_lower} "
                             f"  --setup-name full_pipeline_t{threshold_label}__{model_lower} "
@@ -660,10 +681,15 @@ def build_steps(cfg: dict[str, Any]) -> list[dict[str, Any]]:
             )
             filtered_pq = (
                 f"{cfg['data_root']}/qa_crops/paper_inputs/"
-                f"{split_name}_full_pipeline_t{threshold_label}.parquet"
+                f"{split_name}_{variant}_{crop_tag}_full_pipeline_t{threshold_label}.parquet"
             )
             _qa_db_dir = _databank_dir(
-                paper_runs, variant, split_name, tag=f"filtered_t{threshold_label}"
+                paper_runs,
+                dataset,
+                crop_tag,
+                variant,
+                split_name,
+                tag=f"filtered_t{threshold_label}",
             )
             _qa_db_parquet = _databank_parquet(
                 _qa_db_dir, dataset, cfg.get("ensemble_version", "C1")
@@ -728,18 +754,28 @@ def build_steps(cfg: dict[str, Any]) -> list[dict[str, Any]]:
         )
         filtered_pq = (
             f"{cfg['data_root']}/qa_crops/paper_inputs/"
-            f"{split_name}_full_pipeline_t{threshold:.2f}.parquet"
+            f"{split_name}_{variant}_{crop_tag}_full_pipeline_t{threshold:.2f}.parquet"
         )
         _retrain_db_dir = _databank_dir(
-            paper_runs, variant, split_name, tag=f"filtered_t{threshold:.2f}"
+            paper_runs,
+            dataset,
+            crop_tag,
+            variant,
+            split_name,
+            tag=f"filtered_t{threshold:.2f}",
         )
         _retrain_db_parquet = _databank_parquet(
             _retrain_db_dir, dataset, cfg.get("ensemble_version", "C1")
         )
         _retrain_ckpt_dir = _ckpt_dir(
-            paper_runs, variant, split_name, tag=f"retrained_t{threshold:.2f}"
+            paper_runs,
+            dataset,
+            crop_tag,
+            variant,
+            split_name,
+            tag=f"retrained_t{threshold:.2f}",
         )
-        _retrain_exp = f"phaseC-ensemble-qa-retrained-{dataset}-{variant}-{split_name}"
+        _retrain_exp = f"phaseC-ensemble-qa-retrained-{experiment_suffix}"
         steps.append(
             {
                 "id": "phaseC_ensemble_qa_retrained_train",
@@ -1157,7 +1193,7 @@ def main(
     cfg = load_config(config, fold)
     variant = cfg["variant"]
     dataset = cfg["dataset"]
-    run_id = f"{dataset}_{variant}_{cfg['split_name']}"
+    run_id = f"{dataset}_{cfg['crop_tag']}_{variant}_{cfg['split_name']}"
 
     steps = build_steps(cfg)
 
