@@ -167,6 +167,13 @@ def _parse_split_sets(split_sets: str) -> list[float]:
         "basic_vflip/basic_brightness/basic_noise/basic_vflip_brightness: targeted lighter sweeps."
     ),
 )
+@click.option(
+    "--batch-size",
+    type=int,
+    default=7,
+    show_default=True,
+    help="Training batch size for the ensemble dataloader.",
+)
 def ensemble_experiment(
     name: str,
     parquet_file: str,
@@ -178,6 +185,7 @@ def ensemble_experiment(
     init_from_checkpoint: Optional[str],
     dataset_version: str,
     augmentation: str,
+    batch_size: int,
 ):
     """Runs an Ensemble experiment via command-line interface."""
     try:
@@ -190,6 +198,7 @@ def ensemble_experiment(
             "init_from_checkpoint": init_from_checkpoint,
             "dataset_version": dataset_version.upper(),
             "augmentation": augmentation.lower(),
+            "batch_size": batch_size,
         }
         ensemble.run_experiment(
             name,

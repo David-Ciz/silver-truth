@@ -39,52 +39,57 @@ def get_model(model: str, parameters: dict):
 """"""
 
 
-def _evaluate_model(model, input_set, target_set):
+def _evaluate_model_loader(model, dataloader):
     jaccard = BinaryJaccardIndex().to(model.device)
     f1_score = BinaryF1Score().to(model.device)
-    input_set = input_set.to(model.device)
-    target_set = target_set.to(model.device)
+    total_loss = 0.0
+    total_f1 = 0.0
+    total_iou = 0.0
+    total_samples = 0
+
     with torch.no_grad():
         model.eval()
-        if model.loss_type == LossType.BCE_KL:
-            reconst_imgs, mean, logvar = model.forward_full(input_set)
-            # calculate model's loss
-            loss = model.get_loss(reconst_imgs, target_set, mean, logvar)
+        for input_set, target_set in dataloader:
+            input_set = input_set.to(model.device)
+            target_set = target_set.to(model.device)
+            if model.loss_type == LossType.BCE_KL:
+                reconst_imgs, mean, logvar = model.forward_full(input_set)
+                loss = model.get_loss(reconst_imgs, target_set, mean, logvar)
+            elif model.loss_type == LossType.MSE_KL:
+                reconst_imgs, x_enc = model.forward_full(input_set)
+                loss = model.get_loss(reconst_imgs, target_set, x_enc)
+            else:
+                reconst_imgs = model(input_set)
+                loss = model.get_loss(reconst_imgs, target_set)
 
-        elif model.loss_type == LossType.MSE_KL:
-            reconst_imgs, x_enc = model.forward_full(input_set)
-            # calculate model's loss
-            loss = model.get_loss(reconst_imgs, target_set, x_enc)
-        else:
-            # inference
-            reconst_imgs = model(input_set)
-            # calculate model's loss
-            loss = model.get_loss(reconst_imgs, target_set)
+            batch_size = int(input_set.shape[0])
+            total_loss += float(loss.item()) * batch_size
+            total_iou += float(jaccard(reconst_imgs, target_set).item()) * batch_size
+            total_f1 += float(f1_score(reconst_imgs, target_set).item()) * batch_size
+            total_samples += batch_size
 
-        # tp, fp, fn, tn = smp.metrics.get_stats(reconst_imgs, target_set, mode='binary', threshold=0.5)
-        # iou = smp.metrics.iou_score(tp, fp, fn, tn, reduction="micro")
-        # f1 = smp.metrics.f1_score(tp, fp, fn, tn, reduction="micro")
+    model.train()
+    if total_samples == 0:
+        raise ValueError("Cannot evaluate an empty dataloader.")
 
-        # calculate IoU
-        iou = jaccard(reconst_imgs, target_set)
-        # calculate binary f1-score
-        f1 = f1_score(reconst_imgs, target_set)
-        model.train()
-        return loss.item(), f1.item(), iou.item()
+    return (
+        total_loss / total_samples,
+        total_f1 / total_samples,
+        total_iou / total_samples,
+    )
 
 
 class EvaluationCallback(Callback):
-    def __init__(self, train_set, val_set, every_n_epochs=1):
+    def __init__(self, val_loader, every_n_epochs=1):
         super().__init__()
-        self.train_inputs, self.train_targets = train_set[0], train_set[1]
-        self.val_inputs, self.val_targets = val_set[0], val_set[1]
+        self.val_loader = val_loader
         self.every_n_epochs = every_n_epochs
         self.best_f1 = 0
 
     def on_train_epoch_end(self, trainer, pl_module):
         if trainer.current_epoch % self.every_n_epochs == 0:
-            val_loss, val_f1, val_iou = _evaluate_model(
-                pl_module, self.val_inputs, self.val_targets
+            val_loss, val_f1, val_iou = _evaluate_model_loader(
+                pl_module, self.val_loader
             )
             if self.best_f1 < val_f1:
                 self.best_f1 = val_f1
@@ -276,10 +281,7 @@ def _train_model(
                 save_weights_only=True,
             ),
             # LearningRateMonitor("epoch"),
-            EvaluationCallback(
-                _get_eval_sets(train_dataset, is_single_input),
-                _get_eval_sets(val_dataset, is_single_input),
-            ),
+            EvaluationCallback(val_loader),
             EarlyStopping(monitor="val_loss", patience=10),
         ],
     )
@@ -398,7 +400,9 @@ def run(
     # TODO: note: use this to see the difference in learning with and without data augmentation
     # train_set.dataset = EnsembleDatasetC1(parquet_path, None)
 
-    batch_size = 7
+    batch_size = int(run_params.get("batch_size", 7))
+    if batch_size <= 0:
+        raise ValueError(f"batch_size must be positive, got {batch_size}")
     # dataloaders
     train_loader = data.DataLoader(
         train_set,

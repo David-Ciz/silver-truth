@@ -33,6 +33,7 @@ For detailed installation instructions and basic usage examples, please refer to
 
 ## Further Documentation
 
+*   [Current Pipeline Handoff](current_pipeline_handoff.md): Current-state summary of what the repository does, what QA and ensemble consume/produce, and which metric is the final comparable one.
 *   [Repository Workflow Map](repository_workflow_map.md): Canonical map of what currently runs, what each CLI does, and where ablations are orchestrated.
 *   [Executable Index](executable_index.md): Task-oriented list of what agents should try first, including maintained CLI entrypoints, scripts, and reusable functions.
 *   [DVC Guide](dvc_guide.md): Complete guide to setting up DVC and downloading datasets.

@@ -1,3 +1,4 @@
 extends: base
 dataset: BF-C2DL-MuSC
 crop_size: 320
+ensemble_batch_size: 2

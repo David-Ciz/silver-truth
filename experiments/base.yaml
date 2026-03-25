@@ -12,6 +12,7 @@ qa_input_channels: "0,1"
 ensemble_model_type: UnetPlusPlus
 ensemble_version: C1
 ensemble_max_epochs: 100
+ensemble_batch_size: 7
 ensemble_augmentation: basic
 ensemble_encoder_name: resnet34
 ensemble_encoder_weights: null
