@@ -1,0 +1,4 @@
+# Redundant but added for symmetry
+extends: base
+dataset: BF-C2DL-HSC
+crop_size: 64
