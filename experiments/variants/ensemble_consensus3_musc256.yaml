@@ -1,4 +1,4 @@
-# C3 consensus-summary ensemble on MuSC with the safer larger crop size.
+# C3 consensus-summary ensemble on MuSC with the validated larger crop size.
 extends: ensemble_consensus3.yaml
 
 dataset: BF-C2DL-MuSC
