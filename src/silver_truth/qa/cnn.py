@@ -24,6 +24,7 @@ from pathlib import Path
 import random
 import mlflow
 import pytorch_lightning as pl
+from scipy import ndimage
 from pytorch_lightning.callbacks import (
     ModelCheckpoint,
     EarlyStopping,
@@ -50,6 +51,22 @@ from silver_truth.experiment_tracking import (
 )
 
 LOGICAL_CELL_GROUP_COLUMNS = ("campaign_number", "original_image_key", "label")
+DEFAULT_METADATA_FEATURES = (
+    "center_agreement_count",
+    "crop_size",
+    "mask_area_ratio",
+    "mask_bbox_height_ratio",
+    "mask_bbox_width_ratio",
+    "mask_centroid_offset_y",
+    "mask_centroid_offset_x",
+    "mask_touches_top",
+    "mask_touches_bottom",
+    "mask_touches_left",
+    "mask_touches_right",
+    "raw_mean_inside_mask",
+    "raw_std_inside_mask",
+    "raw_mean_outside_mask",
+)
 
 
 def set_seed(seed: int):
@@ -80,7 +97,9 @@ class JaccardDataset(Dataset):
         augment=False,
         target_column=None,
         input_channels: Optional[Sequence[int] | str] = None,
+        metadata_features: Optional[Sequence[str] | str] = None,
         image_cache: Optional[dict[str, np.ndarray]] = None,
+        metadata_cache: Optional[dict[str, np.ndarray]] = None,
         cache_images: bool = True,
         preload_images: bool = False,
     ):
@@ -90,8 +109,10 @@ class JaccardDataset(Dataset):
         self.augment = augment
         self.target_column = self._resolve_target_column(target_column)
         self.input_channels = self._resolve_input_channels(input_channels)
+        self.metadata_features = self._resolve_metadata_features(metadata_features)
         self.cache_images = cache_images
         self.image_cache = image_cache if image_cache is not None else {}
+        self.metadata_cache = metadata_cache if metadata_cache is not None else {}
         self.image_paths = [
             self._resolve_image_path(path) for path in self.data["stacked_path"]
         ]
@@ -101,10 +122,13 @@ class JaccardDataset(Dataset):
             if "cell_id" in self.data.columns
             else [str(index) for index in self.data.index]
         )
+        self._metadata_scalers = self._build_metadata_scalers()
 
         if preload_images:
-            for image_path in self.image_paths:
+            for index, image_path in enumerate(self.image_paths):
                 self._get_cached_image(image_path)
+                if self.metadata_features:
+                    self._get_cached_metadata(index, image_path)
 
     def _resolve_target_column(self, target_column):
         if target_column:
@@ -152,6 +176,45 @@ class JaccardDataset(Dataset):
             )
         return parsed
 
+    def _resolve_metadata_features(
+        self, metadata_features: Optional[Sequence[str] | str]
+    ) -> tuple[str, ...]:
+        if metadata_features is None:
+            return ()
+        if isinstance(metadata_features, str):
+            normalized = metadata_features.strip().lower()
+            if normalized in {"", "none"}:
+                return ()
+            if normalized == "default":
+                return DEFAULT_METADATA_FEATURES
+            features = tuple(
+                part.strip() for part in metadata_features.split(",") if part.strip()
+            )
+        else:
+            features = tuple(str(value).strip() for value in metadata_features if str(value).strip())
+
+        unknown = sorted(set(features) - set(DEFAULT_METADATA_FEATURES))
+        if unknown:
+            raise ValueError(
+                f"Unknown metadata feature(s): {unknown}. "
+                f"Available: {sorted(DEFAULT_METADATA_FEATURES)}"
+            )
+        return features
+
+    def _build_metadata_scalers(self) -> dict[str, float]:
+        scalers: dict[str, float] = {}
+        if not self.metadata_features:
+            return scalers
+
+        if "center_agreement_count" in self.metadata_features and "center_agreement_count" in self.data.columns:
+            scalers["center_agreement_count"] = max(
+                float(self.data["center_agreement_count"].max()), 1.0
+            )
+        if "crop_size" in self.metadata_features and "crop_size" in self.data.columns:
+            crop_sizes = pd.to_numeric(self.data["crop_size"], errors="coerce").dropna()
+            scalers["crop_size"] = max(float(crop_sizes.max()), 1.0) if not crop_sizes.empty else 1.0
+        return scalers
+
     def __len__(self):
         return len(self.data)
 
@@ -163,7 +226,14 @@ class JaccardDataset(Dataset):
         if self.transform:
             image = self.transform(image.to(dtype=torch.float32).div(255.0))
 
-        return image, torch.tensor(self.targets[idx], dtype=torch.float32)
+        target = torch.tensor(self.targets[idx], dtype=torch.float32)
+        if not self.metadata_features:
+            return image, target
+
+        metadata = torch.from_numpy(
+            np.array(self._get_cached_metadata(idx, image_path), copy=True)
+        ).to(dtype=torch.float32)
+        return image, metadata, target
 
     def _resolve_image_path(self, rel_path) -> str:
         path = Path(rel_path)
@@ -172,6 +242,19 @@ class JaccardDataset(Dataset):
         return str(path)
 
     def _load_image(self, image_path: str) -> np.ndarray:
+        img_np = self._load_full_stack(image_path)
+
+        available_channels = img_np.shape[0]
+        max_requested_channel = max(self.input_channels)
+        if max_requested_channel >= available_channels:
+            raise ValueError(
+                f"Image at {image_path} has {available_channels} channels, "
+                f"but requested input_channels={self.input_channels}."
+            )
+
+        return np.ascontiguousarray(img_np[list(self.input_channels), :, :])
+
+    def _load_full_stack(self, image_path: str) -> np.ndarray:
         img_np = tifffile.imread(image_path)
 
         if img_np.ndim == 2:
@@ -189,16 +272,7 @@ class JaccardDataset(Dataset):
             raise ValueError(
                 f"Image at {image_path} has unsupported shape {img_np.shape}."
             )
-
-        available_channels = img_np.shape[0]
-        max_requested_channel = max(self.input_channels)
-        if max_requested_channel >= available_channels:
-            raise ValueError(
-                f"Image at {image_path} has {available_channels} channels, "
-                f"but requested input_channels={self.input_channels}."
-            )
-
-        return np.ascontiguousarray(img_np[list(self.input_channels), :, :])
+        return np.ascontiguousarray(img_np)
 
     def _get_cached_image(self, image_path: str) -> np.ndarray:
         if self.cache_images:
@@ -210,6 +284,64 @@ class JaccardDataset(Dataset):
         if self.cache_images:
             self.image_cache[image_path] = img_np
         return img_np
+
+    def _get_cached_metadata(self, idx: int, image_path: str) -> np.ndarray:
+        cached = self.metadata_cache.get(image_path)
+        if cached is not None:
+            return cached
+
+        metadata = self._compute_metadata(idx, image_path)
+        self.metadata_cache[image_path] = metadata
+        return metadata
+
+    def _compute_metadata(self, idx: int, image_path: str) -> np.ndarray:
+        row = self.data.iloc[idx]
+        stack = self._load_full_stack(image_path)
+        raw_channel = stack[0].astype(np.float32)
+        seg_channel = (stack[1] > 0).astype(np.uint8) if stack.shape[0] > 1 else np.zeros_like(raw_channel, dtype=np.uint8)
+        crop_height, crop_width = seg_channel.shape
+        mask_area_ratio = float(seg_channel.mean()) if seg_channel.size else 0.0
+
+        if seg_channel.any():
+            ys, xs = np.nonzero(seg_channel)
+            bbox_height_ratio = float((ys.max() - ys.min() + 1) / max(crop_height, 1))
+            bbox_width_ratio = float((xs.max() - xs.min() + 1) / max(crop_width, 1))
+            centroid_y, centroid_x = ndimage.center_of_mass(seg_channel)
+            centroid_offset_y = float((centroid_y - ((crop_height - 1) / 2.0)) / max(crop_height / 2.0, 1.0))
+            centroid_offset_x = float((centroid_x - ((crop_width - 1) / 2.0)) / max(crop_width / 2.0, 1.0))
+            raw_inside = raw_channel[seg_channel > 0]
+            raw_outside = raw_channel[seg_channel == 0]
+        else:
+            bbox_height_ratio = 0.0
+            bbox_width_ratio = 0.0
+            centroid_offset_y = 0.0
+            centroid_offset_x = 0.0
+            raw_inside = np.array([], dtype=np.float32)
+            raw_outside = raw_channel.reshape(-1)
+
+        feature_values: dict[str, float] = {
+            "center_agreement_count": float(row.get("center_agreement_count", 0.0))
+            / self._metadata_scalers.get("center_agreement_count", 1.0),
+            "crop_size": float(row.get("crop_size", 0.0) or 0.0)
+            / self._metadata_scalers.get("crop_size", 1.0),
+            "mask_area_ratio": mask_area_ratio,
+            "mask_bbox_height_ratio": bbox_height_ratio,
+            "mask_bbox_width_ratio": bbox_width_ratio,
+            "mask_centroid_offset_y": centroid_offset_y,
+            "mask_centroid_offset_x": centroid_offset_x,
+            "mask_touches_top": float(seg_channel[0, :].any()) if crop_height else 0.0,
+            "mask_touches_bottom": float(seg_channel[-1, :].any()) if crop_height else 0.0,
+            "mask_touches_left": float(seg_channel[:, 0].any()) if crop_width else 0.0,
+            "mask_touches_right": float(seg_channel[:, -1].any()) if crop_width else 0.0,
+            "raw_mean_inside_mask": float(raw_inside.mean() / 255.0) if raw_inside.size else 0.0,
+            "raw_std_inside_mask": float(raw_inside.std() / 255.0) if raw_inside.size else 0.0,
+            "raw_mean_outside_mask": float(raw_outside.mean() / 255.0) if raw_outside.size else 0.0,
+        }
+
+        return np.asarray(
+            [feature_values[feature_name] for feature_name in self.metadata_features],
+            dtype=np.float32,
+        )
 
 
 class GroupedJaccardDataset(Dataset):
@@ -238,31 +370,51 @@ class GroupedJaccardDataset(Dataset):
     def __len__(self) -> int:
         return len(self.group_indices)
 
-    def __getitem__(self, idx: int) -> tuple[torch.Tensor, torch.Tensor]:
+    def __getitem__(self, idx: int):
         member_indices = self.group_indices[idx]
         images = []
+        metadata_parts = []
         targets = []
         for member_index in member_indices:
-            image, target = self.base_dataset[member_index]
+            sample = self.base_dataset[member_index]
+            if len(sample) == 3:
+                image, metadata, target = sample
+                metadata_parts.append(metadata)
+            else:
+                image, target = sample
             images.append(image)
             targets.append(target)
 
+        if metadata_parts:
+            return (
+                torch.stack(images, dim=0),
+                torch.stack(metadata_parts, dim=0),
+                torch.stack(targets, dim=0),
+            )
         return torch.stack(images, dim=0), torch.stack(targets, dim=0)
 
 
-def collate_grouped_batch(
-    batch: list[tuple[torch.Tensor, torch.Tensor]]
-) -> dict[str, torch.Tensor]:
-    images = torch.cat([images for images, _ in batch], dim=0)
-    targets = torch.cat([targets for _, targets in batch], dim=0)
+def collate_grouped_batch(batch: list[tuple]) -> dict[str, torch.Tensor]:
+    first_sample = batch[0]
+    if len(first_sample) == 3:
+        images = torch.cat([images for images, _, _ in batch], dim=0)
+        metadata = torch.cat([metadata for _, metadata, _ in batch], dim=0)
+        targets = torch.cat([targets for _, _, targets in batch], dim=0)
+    else:
+        images = torch.cat([images for images, _ in batch], dim=0)
+        metadata = None
+        targets = torch.cat([targets for _, targets in batch], dim=0)
     group_sizes = torch.tensor(
-        [images.shape[0] for images, _ in batch], dtype=torch.long
+        [sample[0].shape[0] for sample in batch], dtype=torch.long
     )
-    return {
+    result = {
         "images": images,
         "targets": targets,
         "group_sizes": group_sizes,
     }
+    if metadata is not None:
+        result["metadata"] = metadata
+    return result
 
 
 # ---------------------------------------------------------------------------
@@ -276,8 +428,10 @@ class Jaccard(nn.Module):
         dropout_rate: float = 0.3,
         model_type: str = "resnet18",
         num_input_channels: int = 2,
+        metadata_dim: int = 0,
     ):
         super(Jaccard, self).__init__()
+        self.metadata_dim = int(metadata_dim)
 
         if model_type == "resnet18":
             self.model = resnet18(weights=ResNet18_Weights.IMAGENET1K_V1)
@@ -326,10 +480,26 @@ class Jaccard(nn.Module):
             )
 
         self.dropout = nn.Dropout(p=dropout_rate)
-        self.fc = nn.Linear(in_features, 1)
+        if self.metadata_dim > 0:
+            self.metadata_head = nn.Sequential(
+                nn.Linear(self.metadata_dim, 32),
+                nn.ReLU(),
+                nn.Dropout(p=dropout_rate),
+                nn.Linear(32, 32),
+                nn.ReLU(),
+            )
+            self.fc = nn.Linear(in_features + 32, 1)
+        else:
+            self.metadata_head = None
+            self.fc = nn.Linear(in_features, 1)
 
-    def forward(self, x):
+    def forward(self, x, metadata: Optional[torch.Tensor] = None):
         x = self.model(x)
+        if self.metadata_head is not None:
+            if metadata is None:
+                raise ValueError("metadata tensor is required when metadata_dim > 0.")
+            metadata_features = self.metadata_head(metadata)
+            x = torch.cat([x, metadata_features], dim=1)
         x = self.dropout(x)
         x = self.fc(x)
         return x
@@ -352,6 +522,7 @@ class JaccardLightningModule(pl.LightningModule):
         grad_clip: float = 1.0,
         augment_batches: bool = False,
         num_input_channels: int = 2,
+        metadata_dim: int = 0,
         ranking_loss_weight: float = 0.0,
     ):
         super().__init__()
@@ -361,6 +532,7 @@ class JaccardLightningModule(pl.LightningModule):
             dropout_rate=dropout_rate,
             model_type=model_type,
             num_input_channels=num_input_channels,
+            metadata_dim=metadata_dim,
         )
         self.criterion = nn.MSELoss()
 
@@ -369,8 +541,8 @@ class JaccardLightningModule(pl.LightningModule):
         self.val_r2 = torchmetrics.R2Score()
 
     # ------------------------------------------------------------------
-    def forward(self, x):
-        return self.model(x)
+    def forward(self, x, metadata: Optional[torch.Tensor] = None):
+        return self.model(x, metadata=metadata)
 
     # ------------------------------------------------------------------
     def on_after_batch_transfer(self, batch, dataloader_idx):
@@ -378,30 +550,48 @@ class JaccardLightningModule(pl.LightningModule):
             images = batch["images"]
             targets = batch["targets"]
             group_sizes = batch.get("group_sizes")
+            metadata = batch.get("metadata")
         else:
-            images, targets = batch
+            if len(batch) == 3:
+                images, metadata, targets = batch
+            else:
+                images, targets = batch
+                metadata = None
             group_sizes = None
         should_augment = bool(self.training and self.hparams.augment_batches)
         prepared_images = prepare_images_for_model(images, augment=should_augment)
         if isinstance(batch, dict):
-            return {
+            result = {
                 "images": prepared_images,
                 "targets": targets,
                 "group_sizes": group_sizes,
             }
+            if metadata is not None:
+                result["metadata"] = metadata.to(dtype=torch.float32)
+            return result
+        if metadata is not None:
+            return prepared_images, metadata.to(dtype=torch.float32), targets
         return prepared_images, targets
 
     def _unpack_batch(
         self, batch
-    ) -> tuple[torch.Tensor, torch.Tensor, Optional[torch.Tensor]]:
+    ) -> tuple[torch.Tensor, Optional[torch.Tensor], torch.Tensor, Optional[torch.Tensor]]:
         if isinstance(batch, dict):
-            return batch["images"], batch["targets"], batch.get("group_sizes")
+            return (
+                batch["images"],
+                batch.get("metadata"),
+                batch["targets"],
+                batch.get("group_sizes"),
+            )
+        if len(batch) == 3:
+            images, metadata, targets = batch
+            return images, metadata, targets, None
         images, targets = batch
-        return images, targets, None
+        return images, None, targets, None
 
     def _shared_step(self, batch):
-        images, targets, group_sizes = self._unpack_batch(batch)
-        preds = self(images).squeeze(dim=1)
+        images, metadata, targets, group_sizes = self._unpack_batch(batch)
+        preds = self(images, metadata=metadata).squeeze(dim=1)
         loss = self.criterion(preds, targets)
         return loss, preds, targets, group_sizes
 
@@ -583,10 +773,16 @@ def evaluate_model_with_ids(model, dataset, indices, batch_size, device):
     eval_loader = DataLoader(eval_subset, batch_size=batch_size, shuffle=False)
 
     with torch.no_grad():
-        for batch_idx, (images, targets) in enumerate(eval_loader):
+        for batch_idx, batch in enumerate(eval_loader):
+            if len(batch) == 3:
+                images, metadata, targets = batch
+                metadata = metadata.to(device)
+            else:
+                images, targets = batch
+                metadata = None
             images, targets = images.to(device), targets.to(device)
             images = prepare_images_for_model(images, augment=False)
-            outputs = nn_model(images)
+            outputs = nn_model(images, metadata=metadata)
             predictions.extend(outputs.squeeze(dim=1).cpu().numpy())
             actuals.extend(targets.cpu().numpy())
 
@@ -626,6 +822,20 @@ def _count_input_channels_from_metadata(metadata: dict) -> int:
     return 2
 
 
+def _count_metadata_dim_from_metadata(metadata: dict) -> int:
+    raw_metadata_features = metadata.get("metadata_features")
+    if raw_metadata_features is None:
+        return 0
+    if isinstance(raw_metadata_features, str):
+        normalized = raw_metadata_features.strip().lower()
+        if normalized in {"", "none"}:
+            return 0
+        return len([part for part in raw_metadata_features.split(",") if part.strip()])
+    if isinstance(raw_metadata_features, Sequence):
+        return len(raw_metadata_features)
+    return 0
+
+
 def load_model(path, device):
     """
     Load a model from checkpoint.
@@ -643,11 +853,13 @@ def load_model(path, device):
     dropout_rate = metadata.get("dropout_rate", 0.3)
     model_type = metadata.get("model_type", "resnet50")
     num_input_channels = _count_input_channels_from_metadata(metadata)
+    metadata_dim = _count_metadata_dim_from_metadata(metadata)
 
     model = Jaccard(
         dropout_rate=dropout_rate,
         model_type=model_type,
         num_input_channels=num_input_channels,
+        metadata_dim=metadata_dim,
     ).to(device)
     model.load_state_dict(checkpoint["model_state_dict"])
     print(f"Model loaded from {path}")
@@ -692,6 +904,7 @@ def train(
     data_root=None,
     target_column=None,
     input_channels: Optional[Sequence[int] | str] = None,
+    metadata_features: Optional[Sequence[str] | str] = None,
     output_model="cnn_jaccard.pt",
     output_excel="results_cnn.xlsx",
     batch_size=16,
@@ -745,6 +958,7 @@ def train(
         logger_run_id = logger_run.info.run_id
 
     shared_image_cache: dict[str, np.ndarray] = {}
+    shared_metadata_cache: dict[str, np.ndarray] = {}
 
     # ------------------------------------------------------------------
     # Datasets
@@ -756,7 +970,9 @@ def train(
         augment=False,
         target_column=target_column,
         input_channels=input_channels,
+        metadata_features=metadata_features,
         image_cache=shared_image_cache,
+        metadata_cache=shared_metadata_cache,
         preload_images=True,
     )
     eval_dataset = JaccardDataset(
@@ -766,11 +982,21 @@ def train(
         augment=False,
         target_column=target_column,
         input_channels=input_channels,
+        metadata_features=metadata_features,
         image_cache=shared_image_cache,
+        metadata_cache=shared_metadata_cache,
     )
 
     print(f"Using target column: {train_dataset.target_column}")
     print(f"Using input channels: {train_dataset.input_channels}")
+    print(
+        "Using metadata features: "
+        + (
+            ",".join(train_dataset.metadata_features)
+            if train_dataset.metadata_features
+            else "none"
+        )
+    )
 
     train_indices, val_indices, test_indices = get_split_indices(train_dataset)
     grouped_train_dataset = GroupedJaccardDataset(train_dataset, train_indices)
@@ -811,6 +1037,7 @@ def train(
         grad_clip=grad_clip,
         augment_batches=augment,
         num_input_channels=len(train_dataset.input_channels),
+        metadata_dim=len(train_dataset.metadata_features),
         ranking_loss_weight=ranking_loss_weight,
     )
     print(f"Using model: {model_type}")
@@ -853,6 +1080,9 @@ def train(
             "parquet_file": str(parquet_file),
             "target_column": str(train_dataset.target_column),
             "input_channels": ",".join(str(ch) for ch in train_dataset.input_channels),
+            "metadata_features": ",".join(train_dataset.metadata_features)
+            if train_dataset.metadata_features
+            else "none",
             "ranking_loss_weight": ranking_loss_weight,
         }
     )
@@ -924,6 +1154,9 @@ def train(
         "test_samples": len(test_indices),
         "target_column": str(train_dataset.target_column),
         "input_channels": ",".join(str(ch) for ch in train_dataset.input_channels),
+        "metadata_features": ",".join(train_dataset.metadata_features)
+        if train_dataset.metadata_features
+        else "none",
         "ranking_loss_weight": ranking_loss_weight,
     }
     save_model(lightning_model, output_model_path, metadata)
@@ -968,6 +1201,7 @@ def evaluate(
     data_root=None,
     target_column=None,
     input_channels: Optional[Sequence[int] | str] = None,
+    metadata_features: Optional[Sequence[str] | str] = None,
     model_path=None,
     output_excel="results_cnn.xlsx",
     batch_size=16,
@@ -994,6 +1228,11 @@ def evaluate(
     effective_input_channels = (
         input_channels if input_channels is not None else metadata.get("input_channels")
     )
+    effective_metadata_features = (
+        metadata_features
+        if metadata_features is not None
+        else metadata.get("metadata_features")
+    )
 
     dataset = JaccardDataset(
         parquet_file,
@@ -1001,10 +1240,15 @@ def evaluate(
         transform=None,
         target_column=effective_target_column,
         input_channels=effective_input_channels,
+        metadata_features=effective_metadata_features,
         preload_images=True,
     )
     print(f"Using target column: {dataset.target_column}")
     print(f"Using input channels: {dataset.input_channels}")
+    print(
+        "Using metadata features: "
+        + (",".join(dataset.metadata_features) if dataset.metadata_features else "none")
+    )
     train_indices, val_indices, test_indices = get_split_indices(dataset)
     print(
         f"Dataset splits - Train: {len(train_indices)}, Val: {len(val_indices)}, Test: {len(test_indices)}"

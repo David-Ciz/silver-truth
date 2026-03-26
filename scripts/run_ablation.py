@@ -473,6 +473,7 @@ def build_steps(cfg: dict[str, Any]) -> list[dict[str, Any]]:
                     f"  --output-excel {qa_excel} "
                     f"  --model-type {cfg['qa_model_type']} "
                     f"  --input-channels {cfg['qa_input_channels']} "
+                    f"  --metadata-features {cfg['qa_metadata_features']} "
                     f"  --ranking-loss-weight {cfg['qa_ranking_loss_weight']} "
                     f"  --mlflow-experiment {phaseb_qa_train_experiment} "
                     f"  --mlflow-run-name qa_train"

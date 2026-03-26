@@ -244,6 +244,16 @@ def cnn() -> None:
     help="Comma-separated channel indices from stacked TIFF used as model input.",
 )
 @click.option(
+    "--metadata-features",
+    type=str,
+    default="none",
+    show_default=True,
+    help=(
+        "Comma-separated QA metadata/context features to append to the CNN head. "
+        "Use 'default' for the curated feature set or 'none' to disable."
+    ),
+)
+@click.option(
     "--output-model",
     type=click.Path(),
     default="cnn_jaccard.pt",
@@ -321,6 +331,7 @@ def cnn_train(
     data_root: Optional[str],
     target_column: Optional[str],
     input_channels: str,
+    metadata_features: str,
     output_model: str,
     output_excel: str,
     batch_size: int,
@@ -347,6 +358,7 @@ def cnn_train(
         data_root=data_root,
         target_column=target_column,
         input_channels=input_channels,
+        metadata_features=metadata_features,
         output_model=output_model,
         output_excel=output_excel,
         batch_size=batch_size,
@@ -394,6 +406,15 @@ def cnn_train(
     help="Comma-separated channel indices from stacked TIFF used as model input.",
 )
 @click.option(
+    "--metadata-features",
+    type=str,
+    default=None,
+    help=(
+        "Optional comma-separated metadata/context features for evaluation. "
+        "If omitted, the value stored in the checkpoint metadata is used."
+    ),
+)
+@click.option(
     "--model-path",
     type=click.Path(exists=True),
     required=True,
@@ -411,6 +432,7 @@ def cnn_evaluate(
     data_root: Optional[str],
     target_column: Optional[str],
     input_channels: str,
+    metadata_features: Optional[str],
     model_path: str,
     output_excel: str,
     batch_size: int,
@@ -423,6 +445,7 @@ def cnn_evaluate(
         data_root=data_root,
         target_column=target_column,
         input_channels=input_channels,
+        metadata_features=metadata_features,
         model_path=model_path,
         output_excel=output_excel,
         batch_size=batch_size,

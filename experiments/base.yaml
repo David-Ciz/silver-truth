@@ -9,6 +9,7 @@ crop_size: 64
 # ── Models ────────────────────────────────────────────────────────────────────
 qa_model_type: resnet18
 qa_input_channels: "0,1"
+qa_metadata_features: "none"
 qa_ranking_loss_weight: 0.5
 ensemble_model_type: UnetPlusPlus
 ensemble_version: C1
