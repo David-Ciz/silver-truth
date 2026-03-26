@@ -1,0 +1,2 @@
+# Alias config with explicit crop tag in the variant name for cleaner MLflow summaries.
+extends: ensemble_consensus3.yaml
