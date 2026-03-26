@@ -448,7 +448,7 @@ def cli():
 @click.option(
     "--parquet-file",
     type=click.Path(exists=True),
-    required=True,
+    default="BF-C2DL-HSC_QA_crops_64_split70-15-15_seed42.parquet",
     help="Path to the input Parquet file.",
 )
 @click.option(
@@ -460,7 +460,7 @@ def cli():
 @click.option(
     "--model-path",
     type=click.Path(exists=True),
-    required=True,
+    default="efficientnet_b7_jaccard.pt",
     help="Path to the trained model checkpoint.",
 )
 @click.option(
@@ -499,6 +499,18 @@ def cli():
     default=None,
     help="Limit number of samples to test (default: all).",
 )
+@click.option(
+    "--save-degraded-images/--no-save-degraded-images",
+    default=True,
+    help="Save degraded segmentation images for visualization.",
+)
+@click.option(
+    "--num-saved-samples",
+    type=int,
+    default=3,
+    show_default=True,
+    help="Number of samples to save as images when saving is enabled.",
+)
 def robustness_test(
     parquet_file,
     data_root,
@@ -509,6 +521,8 @@ def robustness_test(
     batch_size,
     test_split_only,
     num_samples,
+    save_degraded_images,
+    num_saved_samples,
 ):
     """Test model robustness on degraded segmentations."""
     
@@ -572,36 +586,42 @@ def robustness_test(
     orig_target_dict = {cid: tgt for cid, tgt in zip(orig_cell_ids, orig_targets)}
     
     # Save original masks as reference
-    logger.info("Saving original masks...")
-    data = pd.read_parquet(parquet_file)
-    data_root_path = Path(data_root) if data_root else None
-    for idx in indices[:10] if num_samples and num_samples < 100 else indices:  # Sample for speed
-        try:
-            row = data.iloc[idx]
-            rel_path = row["stacked_path"]
-            cell_id = row.get("cell_id", idx)
-            
-            if data_root_path:
-                image_path = data_root_path / rel_path
-            else:
-                image_path = rel_path
-            
-            img_np = tifffile.imread(image_path)
-            if img_np.ndim == 3:
-                if img_np.shape[0] == 2:
-                    seg_mask = img_np[1]
-                elif img_np.shape[-1] == 2:
-                    seg_mask = img_np[:, :, 1]
+    if save_degraded_images:
+        logger.info("Saving original masks...")
+        data = pd.read_parquet(parquet_file)
+        data_root_path = Path(data_root) if data_root else None
+        if num_saved_samples is not None and num_saved_samples > 0:
+            image_save_indices = indices[:num_saved_samples]
+        else:
+            image_save_indices = indices
+
+        for idx in image_save_indices:
+            try:
+                row = data.iloc[idx]
+                rel_path = row["stacked_path"]
+                cell_id = row.get("cell_id", idx)
+                
+                if data_root_path:
+                    image_path = data_root_path / rel_path
+                else:
+                    image_path = rel_path
+                
+                img_np = tifffile.imread(image_path)
+                if img_np.ndim == 3:
+                    if img_np.shape[0] == 2:
+                        seg_mask = img_np[1]
+                    elif img_np.shape[-1] == 2:
+                        seg_mask = img_np[:, :, 1]
+                    else:
+                        continue
                 else:
                     continue
-            else:
+                
+                seg_mask = seg_mask.astype(np.float32) / 255.0
+                save_original_image(seg_mask, cell_id, output_images_dir)
+            except Exception as e:
+                logger.warning(f"Error saving original for index {idx}: {e}")
                 continue
-            
-            seg_mask = seg_mask.astype(np.float32) / 255.0
-            save_original_image(seg_mask, cell_id, output_images_dir)
-        except Exception as e:
-            logger.warning(f"Error saving original for index {idx}: {e}")
-            continue
     
     # Test each degradation
     for deg_type, deg_intensity in degradation_configs:
@@ -620,15 +640,16 @@ def robustness_test(
         )
         
         # Extract and save degraded masks (for visualization)
-        logger.info(f"Extracting and saving degraded masks for {deg_type}...")
-        extract_degraded_masks(
-            parquet_file,
-            data_root,
-            indices,
-            deg_type,
-            deg_intensity,
-            output_images_dir,
-        )
+        if save_degraded_images:
+            logger.info(f"Extracting and saving degraded masks for {deg_type}...")
+            extract_degraded_masks(
+                parquet_file,
+                data_root,
+                image_save_indices,
+                deg_type,
+                deg_intensity,
+                output_images_dir,
+            )
         
         # Compare predictions
         for cid, deg_pred, deg_target in zip(deg_cell_ids, deg_predictions, deg_targets):
@@ -705,6 +726,133 @@ def robustness_test(
         logger.info(f"  Min prediction shift:  {stats['min_shift']:.4f}")
         logger.info(f"  Max prediction shift:  {stats['max_shift']:.4f}")
         logger.info(f"  Samples: {stats['n_samples']}")
+
+
+@cli.command()
+@click.option(
+    "--images-dir",
+    type=click.Path(exists=True),
+    default="robustness_images",
+    show_default=True,
+    help="Directory with degraded segmentation images (output of robustness-test).",
+)
+@click.option(
+    "--json-file",
+    type=click.Path(exists=True),
+    default="robustness_summary.json",
+    show_default=True,
+    help="Path to the JSON summary file produced by robustness-test.",
+)
+@click.option(
+    "--output-dir",
+    type=click.Path(),
+    default="robustness_visualizations",
+    show_default=True,
+    help="Directory where visualization PNGs will be saved.",
+)
+@click.option(
+    "--max-cells",
+    type=int,
+    default=3,
+    show_default=True,
+    help="Maximum number of cells to include in the image grid (displayed horizontally).",
+)
+def visualize(images_dir, json_file, output_dir, max_cells):
+    """Visualize degraded segmentation images and prediction-shift summary."""
+    import matplotlib
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+    import matplotlib.gridspec as gridspec
+
+    images_dir = Path(images_dir)
+    output_dir = Path(output_dir)
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    # ------------------------------------------------------------------ #
+    # 1. Image grid: original vs every degradation, one column per cell  #
+    # ------------------------------------------------------------------ #
+    subdirs = sorted([d for d in images_dir.iterdir() if d.is_dir()])
+    if not subdirs:
+        logger.warning(f"No subdirectories found in {images_dir}. Run robustness-test first.")
+        return
+
+    # Collect cell IDs from the 'original' folder (or first available folder)
+    original_dir = images_dir / "original"
+    ref_dir = original_dir if original_dir.exists() else subdirs[0]
+    cell_files = sorted(ref_dir.glob("*.tif"))[:max_cells]
+    cell_ids = [f.stem for f in cell_files]
+
+    if not cell_ids:
+        logger.warning(f"No .tif files found in {ref_dir}.")
+    else:
+        n_rows = len(subdirs)
+        n_cols = len(cell_ids)
+        fig, axes = plt.subplots(
+            n_rows, n_cols,
+            figsize=(max(12, n_cols * 1.8), max(6, n_rows * 1.6)),
+            squeeze=False,
+        )
+
+        for row_idx, subdir in enumerate(subdirs):
+            label = subdir.name
+            for col_idx, cell_id in enumerate(cell_ids):
+                ax = axes[row_idx][col_idx]
+                tif_path = subdir / f"{cell_id}.tif"
+                if tif_path.exists():
+                    img = tifffile.imread(str(tif_path))
+                    ax.imshow(img, cmap="gray", vmin=0, vmax=255)
+                else:
+                    ax.text(0.5, 0.5, "N/A", ha="center", va="center",
+                            transform=ax.transAxes, fontsize=8, color="red")
+                ax.axis("off")
+                if row_idx == 0:
+                    ax.set_title(f"cell {cell_id}", fontsize=8)
+                if col_idx == 0:
+                    ax.set_ylabel(label, fontsize=7, rotation=0, labelpad=60,
+                                  va="center")
+
+        fig.suptitle("Segmentation masks: original vs degradations", fontsize=11, y=1.01)
+        fig.tight_layout()
+        grid_path = output_dir / "image_grid.png"
+        fig.savefig(grid_path, dpi=150, bbox_inches="tight")
+        plt.close(fig)
+        logger.info(f"Image grid saved to {grid_path}")
+
+    # ------------------------------------------------------------------ #
+    # 2. Bar chart: mean prediction shift per degradation type           #
+    # ------------------------------------------------------------------ #
+    if json_file and Path(json_file).exists():
+        with open(json_file) as f:
+            summary_data = json.load(f)
+
+        stats = summary_data.get("summary_statistics", {})
+        if stats:
+            labels = list(stats.keys())
+            mean_shifts = [stats[k]["mean_shift"] for k in labels]
+            std_shifts = [stats[k]["std_shift"] for k in labels]
+
+            colors = ["steelblue" if v >= 0 else "tomato" for v in mean_shifts]
+
+            fig, ax = plt.subplots(figsize=(max(8, len(labels) * 0.9), 5))
+            bars = ax.bar(range(len(labels)), mean_shifts, yerr=std_shifts,
+                          color=colors, capsize=4, edgecolor="black", linewidth=0.6)
+            ax.axhline(0, color="black", linewidth=0.8, linestyle="--")
+            ax.set_xticks(range(len(labels)))
+            ax.set_xticklabels(labels, rotation=40, ha="right", fontsize=8)
+            ax.set_ylabel("Mean prediction shift (degraded − original)")
+            ax.set_title("Robustness: mean prediction shift per degradation type")
+            fig.tight_layout()
+
+            bar_path = output_dir / "prediction_shift_chart.png"
+            fig.savefig(bar_path, dpi=150, bbox_inches="tight")
+            plt.close(fig)
+            logger.info(f"Prediction-shift bar chart saved to {bar_path}")
+        else:
+            logger.warning("No summary_statistics found in JSON file.")
+    else:
+        logger.warning(f"JSON file not found: {json_file}. Skipping bar chart.")
+
+    logger.info(f"All visualizations saved to: {output_dir}")
 
 
 if __name__ == "__main__":
