@@ -12,7 +12,11 @@ from pathlib import Path
 from typing import Optional
 from silver_truth.ensemble.model_unet_mult_input import Unet_Mult_Input
 from silver_truth.ensemble.model_unet_dynamic import Unet_Dynamic
-from silver_truth.ensemble.datasets import Version, get_dataset_class
+from silver_truth.ensemble.datasets import (
+    Version,
+    get_dataset_class,
+    get_input_channels,
+)
 from silver_truth.ensemble.models_loss_type import LossType
 from silver_truth.ensemble.models import ModelType, SMP_Model
 import silver_truth.ensemble.utils as utils
@@ -197,7 +201,7 @@ def _train_model(
     train_loader,
     val_loader,
     test_loader,
-    is_single_input,
+    input_channels,
 ):
     device = utils.get_device()
     print("Device:", device)
@@ -228,10 +232,9 @@ def _train_model(
         model_pl = Unet_Dynamic(model_type, device)
 
     else:
-        num_inputs = 1 if is_single_input else 2
         model_pl = SMP_Model(
             model_type,
-            num_inputs=num_inputs,
+            num_inputs=input_channels,
             encoder_name=encoder_name,
             encoder_weights=encoder_weights,
         )
@@ -385,7 +388,7 @@ def run(
         dataset_version = Version[version_str]
     else:
         dataset_version = databank_opt.get("dataset", Version.C1)
-    is_single_input = dataset_version in (Version.A1, Version.B1, Version.C1)
+    input_channels = get_input_channels(dataset_version)
 
     # get datasets
     dataset_class = get_dataset_class(dataset_version)
@@ -440,7 +443,7 @@ def run(
         train_loader,
         val_loader,
         test_loader,
-        is_single_input,
+        input_channels,
     )
 
     print("Done.")

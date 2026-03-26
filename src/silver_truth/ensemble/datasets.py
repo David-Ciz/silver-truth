@@ -17,6 +17,7 @@ class Version(Enum):
     B3 = 5  # segs, gt          [N,1]
     C1 = 6  # norm_seg, gt      [1,1]
     C2 = 7  # norm_seg&raw, gt  [2,1]
+    C3 = 8  # overlap+union+disagreement, gt [3,1]
 
 
 def get_dataset_class(version: Version):
@@ -30,8 +31,22 @@ def get_dataset_class(version: Version):
         return EnsembleDatasetC1
     elif version == Version.C2:
         return EnsembleDatasetC2
+    elif version == Version.C3:
+        return EnsembleDatasetC3
     else:
         raise Exception(f"Error: dataset version '{version.name}' not implemented!")
+
+
+def get_input_channels(version: Version) -> int:
+    if version in (Version.A1, Version.B1, Version.C1):
+        return 1
+    if version == Version.C2:
+        return 2
+    if version == Version.C3:
+        return 3
+    raise Exception(
+        f"Error: dataset version '{version.name}' does not have a fixed input channel count."
+    )
 
 
 class EnsembleDatasetA1(Dataset):
@@ -321,6 +336,55 @@ class EnsembleDatasetC2(Dataset):
 
     def __getitem__(self, index):
         # self.data[index] is (2, H, W) — transpose to (H, W, 2) for albumentations
+        data = np.transpose(self.data[index], (1, 2, 0))
+        augmented = self.transform(image=data, mask=self.gts[index])
+        return augmented["image"], augmented["mask"].unsqueeze(-3)
+
+
+class EnsembleDatasetC3(Dataset):
+    """
+    Ensemble dataset data structure C3.
+
+    Input:
+        - normalized overlap of competitor segmentations
+        - union mask of all competitor segmentations
+        - disagreement map derived from overlap consensus
+    Label: crop image of ground truth.
+    """
+
+    def __init__(
+        self,
+        ensemble_parquet_path,
+        split,
+        transform: Optional[Callable] = None,
+    ) -> None:
+        super().__init__()
+        df = ext.load_parquet(ensemble_parquet_path)
+
+        self.version = Version.C3
+        if transform is None:
+            self.transform = A.Compose([A.ToTensorV2()])
+        else:
+            self.transform = transform
+        self.data = []
+        self.gts = []
+
+        for row in df.itertuples():
+            if split != "all" and row.split != split:
+                continue
+
+            composed_image = tifffile.imread(row.image_path)  # type: ignore
+            overlap = composed_image[0].astype(dtype=np.float32) / 255
+            union = composed_image[1].astype(dtype=np.float32) / 255
+            disagreement = composed_image[2].astype(dtype=np.float32) / 255
+            gt_image = composed_image[3].astype(dtype=np.float32) / 255
+            self.data.append(np.array([overlap, union, disagreement]))
+            self.gts.append(gt_image)
+
+    def __len__(self) -> int:
+        return len(self.data)
+
+    def __getitem__(self, index):
         data = np.transpose(self.data[index], (1, 2, 0))
         augmented = self.transform(image=data, mask=self.gts[index])
         return augmented["image"], augmented["mask"].unsqueeze(-3)

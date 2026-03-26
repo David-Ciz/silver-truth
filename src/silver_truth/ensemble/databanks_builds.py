@@ -32,6 +32,17 @@ def _load_training_qa_dataframe(qa_dataset_path: str) -> pd.DataFrame:
     return df
 
 
+def _resolve_databank_version(build_opt: dict) -> Version:
+    version = build_opt.get("databank", build_opt.get("version"))
+    if version is None:
+        raise KeyError("build_opt must define 'databank' or legacy 'version'.")
+    return version
+
+
+def _to_uint8_probability(probability_map: np.ndarray) -> np.ndarray:
+    return np.clip(np.rint(probability_map * 255.0), 0, 255).astype(np.uint8)
+
+
 def build_analysis_databank_full(qa_dataset_path: str, output_path: str) -> None:
     """
     Creates an image dataset for helping visualizing the differences between GT and proposed segmentations.
@@ -137,11 +148,14 @@ def build_analysis_databank(qa_dataset_path: str, output_path: str) -> None:
 
 
 def build_databank(build_opt: dict, qa_dataset_path: str, output_path: str) -> str:
-    if build_opt["databank"] in (Version.C1, Version.C2):
+    databank_version = _resolve_databank_version(build_opt)
+    if databank_version in (Version.C1, Version.C2, Version.C3):
+        build_opt = dict(build_opt)
+        build_opt["databank"] = databank_version
         return build_databank_Norm(build_opt, qa_dataset_path, output_path)
 
     raise Exception(
-        f"Error: Dataset version '{build_opt['databank']}' not yet supported."
+        f"Error: Dataset version '{databank_version}' not yet supported."
     )
 
 
@@ -271,6 +285,8 @@ def build_databank_Norm(build_opt: dict, qa_dataset_path: str, output_path: str)
     """
     # TODO: update description.
 
+    databank_version = _resolve_databank_version(build_opt)
+
     # destination path of the created images
     databank_foldername = utils.get_databank_name(build_opt)
     images_output_path = os.path.join(output_path, databank_foldername)
@@ -303,8 +319,10 @@ def build_databank_Norm(build_opt: dict, qa_dataset_path: str, output_path: str)
         df_shared_gt = df[df["gt_image"] == gt_image_path]
         # load gt image
         gt_image = tifffile.imread(gt_image_path)
-        # load raw image
-        raw_image = tifffile.imread(df_shared_gt["original_image_path"].values[0])
+        raw_image = None
+        if databank_version != Version.C3:
+            # load raw image only for variants that expose it as an input layer
+            raw_image = tifffile.imread(df_shared_gt["original_image_path"].values[0])
         # find the different labels in a gt
         labels = np.unique(gt_image)[1:]
 
@@ -312,8 +330,9 @@ def build_databank_Norm(build_opt: dict, qa_dataset_path: str, output_path: str)
         for label in labels:
             # dataframe with competitors segmentation for the same cell
             df_same_cell = df_shared_gt[df_shared_gt["label"] == label]
-            # create array for the summation
-            canvas = np.zeros((canvas_size, canvas_size), dtype=np.int32)
+            # create arrays for the consensus summary channels
+            canvas_sum = np.zeros((canvas_size, canvas_size), dtype=np.float32)
+            canvas_union = np.zeros((canvas_size, canvas_size), dtype=np.float32)
             # select first row
             first_row = df_same_cell.iloc[0]
             # confirm that all cells have the same split type
@@ -341,7 +360,9 @@ def build_databank_Norm(build_opt: dict, qa_dataset_path: str, output_path: str)
             # go through the competitors segmentations and add them to canvas
             for row in df_same_cell.itertuples():
                 # load competitor segmentation from qa
-                competitor_qa_image = tifffile.imread(row.stacked_path)[1]
+                competitor_qa_image = (tifffile.imread(row.stacked_path)[1] > 0).astype(
+                    np.float32
+                )
                 # finds the starting point for the crop square
                 start_y = (
                     canvas_half_size
@@ -356,14 +377,27 @@ def build_databank_Norm(build_opt: dict, qa_dataset_path: str, output_path: str)
                     - qa_crop_original_center_x
                 )
                 # create an image that is the sum of all segmentations of a label
-                canvas[
+                canvas_sum[
                     start_y : start_y + crop_size, start_x : start_x + crop_size
                 ] += competitor_qa_image
+                canvas_union[
+                    start_y : start_y + crop_size, start_x : start_x + crop_size
+                ] = np.maximum(
+                    canvas_union[
+                        start_y : start_y + crop_size, start_x : start_x + crop_size
+                    ],
+                    competitor_qa_image,
+                )
 
-            # normalized competitors sumation
-            canvas = (canvas // len(df_same_cell)).astype(np.uint8)
+            # normalized competitors summation in probability space
+            overlap_probability = canvas_sum / float(len(df_same_cell))
+            overlap_canvas = _to_uint8_probability(overlap_probability)
+            disagreement_canvas = _to_uint8_probability(
+                4.0 * overlap_probability * (1.0 - overlap_probability)
+            )
+            union_canvas = _to_uint8_probability(canvas_union)
             # find the center of the image summation
-            canvas_mask = (canvas > 0).astype(np.uint8)
+            canvas_mask = (overlap_canvas > 0).astype(np.uint8)
             obj_slice_y, obj_slice_x = find_objects(canvas_mask)[0]
             obj_center_y = obj_slice_y.start + (
                 (obj_slice_y.stop - obj_slice_y.start) // 2
@@ -378,7 +412,13 @@ def build_databank_Norm(build_opt: dict, qa_dataset_path: str, output_path: str)
                 obj_center_y - crop_half_size,
                 obj_center_x - crop_half_size,
             )
-            canvas_crop = canvas[
+            overlap_crop = overlap_canvas[
+                obj_min_y : obj_min_y + crop_size, obj_min_x : obj_min_x + crop_size
+            ]
+            union_crop = union_canvas[
+                obj_min_y : obj_min_y + crop_size, obj_min_x : obj_min_x + crop_size
+            ]
+            disagreement_crop = disagreement_canvas[
                 obj_min_y : obj_min_y + crop_size, obj_min_x : obj_min_x + crop_size
             ]
             # crop full gt image according to canvas and center of segmentation summation
@@ -388,18 +428,24 @@ def build_databank_Norm(build_opt: dict, qa_dataset_path: str, output_path: str)
             gt_crop_max_x = gt_crop_min_x + crop_size
 
             gt_temp = gt_image.copy()
-            raw_temp = raw_image.copy()
+            raw_temp = raw_image.copy() if raw_image is not None else None
 
             if gt_crop_min_y < 0:
                 y_inc = -gt_crop_min_y
                 gt_temp = np.vstack((np.zeros((y_inc, gt_temp.shape[1])), gt_temp))
-                raw_temp = np.vstack((np.zeros((y_inc, raw_temp.shape[1])), raw_temp))
+                if raw_temp is not None:
+                    raw_temp = np.vstack(
+                        (np.zeros((y_inc, raw_temp.shape[1])), raw_temp)
+                    )
                 gt_crop_max_y += y_inc
                 gt_crop_min_y = 0
             if gt_crop_min_x < 0:
                 x_inc = -gt_crop_min_x
                 gt_temp = np.hstack((np.zeros((gt_temp.shape[0], x_inc)), gt_temp))
-                raw_temp = np.hstack((np.zeros((raw_temp.shape[0], x_inc)), raw_temp))
+                if raw_temp is not None:
+                    raw_temp = np.hstack(
+                        (np.zeros((raw_temp.shape[0], x_inc)), raw_temp)
+                    )
                 gt_crop_max_x += x_inc
                 gt_crop_min_x = 0
             if gt_image.shape[0] < gt_crop_max_y:
@@ -409,14 +455,15 @@ def build_databank_Norm(build_opt: dict, qa_dataset_path: str, output_path: str)
                         np.zeros((gt_crop_max_y - gt_temp.shape[0], gt_temp.shape[1])),
                     )
                 )
-                raw_temp = np.vstack(
-                    (
-                        raw_temp,
-                        np.zeros(
-                            (gt_crop_max_y - raw_temp.shape[0], raw_temp.shape[1])
-                        ),
+                if raw_temp is not None:
+                    raw_temp = np.vstack(
+                        (
+                            raw_temp,
+                            np.zeros(
+                                (gt_crop_max_y - raw_temp.shape[0], raw_temp.shape[1])
+                            ),
+                        )
                     )
-                )
             if gt_image.shape[1] < gt_crop_max_x:
                 gt_temp = np.hstack(
                     (
@@ -424,24 +471,30 @@ def build_databank_Norm(build_opt: dict, qa_dataset_path: str, output_path: str)
                         np.zeros((gt_temp.shape[0], gt_crop_max_x - gt_temp.shape[1])),
                     )
                 )
-                raw_temp = np.hstack(
-                    (
-                        raw_temp,
-                        np.zeros(
-                            (raw_temp.shape[0], gt_crop_max_x - raw_temp.shape[1])
-                        ),
+                if raw_temp is not None:
+                    raw_temp = np.hstack(
+                        (
+                            raw_temp,
+                            np.zeros(
+                                (raw_temp.shape[0], gt_crop_max_x - raw_temp.shape[1])
+                            ),
+                        )
                     )
-                )
 
             gt_crop = gt_temp[gt_crop_min_y:gt_crop_max_y, gt_crop_min_x:gt_crop_max_x]
             gt_crop = (gt_crop == label).astype(np.uint8) * 255
 
-            raw_crop = raw_temp[
-                gt_crop_min_y:gt_crop_max_y, gt_crop_min_x:gt_crop_max_x
-            ]
-
             # stack layers
-            stacked_crop = np.stack([canvas_crop, gt_crop, raw_crop], axis=0)
+            if databank_version == Version.C3:
+                stacked_crop = np.stack(
+                    [overlap_crop, union_crop, disagreement_crop, gt_crop], axis=0
+                )
+            else:
+                assert raw_temp is not None
+                raw_crop = raw_temp[
+                    gt_crop_min_y:gt_crop_max_y, gt_crop_min_x:gt_crop_max_x
+                ]
+                stacked_crop = np.stack([overlap_crop, gt_crop, raw_crop], axis=0)
 
             # set new dataset image path
             campaign, img_id, __, __ = first_row.cell_id.split("_")

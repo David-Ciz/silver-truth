@@ -136,13 +136,14 @@ def _parse_split_sets(split_sets: str) -> list[float]:
 )
 @click.option(
     "--dataset-version",
-    type=click.Choice(["C1", "C2"], case_sensitive=False),
+    type=click.Choice(["C1", "C2", "C3"], case_sensitive=False),
     default="C1",
     show_default=True,
     help=(
         "Dataset version to use. "
         "C1: normalized competitor overlap only (1 channel). "
-        "C2: overlap + raw microscopy image (2 channels)."
+        "C2: overlap + raw microscopy image (2 channels). "
+        "C3: overlap + union + disagreement summary channels (3 channels)."
     ),
 )
 @click.option(
@@ -340,7 +341,7 @@ def build_databank(
 )
 @click.option(
     "--dataset-version",
-    type=click.Choice(["C1", "C2"], case_sensitive=False),
+    type=click.Choice(["C1", "C2", "C3"], case_sensitive=False),
     default=None,
     help="Optional ensemble dataset version override. Defaults to inferring from the checkpoint.",
 )
@@ -458,7 +459,7 @@ def evaluate_checkpoint(
 )
 @click.option(
     "--dataset-version",
-    type=click.Choice(["C1", "C2"], case_sensitive=False),
+    type=click.Choice(["C1", "C2", "C3"], case_sensitive=False),
     default=None,
     help="Optional ensemble dataset version override. Defaults to inferring from the checkpoint.",
 )

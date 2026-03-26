@@ -1,0 +1,9 @@
+# Richer mask-only ensemble input:
+# overlap consensus + union support + disagreement summary channels.
+extends: ensemble_sweep_base.yaml
+
+ensemble_model_type: UnetPlusPlus
+ensemble_version: C3
+ensemble_augmentation: basic
+ensemble_encoder_name: resnet34
+ensemble_encoder_weights: null

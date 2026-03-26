@@ -212,6 +212,8 @@ def _resolve_dataset_version(
         return Version[dataset_version.upper()]
 
     num_inputs = int(getattr(model.hparams, "num_inputs", 1))
+    if num_inputs == 3:
+        return Version.C3
     if num_inputs == 2:
         return Version.C2
     return Version.C1
