@@ -1,0 +1,5 @@
+# Evaluate ranking-aware QA with metadata/context features on MuSC sz256.
+# Reuses the existing musc_crop256 ensemble checkpoint/databank for ensemble_qa.
+extends: musc_qa_rank_eval_sz256.yaml
+
+qa_metadata_features: default
