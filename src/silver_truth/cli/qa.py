@@ -452,5 +452,165 @@ def cnn_evaluate(
     )
 
 
+@cli.group()
+def tabular() -> None:
+    """Tabular QA training and evaluation on engineered per-crop features."""
+    pass
+
+
+@tabular.command("train")
+@click.option(
+    "--parquet-file",
+    type=click.Path(exists=True),
+    required=True,
+    help="Path to input parquet file with split column.",
+)
+@click.option(
+    "--data-root",
+    type=click.Path(exists=True),
+    default=None,
+    help="Root directory prepended to stacked_path.",
+)
+@click.option(
+    "--target-column",
+    type=str,
+    default=None,
+    help="Target column with ground-truth jaccard values (auto-detected if omitted).",
+)
+@click.option(
+    "--metadata-features",
+    type=str,
+    default="default",
+    show_default=True,
+    help=(
+        "Comma-separated engineered features for the tabular QA model. "
+        "Use 'default' for the curated feature set."
+    ),
+)
+@click.option(
+    "--output-model",
+    type=click.Path(),
+    default="qa_tabular.joblib",
+    help="Path to save the trained model artifact.",
+)
+@click.option(
+    "--output-excel",
+    type=click.Path(),
+    default="results_tabular.xlsx",
+    help="Path to save evaluation results.",
+)
+@click.option(
+    "--model-type",
+    type=click.Choice(["hist_gradient_boosting", "random_forest"]),
+    default="hist_gradient_boosting",
+    show_default=True,
+    help="Tabular regressor backend.",
+)
+@click.option("--seed", type=int, default=42, help="Random seed.")
+@click.option(
+    "--mlflow-tracking-uri",
+    type=str,
+    default=DEFAULT_MLFLOW_TRACKING_URI,
+    show_default=True,
+    help="MLflow tracking URI.",
+)
+@click.option(
+    "--mlflow-experiment", type=str, default="qa-tabular", help="MLflow experiment."
+)
+@click.option(
+    "--mlflow-run-name", type=str, default=None, help="Optional MLflow run name."
+)
+def tabular_train(
+    parquet_file: str,
+    data_root: Optional[str],
+    target_column: Optional[str],
+    metadata_features: str,
+    output_model: str,
+    output_excel: str,
+    model_type: str,
+    seed: int,
+    mlflow_tracking_uri: Optional[str],
+    mlflow_experiment: str,
+    mlflow_run_name: Optional[str],
+) -> None:
+    """Train the tabular QA model."""
+    from silver_truth.qa import tabular as qa_tabular
+
+    qa_tabular.train(
+        parquet_file=parquet_file,
+        data_root=data_root,
+        target_column=target_column,
+        metadata_features=metadata_features,
+        output_model=output_model,
+        output_excel=output_excel,
+        model_type=model_type,
+        seed=seed,
+        mlflow_tracking_uri=mlflow_tracking_uri,
+        mlflow_experiment=mlflow_experiment,
+        mlflow_run_name=mlflow_run_name,
+    )
+
+
+@tabular.command("evaluate")
+@click.option(
+    "--parquet-file",
+    type=click.Path(exists=True),
+    required=True,
+    help="Path to input parquet file with split column.",
+)
+@click.option(
+    "--data-root",
+    type=click.Path(exists=True),
+    default=None,
+    help="Root directory prepended to stacked_path.",
+)
+@click.option(
+    "--target-column",
+    type=str,
+    default=None,
+    help="Target column with ground-truth jaccard values (auto-detected if omitted).",
+)
+@click.option(
+    "--metadata-features",
+    type=str,
+    default=None,
+    help=(
+        "Optional comma-separated metadata/context features for evaluation. "
+        "If omitted, the value stored in the model metadata is used."
+    ),
+)
+@click.option(
+    "--model-path",
+    type=click.Path(exists=True),
+    required=True,
+    help="Path to trained tabular model artifact.",
+)
+@click.option(
+    "--output-excel",
+    type=click.Path(),
+    default="results_tabular.xlsx",
+    help="Path to save evaluation results.",
+)
+def tabular_evaluate(
+    parquet_file: str,
+    data_root: Optional[str],
+    target_column: Optional[str],
+    metadata_features: Optional[str],
+    model_path: str,
+    output_excel: str,
+) -> None:
+    """Evaluate a trained tabular QA model."""
+    from silver_truth.qa import tabular as qa_tabular
+
+    qa_tabular.evaluate(
+        parquet_file=parquet_file,
+        data_root=data_root,
+        target_column=target_column,
+        metadata_features=metadata_features,
+        model_path=model_path,
+        output_excel=output_excel,
+    )
+
+
 if __name__ == "__main__":
     cli()

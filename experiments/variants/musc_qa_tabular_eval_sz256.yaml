@@ -1,0 +1,18 @@
+# Evaluate a tabular QA regressor on MuSC sz256 using engineered per-crop features.
+# Reuses the existing musc_crop256 ensemble checkpoint/databank for ensemble_qa.
+extends: musc_crop256.yaml
+
+qa_backend: tabular
+qa_tabular_model_type: hist_gradient_boosting
+qa_metadata_features: default
+phaseA_ensemble_artifact_variant: musc_crop256
+
+run_phaseA_competitors: false
+run_phaseA_silver_truth: false
+run_phaseA_fusion: false
+run_phaseA_ensemble: false
+
+ablation_modes:
+  - qa_only
+  - full_pipeline
+  - ensemble_qa

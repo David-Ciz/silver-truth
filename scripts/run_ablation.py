@@ -246,6 +246,7 @@ def build_steps(cfg: dict[str, Any]) -> list[dict[str, Any]]:
     threshold = cfg["qa_threshold"]
     threshold_sweep = [float(t) for t in cfg.get("qa_threshold_sweep", [threshold])]
     mlflow_uri = cfg["mlflow_tracking_uri"]
+    qa_backend = str(cfg.get("qa_backend", "cnn")).strip().lower()
     fusion_models = " ".join(f"--models {m}" for m in cfg["fusion_models"])
     ensemble_version = cfg.get("ensemble_version", "C1")
     ensemble_augmentation = cfg.get("ensemble_augmentation", "basic")
@@ -295,6 +296,39 @@ def build_steps(cfg: dict[str, Any]) -> list[dict[str, Any]]:
     phaseb_qa_filtering_experiment = f"phaseB-qa-thresholding-{experiment_suffix}"
 
     steps: list[dict[str, Any]] = []
+
+    if qa_backend == "cnn":
+        qa_train_label = cfg["qa_model_type"]
+        qa_train_command = (
+            f"silver-qa cnn train "
+            f"  --parquet-file {qa_parquet} "
+            f"  --data-root {cfg['runtime_root']} "
+            f"  --output-model {qa_model} "
+            f"  --output-excel {qa_excel} "
+            f"  --model-type {cfg['qa_model_type']} "
+            f"  --input-channels {cfg['qa_input_channels']} "
+            f"  --metadata-features {cfg['qa_metadata_features']} "
+            f"  --ranking-loss-weight {cfg['qa_ranking_loss_weight']} "
+            f"  --mlflow-experiment {phaseb_qa_train_experiment} "
+            f"  --mlflow-run-name qa_train"
+        )
+    elif qa_backend == "tabular":
+        qa_train_label = f"tabular:{cfg['qa_tabular_model_type']}"
+        qa_train_command = (
+            f"silver-qa tabular train "
+            f"  --parquet-file {qa_parquet} "
+            f"  --data-root {cfg['runtime_root']} "
+            f"  --output-model {qa_model} "
+            f"  --output-excel {qa_excel} "
+            f"  --model-type {cfg['qa_tabular_model_type']} "
+            f"  --metadata-features {cfg['qa_metadata_features']} "
+            f"  --mlflow-experiment {phaseb_qa_train_experiment} "
+            f"  --mlflow-run-name qa_train"
+        )
+    else:
+        raise ValueError(
+            f"Unsupported qa_backend: {qa_backend}. Supported: cnn, tabular."
+        )
 
     # ── Phase A ──────────────────────────────────────────────────────────────
 
@@ -462,21 +496,11 @@ def build_steps(cfg: dict[str, Any]) -> list[dict[str, Any]]:
             {
                 "id": "phaseB_qa_train",
                 "phase": "B",
-                "name": f"Train QA model ({cfg['qa_model_type']}) — WILL BLOCK UNTIL TRAINING DONE",
+                "name": f"Train QA model ({qa_train_label}) — WILL BLOCK UNTIL TRAINING DONE",
                 "cmd": (
                     f"mkdir -p {paper_runs}/qa_models/{dataset}/{crop_tag} "
                     f"{paper_runs}/qa_results/{dataset}/{crop_tag} && "
-                    f"silver-qa cnn train "
-                    f"  --parquet-file {qa_parquet} "
-                    f"  --data-root {cfg['runtime_root']} "
-                    f"  --output-model {qa_model} "
-                    f"  --output-excel {qa_excel} "
-                    f"  --model-type {cfg['qa_model_type']} "
-                    f"  --input-channels {cfg['qa_input_channels']} "
-                    f"  --metadata-features {cfg['qa_metadata_features']} "
-                    f"  --ranking-loss-weight {cfg['qa_ranking_loss_weight']} "
-                    f"  --mlflow-experiment {phaseb_qa_train_experiment} "
-                    f"  --mlflow-run-name qa_train"
+                    f"{qa_train_command}"
                 ),
                 "wait": True,
             }
