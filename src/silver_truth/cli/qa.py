@@ -297,6 +297,13 @@ def cnn() -> None:
     help="Gradient clipping max norm (0 disables).",
 )
 @click.option(
+    "--ranking-loss-weight",
+    type=float,
+    default=0.5,
+    show_default=True,
+    help="Weight of per-cell pairwise ranking loss added to the regression loss.",
+)
+@click.option(
     "--mlflow-tracking-uri",
     type=str,
     default=DEFAULT_MLFLOW_TRACKING_URI,
@@ -327,6 +334,7 @@ def cnn_train(
     seed: int,
     num_workers: int,
     grad_clip: float,
+    ranking_loss_weight: float,
     mlflow_tracking_uri: Optional[str],
     mlflow_experiment: str,
     mlflow_run_name: Optional[str],
@@ -352,6 +360,7 @@ def cnn_train(
         num_workers=num_workers,
         grad_clip=grad_clip,
         model_type=model_type,
+        ranking_loss_weight=ranking_loss_weight,
         mlflow_tracking_uri=mlflow_tracking_uri,
         mlflow_experiment=mlflow_experiment,
         mlflow_run_name=mlflow_run_name,

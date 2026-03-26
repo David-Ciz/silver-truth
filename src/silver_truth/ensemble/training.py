@@ -237,7 +237,14 @@ def _train_model(
         )
 
     if init_from_checkpoint:
-        checkpoint = torch.load(init_from_checkpoint, map_location="cpu")
+        # These checkpoints are produced by this repo's Lightning training path.
+        # PyTorch 2.6 changed torch.load(... ) to default to weights_only=True,
+        # which breaks loading older full checkpoint objects unless we opt out.
+        checkpoint = torch.load(
+            init_from_checkpoint,
+            map_location="cpu",
+            weights_only=False,
+        )
         state_dict = checkpoint.get("state_dict", checkpoint)
         load_result = model_pl.load_state_dict(state_dict, strict=True)
         print(f"Initialized model weights from checkpoint: {init_from_checkpoint}")

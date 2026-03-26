@@ -240,6 +240,7 @@ def build_steps(cfg: dict[str, Any]) -> list[dict[str, Any]]:
     """Build the ordered list of steps from a resolved config."""
     split_name = cfg["split_name"]
     variant = cfg["variant"]
+    ensemble_artifact_variant = cfg.get("phaseA_ensemble_artifact_variant", variant)
     dataset = cfg["dataset"]
     crop_tag = cfg["crop_tag"]
     threshold = cfg["qa_threshold"]
@@ -350,14 +351,34 @@ def build_steps(cfg: dict[str, Any]) -> list[dict[str, Any]]:
             }
         )
 
-    _baseline_db_dir = _databank_dir(
+    _phasea_db_dir = _databank_dir(
         paper_runs, dataset, crop_tag, variant, split_name, tag="unfiltered"
+    )
+    _phasea_db_parquet = _databank_parquet(
+        _phasea_db_dir, dataset, cfg.get("ensemble_version", "C1")
+    )
+    _phasea_ckpt_dir = _ckpt_dir(
+        paper_runs, dataset, crop_tag, variant, split_name, tag="baseline"
+    )
+
+    _baseline_db_dir = _databank_dir(
+        paper_runs,
+        dataset,
+        crop_tag,
+        ensemble_artifact_variant,
+        split_name,
+        tag="unfiltered",
     )
     _baseline_db_parquet = _databank_parquet(
         _baseline_db_dir, dataset, cfg.get("ensemble_version", "C1")
     )
     _baseline_ckpt_dir = _ckpt_dir(
-        paper_runs, dataset, crop_tag, variant, split_name, tag="baseline"
+        paper_runs,
+        dataset,
+        crop_tag,
+        ensemble_artifact_variant,
+        split_name,
+        tag="baseline",
     )
     _baseline_exp = f"phaseA-ensemble-{experiment_suffix}"
 
@@ -372,9 +393,9 @@ def build_steps(cfg: dict[str, Any]) -> list[dict[str, Any]]:
                     f"  --dataset-name {dataset} "
                     f"  --qa-parquet-path {qa_parquet} "
                     f"  --version {ensemble_version} "
-                    f"  --output-dir {_baseline_db_dir}"
+                    f"  --output-dir {_phasea_db_dir}"
                 ),
-                "output_hint": _baseline_db_parquet,
+                "output_hint": _phasea_db_parquet,
             }
         )
 
@@ -386,7 +407,7 @@ def build_steps(cfg: dict[str, Any]) -> list[dict[str, Any]]:
                 "cmd": (
                     f"silver-ensemble ensemble-experiment "
                     f"  --name {_baseline_exp} "
-                    f"  --parquet-file {_baseline_db_parquet} "
+                    f"  --parquet-file {_phasea_db_parquet} "
                     f"  --model-type {cfg['ensemble_model_type']} "
                     f"  --max-epochs {cfg['ensemble_max_epochs']} "
                     f"  --batch-size {cfg['ensemble_batch_size']} "
@@ -395,7 +416,7 @@ def build_steps(cfg: dict[str, Any]) -> list[dict[str, Any]]:
                     f"  --encoder-name {ensemble_encoder_name}"
                     f"{ensemble_encoder_weights_arg} "
                     f"{ensemble_init_checkpoint_arg} "
-                    f"  --checkpoints-dir {_baseline_ckpt_dir}"
+                    f"  --checkpoints-dir {_phasea_ckpt_dir}"
                 ),
                 "wait": True,
             }
@@ -408,12 +429,12 @@ def build_steps(cfg: dict[str, Any]) -> list[dict[str, Any]]:
                 "name": "Evaluate ensemble baseline (best checkpoint)",
                 "cmd": (
                     f"silver-ensemble evaluate-best-checkpoint "
-                    f"  --checkpoints-dir {_baseline_ckpt_dir} "
-                    f"  --databank-path {_baseline_db_parquet} "
+                    f"  --checkpoints-dir {_phasea_ckpt_dir} "
+                    f"  --databank-path {_phasea_db_parquet} "
                     f"  --split-type test "
                     f"  --dataset-version {ensemble_version} "
                     f"  --batch-size {cfg['ensemble_batch_size']} "
-                    f"  --output-dir {_baseline_ckpt_dir} "
+                    f"  --output-dir {_phasea_ckpt_dir} "
                     f"  --mlflow-experiment {compare_experiment} "
                     f"  --mlflow-run-name ensemble_baseline "
                     f"  --setup-name ensemble_baseline"
@@ -452,6 +473,7 @@ def build_steps(cfg: dict[str, Any]) -> list[dict[str, Any]]:
                     f"  --output-excel {qa_excel} "
                     f"  --model-type {cfg['qa_model_type']} "
                     f"  --input-channels {cfg['qa_input_channels']} "
+                    f"  --ranking-loss-weight {cfg['qa_ranking_loss_weight']} "
                     f"  --mlflow-experiment {phaseb_qa_train_experiment} "
                     f"  --mlflow-run-name qa_train"
                 ),

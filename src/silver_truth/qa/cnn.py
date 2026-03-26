@@ -1,6 +1,7 @@
 import pandas as pd
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 from torch.utils.data import DataLoader, Dataset, Subset
 from torchvision.models import (
     resnet18,
@@ -47,6 +48,8 @@ from silver_truth.experiment_tracking import (
     resolve_mlflow_tracking_uri,
     start_managed_mlflow_run,
 )
+
+LOGICAL_CELL_GROUP_COLUMNS = ("campaign_number", "original_image_key", "label")
 
 
 def set_seed(seed: int):
@@ -125,7 +128,7 @@ class JaccardDataset(Dataset):
 
     def _resolve_input_channels(
         self, input_channels: Optional[Sequence[int] | str]
-    ) -> tuple[int, int]:
+    ) -> tuple[int, ...]:
         if input_channels is None:
             return self.DEFAULT_INPUT_CHANNELS
 
@@ -135,13 +138,13 @@ class JaccardDataset(Dataset):
         else:
             parsed = tuple(int(value) for value in input_channels)
 
-        if len(parsed) != 2:
+        if len(parsed) == 0:
             raise ValueError(
-                f"input_channels must contain exactly 2 channels, got {parsed}."
+                f"input_channels must contain at least 1 channel, got {parsed}."
             )
-        if len(set(parsed)) != 2:
+        if len(set(parsed)) != len(parsed):
             raise ValueError(
-                f"input_channels must contain two distinct channel indices, got {parsed}."
+                f"input_channels must contain distinct channel indices, got {parsed}."
             )
         if any(channel < 0 for channel in parsed):
             raise ValueError(
@@ -209,13 +212,71 @@ class JaccardDataset(Dataset):
         return img_np
 
 
+class GroupedJaccardDataset(Dataset):
+    """Wrap flat QA rows into logical-cell groups for ranking-aware training."""
+
+    def __init__(self, base_dataset: JaccardDataset, indices: Sequence[int]):
+        self.base_dataset = base_dataset
+        self.group_indices = self._build_group_indices(indices)
+
+    def _build_group_indices(self, indices: Sequence[int]) -> list[list[int]]:
+        if not indices:
+            return []
+
+        subset_df = self.base_dataset.data.loc[list(indices)].copy()
+        available_group_cols = [
+            column
+            for column in LOGICAL_CELL_GROUP_COLUMNS
+            if column in subset_df.columns
+        ]
+        if len(available_group_cols) != len(LOGICAL_CELL_GROUP_COLUMNS):
+            return [[int(index)] for index in subset_df.index.tolist()]
+
+        grouped = subset_df.groupby(available_group_cols, sort=False).groups
+        return [list(map(int, member_indices)) for member_indices in grouped.values()]
+
+    def __len__(self) -> int:
+        return len(self.group_indices)
+
+    def __getitem__(self, idx: int) -> tuple[torch.Tensor, torch.Tensor]:
+        member_indices = self.group_indices[idx]
+        images = []
+        targets = []
+        for member_index in member_indices:
+            image, target = self.base_dataset[member_index]
+            images.append(image)
+            targets.append(target)
+
+        return torch.stack(images, dim=0), torch.stack(targets, dim=0)
+
+
+def collate_grouped_batch(
+    batch: list[tuple[torch.Tensor, torch.Tensor]]
+) -> dict[str, torch.Tensor]:
+    images = torch.cat([images for images, _ in batch], dim=0)
+    targets = torch.cat([targets for _, targets in batch], dim=0)
+    group_sizes = torch.tensor(
+        [images.shape[0] for images, _ in batch], dtype=torch.long
+    )
+    return {
+        "images": images,
+        "targets": targets,
+        "group_sizes": group_sizes,
+    }
+
+
 # ---------------------------------------------------------------------------
 # Backbone / head
 # ---------------------------------------------------------------------------
 
 
 class Jaccard(nn.Module):
-    def __init__(self, dropout_rate=0.3, model_type="resnet18"):
+    def __init__(
+        self,
+        dropout_rate: float = 0.3,
+        model_type: str = "resnet18",
+        num_input_channels: int = 2,
+    ):
         super(Jaccard, self).__init__()
 
         if model_type == "resnet18":
@@ -235,28 +296,33 @@ class Jaccard(nn.Module):
             in_features = self.model.classifier[1].in_features
             self.model.classifier = nn.Identity()
             self.model.features[0][0] = nn.Conv2d(
-                2, 32, kernel_size=3, stride=2, padding=1, bias=False
+                num_input_channels, 32, kernel_size=3, stride=2, padding=1, bias=False
             )
         elif model_type == "efficientnet_b4":
             self.model = efficientnet_b4(weights=EfficientNet_B4_Weights.IMAGENET1K_V1)
             in_features = self.model.classifier[1].in_features
             self.model.classifier = nn.Identity()
             self.model.features[0][0] = nn.Conv2d(
-                2, 48, kernel_size=3, stride=2, padding=1, bias=False
+                num_input_channels, 48, kernel_size=3, stride=2, padding=1, bias=False
             )
         elif model_type == "efficientnet_b7":
             self.model = efficientnet_b7(weights=EfficientNet_B7_Weights.IMAGENET1K_V1)
             in_features = self.model.classifier[1].in_features
             self.model.classifier = nn.Identity()
             self.model.features[0][0] = nn.Conv2d(
-                2, 64, kernel_size=3, stride=2, padding=1, bias=False
+                num_input_channels, 64, kernel_size=3, stride=2, padding=1, bias=False
             )
         else:
             raise ValueError(f"Unsupported model_type: {model_type}")
 
         if "resnet" in model_type:
             self.model.conv1 = nn.Conv2d(
-                2, 64, kernel_size=7, stride=2, padding=3, bias=False
+                num_input_channels,
+                64,
+                kernel_size=7,
+                stride=2,
+                padding=3,
+                bias=False,
             )
 
         self.dropout = nn.Dropout(p=dropout_rate)
@@ -285,11 +351,17 @@ class JaccardLightningModule(pl.LightningModule):
         weight_decay: float = 1e-4,
         grad_clip: float = 1.0,
         augment_batches: bool = False,
+        num_input_channels: int = 2,
+        ranking_loss_weight: float = 0.0,
     ):
         super().__init__()
         self.save_hyperparameters()
 
-        self.model = Jaccard(dropout_rate=dropout_rate, model_type=model_type)
+        self.model = Jaccard(
+            dropout_rate=dropout_rate,
+            model_type=model_type,
+            num_input_channels=num_input_channels,
+        )
         self.criterion = nn.MSELoss()
 
         # torchmetrics — reset per epoch automatically
@@ -302,23 +374,92 @@ class JaccardLightningModule(pl.LightningModule):
 
     # ------------------------------------------------------------------
     def on_after_batch_transfer(self, batch, dataloader_idx):
-        images, targets = batch
+        if isinstance(batch, dict):
+            images = batch["images"]
+            targets = batch["targets"]
+            group_sizes = batch.get("group_sizes")
+        else:
+            images, targets = batch
+            group_sizes = None
         should_augment = bool(self.training and self.hparams.augment_batches)
-        return prepare_images_for_model(images, augment=should_augment), targets
+        prepared_images = prepare_images_for_model(images, augment=should_augment)
+        if isinstance(batch, dict):
+            return {
+                "images": prepared_images,
+                "targets": targets,
+                "group_sizes": group_sizes,
+            }
+        return prepared_images, targets
+
+    def _unpack_batch(
+        self, batch
+    ) -> tuple[torch.Tensor, torch.Tensor, Optional[torch.Tensor]]:
+        if isinstance(batch, dict):
+            return batch["images"], batch["targets"], batch.get("group_sizes")
+        images, targets = batch
+        return images, targets, None
 
     def _shared_step(self, batch):
-        images, targets = batch
+        images, targets, group_sizes = self._unpack_batch(batch)
         preds = self(images).squeeze(dim=1)
         loss = self.criterion(preds, targets)
-        return loss, preds, targets
+        return loss, preds, targets, group_sizes
+
+    def _pairwise_ranking_loss(
+        self,
+        preds: torch.Tensor,
+        targets: torch.Tensor,
+        group_sizes: Optional[torch.Tensor],
+    ) -> torch.Tensor:
+        if group_sizes is None or int(group_sizes.numel()) == 0:
+            return preds.new_tensor(0.0)
+
+        losses = []
+        start = 0
+        for raw_group_size in group_sizes.tolist():
+            group_size = int(raw_group_size)
+            end = start + group_size
+            if group_size > 1:
+                group_preds = preds[start:end]
+                group_targets = targets[start:end]
+                target_diff = group_targets[:, None] - group_targets[None, :]
+                pred_diff = group_preds[:, None] - group_preds[None, :]
+                better_mask = target_diff > 1e-6
+                if better_mask.any():
+                    weights = target_diff[better_mask].detach()
+                    losses.append((F.softplus(-pred_diff[better_mask]) * weights).mean())
+            start = end
+
+        if not losses:
+            return preds.new_tensor(0.0)
+        return torch.stack(losses).mean()
 
     def training_step(self, batch, batch_idx):
-        loss, _, _ = self._shared_step(batch)
+        regression_loss, preds, targets, group_sizes = self._shared_step(batch)
+        ranking_loss = self._pairwise_ranking_loss(preds, targets, group_sizes)
+        loss = regression_loss + (
+            float(self.hparams.ranking_loss_weight) * ranking_loss
+        )
         self.log("train_loss", loss, on_step=False, on_epoch=True, prog_bar=True)
+        self.log(
+            "train_regression_loss",
+            regression_loss,
+            on_step=False,
+            on_epoch=True,
+            prog_bar=False,
+        )
+        if float(self.hparams.ranking_loss_weight) > 0:
+            self.log(
+                "train_ranking_loss",
+                ranking_loss,
+                on_step=False,
+                on_epoch=True,
+                prog_bar=False,
+            )
         return loss
 
     def validation_step(self, batch, batch_idx):
-        loss, preds, targets = self._shared_step(batch)
+        loss, preds, targets, _ = self._shared_step(batch)
         self.val_mae.update(preds, targets)
         self.val_r2.update(preds, targets)
         self.log("val_loss", loss, on_step=False, on_epoch=True, prog_bar=True)
@@ -363,7 +504,12 @@ class NormalizeTransform:
     """Transform to normalize tensor to [-1, 1] from [0, 1]."""
 
     def __call__(self, x):
-        return tensor_normalize(x, mean=[0.5, 0.5], std=[0.5, 0.5])
+        num_channels = int(x.shape[0]) if x.ndim >= 3 else 1
+        return tensor_normalize(
+            x,
+            mean=[0.5] * num_channels,
+            std=[0.5] * num_channels,
+        )
 
 
 def get_transform():
@@ -469,6 +615,17 @@ def save_model(model, path, metadata=None):
     print(f"Model saved to {path}")
 
 
+def _count_input_channels_from_metadata(metadata: dict) -> int:
+    raw_input_channels = metadata.get("input_channels")
+    if raw_input_channels is None:
+        return 2
+    if isinstance(raw_input_channels, str):
+        return max(1, len([part for part in raw_input_channels.split(",") if part]))
+    if isinstance(raw_input_channels, Sequence):
+        return max(1, len(raw_input_channels))
+    return 2
+
+
 def load_model(path, device):
     """
     Load a model from checkpoint.
@@ -485,8 +642,13 @@ def load_model(path, device):
 
     dropout_rate = metadata.get("dropout_rate", 0.3)
     model_type = metadata.get("model_type", "resnet50")
+    num_input_channels = _count_input_channels_from_metadata(metadata)
 
-    model = Jaccard(dropout_rate=dropout_rate, model_type=model_type).to(device)
+    model = Jaccard(
+        dropout_rate=dropout_rate,
+        model_type=model_type,
+        num_input_channels=num_input_channels,
+    ).to(device)
     model.load_state_dict(checkpoint["model_state_dict"])
     print(f"Model loaded from {path}")
     return model, metadata
@@ -543,6 +705,7 @@ def train(
     num_workers=4,
     grad_clip=1.0,
     model_type="resnet18",
+    ranking_loss_weight=0.5,
     mlflow_tracking_uri=DEFAULT_MLFLOW_TRACKING_URI,
     mlflow_experiment="cnn-jaccard",
     mlflow_run_name=None,
@@ -610,19 +773,22 @@ def train(
     print(f"Using input channels: {train_dataset.input_channels}")
 
     train_indices, val_indices, test_indices = get_split_indices(train_dataset)
+    grouped_train_dataset = GroupedJaccardDataset(train_dataset, train_indices)
     print(
         f"Dataset splits - Train: {len(train_indices)}, Val: {len(val_indices)}, Test: {len(test_indices)}"
     )
+    print(f"Logical train cells: {len(grouped_train_dataset)}")
     print(f"Data augmentation: {'enabled' if augment else 'disabled'}")
 
     train_loader = DataLoader(
-        Subset(train_dataset, train_indices),
+        grouped_train_dataset,
         batch_size=batch_size,
         shuffle=True,
         num_workers=num_workers,
         pin_memory=True,
         persistent_workers=num_workers > 0,
         prefetch_factor=2 if num_workers > 0 else None,
+        collate_fn=collate_grouped_batch,
     )
     val_loader = DataLoader(
         Subset(eval_dataset, val_indices),
@@ -644,6 +810,8 @@ def train(
         weight_decay=weight_decay,
         grad_clip=grad_clip,
         augment_batches=augment,
+        num_input_channels=len(train_dataset.input_channels),
+        ranking_loss_weight=ranking_loss_weight,
     )
     print(f"Using model: {model_type}")
 
@@ -679,11 +847,13 @@ def train(
             "grad_clip": grad_clip,
             "model_type": model_type,
             "train_samples": len(train_indices),
+            "train_groups": len(grouped_train_dataset),
             "val_samples": len(val_indices),
             "test_samples": len(test_indices),
             "parquet_file": str(parquet_file),
             "target_column": str(train_dataset.target_column),
             "input_channels": ",".join(str(ch) for ch in train_dataset.input_channels),
+            "ranking_loss_weight": ranking_loss_weight,
         }
     )
 
@@ -749,10 +919,12 @@ def train(
         "augmentation": augment,
         "best_val_loss": best_val_loss,
         "train_samples": len(train_indices),
+        "train_groups": len(grouped_train_dataset),
         "val_samples": len(val_indices),
         "test_samples": len(test_indices),
         "target_column": str(train_dataset.target_column),
         "input_channels": ",".join(str(ch) for ch in train_dataset.input_channels),
+        "ranking_loss_weight": ranking_loss_weight,
     }
     save_model(lightning_model, output_model_path, metadata)
 

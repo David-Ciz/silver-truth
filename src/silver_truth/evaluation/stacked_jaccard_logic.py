@@ -54,6 +54,32 @@ def f1_score(mask1, mask2):
     return 2 * (precision * recall) / (precision + recall)
 
 
+def _extract_padded_crop(
+    image: np.ndarray,
+    y_start: int,
+    y_end: int,
+    x_start: int,
+    x_end: int,
+) -> np.ndarray:
+    """Mirror QA preprocessing crop extraction, including left/top padding."""
+    pad_top = max(0, -y_start)
+    pad_bottom = max(0, y_end - image.shape[0])
+    pad_left = max(0, -x_start)
+    pad_right = max(0, x_end - image.shape[1])
+
+    img_y_start = max(0, y_start)
+    img_y_end = min(image.shape[0], y_end)
+    img_x_start = max(0, x_start)
+    img_x_end = min(image.shape[1], x_end)
+
+    crop = image[img_y_start:img_y_end, img_x_start:img_x_end]
+    return np.pad(
+        crop,
+        ((pad_top, pad_bottom), (pad_left, pad_right)),
+        mode="constant",
+    )
+
+
 def calculate_evaluation_metrics(parquet_path: Path):
     """
     Calculates Jaccard and F1 scores for FULL-SIZE (non-cropped) QA images.
@@ -247,15 +273,22 @@ def calculate_evaluation_metrics_cropped(
             crop_x_end = int(row["crop_x_end"])
             crop_size = row.get("crop_size", None)
 
-            gt_crop = gt_full_mask[crop_y_start:crop_y_end, crop_x_start:crop_x_end]
+            gt_crop = _extract_padded_crop(
+                gt_full_mask,
+                y_start=crop_y_start,
+                y_end=crop_y_end,
+                x_start=crop_x_start,
+                x_end=crop_x_end,
+            )
 
-            # Pad if necessary (same logic as in preprocessing)
             if crop_size is not None:
-                pad_y = int(crop_size) - gt_crop.shape[0]
-                pad_x = int(crop_size) - gt_crop.shape[1]
-                if pad_y > 0 or pad_x > 0:
-                    gt_crop = np.pad(
-                        gt_crop, ((0, max(0, pad_y)), (0, max(0, pad_x))), "constant"
+                expected_shape = (int(crop_size), int(crop_size))
+                if gt_crop.shape != expected_shape:
+                    logging.warning(
+                        "Unexpected GT crop shape %s for %s. Expected %s.",
+                        gt_crop.shape,
+                        stacked_path,
+                        expected_shape,
                     )
 
             gt_mask = gt_crop
