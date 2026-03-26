@@ -9,4 +9,4 @@ ensemble_version: C1
 ensemble_augmentation: basic
 ensemble_encoder_name: resnet34
 ensemble_encoder_weights: null
-ensemble_init_checkpoint: "{project_root}/data/paper_runs/ensemble/ensemble_ref_musc/{split_name}/checkpoints_baseline/M2--.ckpt"
+ensemble_init_checkpoint: "{paper_runs_root}/ensemble/BF-C2DL-MuSC/sz256/musc_crop256/{split_name}/checkpoints_baseline/M2--.ckpt"
