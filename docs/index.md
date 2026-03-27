@@ -38,6 +38,7 @@ For detailed installation instructions and basic usage examples, please refer to
 *   [Executable Index](executable_index.md): Task-oriented list of what agents should try first, including maintained CLI entrypoints, scripts, and reusable functions.
 *   [DVC Guide](dvc_guide.md): Complete guide to setting up DVC and downloading datasets.
 *   [Paper Protocol (Fold-Locked)](paper_protocol.md): Exact paper run order from fold prep to ablation/sweep.
+*   [Ensemble C3 Experiment Log](ensemble_c3_experiment_log.md): Negative-result log for the richer consensus-channel ensemble input experiment on HSC and MuSC.
 *   [Ensemble Transfer Plan](ensemble_transfer_plan.md): Fold-locked plan for validating MuSC first, then testing MuSC -> HSC transfer.
 *   [Function Index](function_index.md): Fast map of key functions/CLI commands by workflow.
 *   [API Reference (Generated)](api_reference_generated.md): Signatures and one-line summaries from docstrings.
