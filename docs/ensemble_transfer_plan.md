@@ -1,5 +1,5 @@
 # Ensemble Transfer Plan
-_Updated: 2026-03-13 | Scope: BF-C2DL-MuSC -> BF-C2DL-HSC | Paper-safe fold protocol_
+_Updated: 2026-03-27 | Scope: BF-C2DL-MuSC -> BF-C2DL-HSC | Paper-safe fold protocol_
 
 This plan replaces the earlier mixed-first transfer idea.
 
@@ -197,8 +197,8 @@ Use:
 - transfer config: `experiments/variants/ensemble_transfer_musc_to_hsc.yaml`
 
 The transfer config initializes from:
-- `data/paper_runs/ensemble/ensemble_ref_musc/fold-1/checkpoints_baseline/M2--.ckpt`
-- `data/paper_runs/ensemble/ensemble_ref_musc/fold-2/checkpoints_baseline/M2--.ckpt`
+- `{paper_runs_root}/ensemble/BF-C2DL-MuSC/sz256/musc_crop256/fold-1/checkpoints_baseline/M2--.ckpt`
+- `{paper_runs_root}/ensemble/BF-C2DL-MuSC/sz256/musc_crop256/fold-2/checkpoints_baseline/M2--.ckpt`
 
 depending on the selected fold.
 
@@ -244,6 +244,44 @@ Success criterion:
 
 Failure criterion:
 - if transfer is neutral on both folds, stop and do not expand the transfer branch further
+
+### Result Recorded On 2026-03-27
+
+Final comparison used:
+
+- scratch HSC ensemble baseline (`ensemble_baseline`)
+- MuSC -> HSC transfer ensemble baseline (`ensemble_baseline`)
+- same final evaluation level: `full_image_label`
+- same decision metric: `test_iou`
+
+Fold-by-fold result:
+
+| Fold | HSC scratch ensemble | HSC transfer ensemble | Delta |
+|---|---:|---:|---:|
+| `fold-1` | `0.8562` | `0.8718` | `+0.0156` |
+| `fold-2` | `0.8519` | `0.8699` | `+0.0180` |
+| mean | `0.8540` | `0.8708` | `+0.0168` |
+
+Interpretation:
+
+- transfer improved both HSC folds
+- the gain was not fold-specific noise; it appeared on both folds
+- fold-2 improved the most
+- this is a real ensemble-to-ensemble gain, not a fusion/QA side effect
+
+Stricter comparison against the **best scratch ensemble row per fold** still favors transfer:
+
+| Fold | Best scratch ensemble row | HSC transfer ensemble | Delta |
+|---|---:|---:|---:|
+| `fold-1` | `ensemble_qa_retrained_t0.75 = 0.8700` | `0.8718` | `+0.0018` |
+| `fold-2` | `ensemble_baseline = 0.8519` | `0.8699` | `+0.0180` |
+| mean | `0.8609` | `0.8708` | `+0.0099` |
+
+Decision:
+
+- keep transfer as a live branch
+- if more transfer runs are made, compare against HSC scratch ensemble rows first
+- this result is strong enough to be written into the paper as a positive ensemble result
 
 ---
 

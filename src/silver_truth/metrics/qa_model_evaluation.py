@@ -64,8 +64,17 @@ def calculate_regression_metrics(
         "pearson_pvalue": stats.pearsonr(y_true, y_pred)[1],
         "spearman_correlation": stats.spearmanr(y_true, y_pred)[0],
         "spearman_pvalue": stats.spearmanr(y_true, y_pred)[1],
+        "mean_true": np.mean(y_true),
+        "mean_pred": np.mean(y_pred),
+        "median_true": np.median(y_true),
+        "median_pred": np.median(y_pred),
+        "std_true": np.std(y_true),
+        "std_pred": np.std(y_pred),
         "mean_residual": np.mean(y_pred - y_true),
         "std_residual": np.std(y_pred - y_true),
+        "prediction_spread_ratio": np.std(y_pred) / np.std(y_true)
+        if np.std(y_true) > 0
+        else float("nan"),
         "n_samples": len(y_true),
     }
 

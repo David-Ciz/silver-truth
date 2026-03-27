@@ -26,6 +26,7 @@ Raw Data -> Synchronization -> DataFrame -> Job Files -> Fusion -> Evaluation
 *   **`silver-evaluation` / `src/silver_truth/cli/evaluation.py`**: Competitor evaluation, QA evaluation, fusion reconstruction scoring, and parquet filtering.
 *   **`silver-ensemble` / `src/silver_truth/cli/ensemble.py`**: Databank building, ensemble training, and checkpoint evaluation.
 *   **`scripts/run_ablation.py`**: Config-driven orchestration for Phase A/B/C paper experiments.
+*   **`scripts/run_ablation_hpc.sh`**: Slurm/HPC wrapper around the maintained ablation runner with scratch staging and isolated durable outputs.
 
 ## Getting Started
 
@@ -38,6 +39,7 @@ For detailed installation instructions and basic usage examples, please refer to
 *   [Executable Index](executable_index.md): Task-oriented list of what agents should try first, including maintained CLI entrypoints, scripts, and reusable functions.
 *   [DVC Guide](dvc_guide.md): Complete guide to setting up DVC and downloading datasets.
 *   [Paper Protocol (Fold-Locked)](paper_protocol.md): Exact paper run order from fold prep to ablation/sweep.
+*   [Ablation Runner Explained](ablation_runner_explained.md): Human-level explanation of what the ablation runner expands, why the step count grows, and how to read it.
 *   [Ensemble C3 Experiment Log](ensemble_c3_experiment_log.md): Negative-result log for the richer consensus-channel ensemble input experiment on HSC and MuSC.
 *   [Ensemble Transfer Plan](ensemble_transfer_plan.md): Fold-locked plan for validating MuSC first, then testing MuSC -> HSC transfer.
 *   [Function Index](function_index.md): Fast map of key functions/CLI commands by workflow.

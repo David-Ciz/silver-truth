@@ -88,8 +88,17 @@ def calculate_filtering_metrics(
         "actual_bad_count": float(np.sum(actual_bad)),
         "kept_count": float(kept_count),
         "filtered_count": float(filtered_count),
+        "actual_good_pct": 100.0 * _safe_div(np.sum(actual_good), n_samples),
+        "actual_bad_pct": 100.0 * _safe_div(np.sum(actual_bad), n_samples),
+        "predicted_good_pct": 100.0 * _safe_div(kept_count, n_samples),
+        "predicted_bad_pct": 100.0 * _safe_div(filtered_count, n_samples),
         "kept_pct": 100.0 * _safe_div(kept_count, n_samples),
         "filtered_pct": 100.0 * _safe_div(filtered_count, n_samples),
+        "support_gap_pct": 100.0
+        * (
+            _safe_div(kept_count, n_samples) - _safe_div(np.sum(actual_good), n_samples)
+        ),
+        "support_ratio": _safe_div(kept_count, np.sum(actual_good)),
         "precision": precision,
         "recall": recall,
         "f1": f1,

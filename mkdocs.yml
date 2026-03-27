@@ -11,6 +11,7 @@ nav:
   - Quality Assurance: quality_assurance.md
   - Experiment Tracking: experiment_tracking.md
   - Paper Protocol: paper_protocol.md
+  - Ensemble C3 Experiment Log: ensemble_c3_experiment_log.md
   - Function Index: function_index.md
   - API Reference (Generated): api_reference_generated.md
   - QA Data Preparation: qa_data_preparation.md

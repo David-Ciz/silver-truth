@@ -20,6 +20,10 @@ from silver_truth.evaluation.reporting import (
     write_overflow_impact_bundle,
     write_hsc_reporting_bundle,
 )
+from silver_truth.evaluation.ablation_reporting import (
+    generate_ablation_diagnostics_report,
+    write_ablation_diagnostics_report,
+)
 from silver_truth.metrics.qa_model_evaluation import (
     evaluate_qa_model_from_excel,
     merge_predictions_to_parquet,
@@ -958,6 +962,88 @@ def report_overflow_impact(
         click.echo(f"{name}: {path}")
 
 
+@click.command("report-ablation-diagnostics")
+@click.option(
+    "--qa-metrics-csv",
+    required=True,
+    type=click.Path(exists=True, dir_okay=False, path_type=Path),
+    help="CSV emitted by `evaluate-qa-model`.",
+)
+@click.option(
+    "--qa-filtering-csv",
+    required=True,
+    type=click.Path(exists=True, dir_okay=False, path_type=Path),
+    help="CSV emitted by `evaluate-qa-filtering`.",
+)
+@click.option(
+    "--ablation-dir",
+    required=True,
+    type=click.Path(exists=True, file_okay=False, path_type=Path),
+    help="Ablation output directory for one dataset/crop/variant/fold.",
+)
+@click.option("--dataset", required=True, type=str, help="Dataset name.")
+@click.option("--crop-tag", required=True, type=str, help="Crop tag, e.g. sz64.")
+@click.option("--variant", required=True, type=str, help="Variant name.")
+@click.option("--split-name", required=True, type=str, help="Split name, e.g. fold-1.")
+@click.option(
+    "--default-threshold",
+    type=float,
+    default=0.75,
+    show_default=True,
+    help="Default QA threshold to highlight in the diagnostics.",
+)
+@click.option(
+    "--output-dir",
+    required=True,
+    type=click.Path(path_type=Path),
+    help="Directory where the QA ablation diagnostics bundle is written.",
+)
+def report_ablation(
+    qa_metrics_csv: Path,
+    qa_filtering_csv: Path,
+    ablation_dir: Path,
+    dataset: str,
+    crop_tag: str,
+    variant: str,
+    split_name: str,
+    default_threshold: float,
+    output_dir: Path,
+) -> None:
+    """
+    Consolidate ablation outputs into one diagnostics bundle.
+
+    This report is meant to catch cases where apparent gains are brittle,
+    threshold-sensitive, tail-risky, or otherwise not supported by the
+    underlying diagnostics.
+    """
+    bundle = generate_ablation_diagnostics_report(
+        qa_metrics_csv=qa_metrics_csv,
+        qa_filtering_csv=qa_filtering_csv,
+        ablation_dir=ablation_dir,
+        dataset=dataset,
+        crop_tag=crop_tag,
+        variant=variant,
+        split_name=split_name,
+        default_threshold=default_threshold,
+    )
+    written = write_ablation_diagnostics_report(output_dir, bundle)
+
+    overview = bundle["overview"]
+    flags = bundle["diagnostic_flags"]
+    if not overview.empty:
+        click.echo(overview.to_string(index=False))
+        click.echo("")
+
+    triggered_flags = (
+        flags[flags["triggered"].fillna(False)] if not flags.empty else flags
+    )
+    click.echo(
+        f"Triggered flags: {0 if triggered_flags is None else len(triggered_flags)}"
+    )
+    click.echo(f"Markdown report: {written['report_markdown']}")
+    click.echo(f"Method summary: {written['ablation_method_summary']}")
+
+
 cli.add_command(evaluate_competitor)
 cli.add_command(calculate_evaluation_metrics_cli)
 cli.add_command(evaluate_qa_model)
@@ -967,6 +1053,7 @@ cli.add_command(evaluate_fusion_crops)
 cli.add_command(filter_parquet)
 cli.add_command(report_hsc_results)
 cli.add_command(report_overflow_impact)
+cli.add_command(report_ablation)
 
 
 if __name__ == "__main__":

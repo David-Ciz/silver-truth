@@ -3,10 +3,14 @@ _Updated: 2026-03-13 | Dataset: BF-C2DL-HSC_
 
 This note separates the decision-relevant readout from the operational plan in `docs/ablation_experiment_plan.md`.
 
+Recent QA follow-up runs after this note are summarized separately in
+`docs/qa_follow_up_experiments_2026-03-27.md`.
+
 Current status:
 - the old fold result folders were deleted
 - the fold rerun is in progress
 - the mixed-run comparison surface is still available in MLflow and is the best current signal for where to focus next
+- MuSC -> HSC ensemble transfer has now been run and improved the HSC ensemble baseline on both folds
 
 ---
 
@@ -215,6 +219,34 @@ Recommended paper-safe transfer run order:
 2. fine-tune that checkpoint on `BF-C2DL-HSC` fold-1
 3. pretrain on `BF-C2DL-MuSC` fold-2
 4. fine-tune that checkpoint on `BF-C2DL-HSC` fold-2
+
+### 3a. MuSC -> HSC transfer result
+
+This experiment has now been completed using the MuSC `sz256` ensemble checkpoint
+as initialization for the HSC `sz64` ensemble.
+
+Fair comparison:
+
+- scratch HSC ensemble baseline vs transfer HSC ensemble baseline
+- same final evaluation level: `full_image_label`
+- metric: `test_iou`
+
+| Fold | HSC scratch ensemble | HSC transfer ensemble | Delta |
+|---|---:|---:|---:|
+| `fold-1` | `0.8562` | `0.8718` | `+0.0156` |
+| `fold-2` | `0.8519` | `0.8699` | `+0.0180` |
+| mean | `0.8540` | `0.8708` | `+0.0168` |
+
+Interpretation:
+
+- transfer helped on both HSC folds
+- the gain is larger than the "noise floor" of earlier local ensemble tweaks
+- this is the first ensemble-only change in the current branch that clearly improves the fold baseline without depending on QA
+
+Important limit:
+
+- this still does not beat HSC silver truth overall
+- but it does materially improve the learned ensemble branch, which makes transfer a justified next-step story in the paper
 5. compare against the matching HSC fold baselines
 
 ### 4. Only then try a larger pooled training set

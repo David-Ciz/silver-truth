@@ -7,22 +7,22 @@ Prepared on 2026-03-26 from the local MLflow store at `data/mlflow/mlruns` and t
 ### QA network (HSC)
 
 Reference run:
-- Experiment: `phaseB-qa-train-BF-C2DL-HSC-baseline-fold-1`
-- Run ID: `3175fd27b606403b8de2d5dacde48970`
+- Experiment: `phaseB-qa-train-BF-C2DL-HSC-baseline-fold-2`
+- Run ID: `498f8d9dadfd4c3c9a1f1fc45cf86645`
 
 Recovered from MLflow params:
 
 | Item | Value |
 | --- | --- |
-| Backbone | `resnet50` |
+| Backbone | `resnet18` |
 | Learning rate | `0.0001` |
 | Batch size | `16` |
-| Epochs | `50` (`final_epoch=46`) |
+| Epochs | `50` |
 | Weight decay | `0.0001` |
 | Patience | `10` |
 | Input channels | `0,1` |
 | Augmentation flag | `True` |
-| Training time | `3228.13 s` (`53m 48s`) |
+| Training time | `561.31 s` (`9m 21s`) |
 
 Augmentations in code:
 - `prepare_images_for_model()` in `src/silver_truth/qa/cnn.py` applies random horizontal flip, random vertical flip, and random 90-degree rotations when `augment=True`.
@@ -35,6 +35,13 @@ PyTorch version:
 GPU model:
 - No HPC or Slurm log for this QA run is present in the workspace.
 - The local training logs that are available show Apple Metal (`GPU available: True (mps)`), so the exact HPC GPU model is not recoverable from the current repository state.
+
+Timing caveat:
+- The local HSC MLflow runs vary a lot by backbone and device:
+  - `498f8d9dadfd4c3c9a1f1fc45cf86645` (`resnet18`, fold-2): `561.31 s`
+  - `3175fd27b606403b8de2d5dacde48970` (`resnet50`, fold-1): `3228.13 s`
+  - `ffe76b09668145af96526a707ebb63f2` (`resnet50`, fold-2): `4664.64 s`
+- The Karolina log you provided on 2026-03-27 shows a CUDA run on `NVIDIA A100-SXM4-40GB` finishing a MuSC `resnet18` QA training step in about `35 s`, so training time should be reported together with hardware/context rather than as a single universal number.
 
 ### Fusion engine / ensemble (HSC)
 
@@ -135,6 +142,45 @@ Computed from the `test` sheets with `scipy.stats.pearsonr()`:
 | --- | --- | --- | --- |
 | Fold 1 | `0.3627442551` | `597` | `33.0017%` |
 | Fold 2 | `0.2285150920` | `1502` | `99.5361%` |
+
+### QA calibration comparison: actual vs predicted Jaccard
+
+These numbers are computed from the saved HSC QA Excel `test` sheets, using:
+- `actual = "Jaccard index"`
+- `predicted = "Predicted Jaccard index"`
+
+| Fold | Actual mean | Predicted mean | Bias (`pred - actual`) | MAE | RMSE | Pearson r |
+| --- | --- | --- | --- | --- | --- | --- |
+| Fold 1 | `0.8050` | `0.7611` | `-0.0439` | `0.0701` | `0.0855` | `0.3627` |
+| Fold 2 | `0.8201` | `0.6526` | `-0.1675` | `0.1834` | `0.2030` | `0.2285` |
+
+Threshold behavior at `t=0.75`:
+
+| Fold | Actual rows `>= 0.75` | Predicted rows `>= 0.75` |
+| --- | --- | --- |
+| Fold 1 | `1449 / 1809` = `80.10%` | `1212 / 1809` = `67.00%` |
+| Fold 2 | `1188 / 1509` = `78.73%` | `7 / 1509` = `0.46%` |
+
+Interpretation:
+- Fold 1 is weak but still usable as a ranker.
+- Fold 2 is badly miscalibrated on the `test` split: predictions are compressed far below the true IoU range, so a threshold of `0.75` is effectively unusable there.
+- This explains why the filtering report at `t=0.75` looks extreme on fold 2: most rows are truly good by actual Jaccard, but the QA model scores almost all of them below `0.75`.
+
+Split note:
+- Yes, the alarming numbers above are from the `test` sheets.
+- The saved regression metrics are much better on train/validation than on test:
+  - Fold 1: train Pearson `0.9433`, validation Pearson `0.8450`, test Pearson `0.3627`
+  - Fold 2: train Pearson `0.5189`, validation Pearson `0.2840`, test Pearson `0.2285`
+
+### Paper-ready wording for Section 5.4
+
+Suggested paragraph:
+
+> The QA regressor showed limited generalization on the held-out HSC test folds. On the test sheets, the correlation between predicted and actual Jaccard was only `r=0.3627` on fold 1 and `r=0.2285` on fold 2. The model also showed strong underestimation on fold 2: the mean predicted Jaccard was `0.6526` while the mean actual Jaccard was `0.8201`. This calibration failure directly affected threshold-based filtering. At `t=0.75`, `78.73%` of fold-2 test rows had actual Jaccard at least `0.75`, but only `0.46%` of predictions were at least `0.75`. Therefore, the current HSC results do not support aggressive QA thresholding as a reliable gating mechanism, and QA filtering should be interpreted as exploratory rather than as a validated source of the final performance gains.
+
+Suggested short follow-up sentence if needed:
+
+> In the current HSC setting, the learned QA model appears to provide weak ranking signal on fold 1 and poor calibration on fold 2, which makes hard thresholding unstable.
 
 ## 6. Generated figures
 

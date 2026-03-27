@@ -21,7 +21,8 @@ fusion_models: [SIMPLE, MAJORITY_FLAT, THRESHOLD_FLAT, BIC_FLAT_VOTING]
 
 # ── QA filtering ──────────────────────────────────────────────────────────────
 qa_threshold: 0.75
-qa_threshold_sweep: [0.50, 0.60, 0.70, 0.75]
+qa_threshold_sweep: [0.05, 0.10, 0.15, 0.20, 0.30, 0.40, 0.50, 0.60, 0.70, 0.75, 0.80]
+qa_filtering_thresholds: [0.05, 0.10, 0.15, 0.20, 0.30, 0.40, 0.50, 0.60, 0.70, 0.75, 0.80, 0.85, 0.90]
 
 # ── Phase C ablation modes to run ─────────────────────────────────────────────
 # Comment out any mode you want to skip.

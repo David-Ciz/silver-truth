@@ -36,8 +36,12 @@ These are the repository-level scripts that currently have clear documentation s
 
 - `scripts/run_ablation.py`
   - maintained paper runner; orchestrates Phase A/B/C from YAML configs in `experiments/variants/`
+- `scripts/run_ablation_hpc.sh`
+  - maintained Slurm wrapper for the ablation runner; stages data to scratch and isolates outputs under a durable campaign root
 - `scripts/generate_api_docs.py`
   - refreshes `docs/api_reference_generated.md` from source docstrings
+
+For a human-oriented explanation of the ablation runner itself, see [Ablation Runner Explained](ablation_runner_explained.md).
 
 Other files in `scripts/` may still be useful, but many are experiment-specific helpers. Before reusing one, verify that it is still referenced by the docs or current workflows.
 

@@ -265,6 +265,20 @@ def build_steps(cfg: dict[str, Any]) -> list[dict[str, Any]]:
     def _threshold_label(value: float) -> str:
         return f"{value:.2f}"
 
+    def _thresholds_csv(values: list[float]) -> str:
+        return ",".join(f"{value:.2f}" for value in sorted(set(values)))
+
+    qa_filtering_thresholds = [
+        float(value)
+        for value in cfg.get(
+            "qa_filtering_thresholds",
+            [0.20, 0.30, 0.40, 0.50, 0.60, 0.70, 0.75, 0.80, 0.85, 0.90],
+        )
+    ]
+    qa_filtering_thresholds_csv = _thresholds_csv(
+        [threshold, *threshold_sweep, *qa_filtering_thresholds]
+    )
+
     def _fused_parquet_path(
         source_parquet: str, output_dir: str, model_lower: str
     ) -> str:
@@ -274,17 +288,25 @@ def build_steps(cfg: dict[str, Any]) -> list[dict[str, Any]]:
         )
 
     # Shorthand path helpers
+    paper_runs = cfg["paper_runs_root"]
     qa_parquet = cfg["qa_parquet_template"]
     whole_image_parquet = cfg["whole_image_parquet_template"]
     paper_ready = cfg["paper_ready_parquet_template"]
     paper_base = paper_ready.replace("_paper_ready.parquet", "_paper_base.parquet")
     qa_model = cfg["qa_model_template"]
     qa_excel = cfg["qa_excel_template"]
+    qa_excel_stem = Path(qa_excel).stem
+    qa_metrics_dir = (
+        f"{paper_runs}/qa_results/{dataset}/{crop_tag}/{variant}/{split_name}_metrics"
+    )
+    qa_metrics_csv = f"{qa_metrics_dir}/{qa_excel_stem}_evaluation_metrics.csv"
+    qa_filtering_dir = (
+        f"{paper_runs}/qa_results/{dataset}/{crop_tag}/{variant}/{split_name}_filtering"
+    )
+    qa_filtering_csv = f"{qa_filtering_dir}/{qa_excel_stem}_filtering_metrics.csv"
 
     fusion_out = cfg["fusion_output_template"]
     ablation_out = cfg["ablation_output_template"]
-
-    paper_runs = cfg["paper_runs_root"]
     experiment_suffix = f"{dataset}-{crop_tag}-{variant}-{split_name}"
     competitor_csv = f"{paper_runs}/baselines/{dataset}_{crop_tag}_{variant}_{split_name}_competitors.csv"
     compare_experiment = f"paper-compare-{experiment_suffix}"
@@ -467,7 +489,7 @@ def build_steps(cfg: dict[str, Any]) -> list[dict[str, Any]]:
                 "cmd": (
                     f"silver-evaluation evaluate-qa-model "
                     f"  {qa_excel} "
-                    f"  --output-dir {paper_runs}/qa_results/{dataset}/{crop_tag}/{variant}/{split_name}_metrics "
+                    f"  --output-dir {qa_metrics_dir} "
                     f"  --mlflow-experiment {phaseb_qa_regression_experiment} "
                     f"  --mlflow-run-name qa_regression"
                 ),
@@ -482,8 +504,8 @@ def build_steps(cfg: dict[str, Any]) -> list[dict[str, Any]]:
                 "cmd": (
                     f"silver-evaluation evaluate-qa-filtering "
                     f"  {qa_excel} "
-                    f"  --thresholds 0.50,0.60,0.70,0.75,0.80,0.85,0.90 "
-                    f"  --output-dir {paper_runs}/qa_results/{dataset}/{crop_tag}/{variant}/{split_name}_filtering "
+                    f"  --thresholds {qa_filtering_thresholds_csv} "
+                    f"  --output-dir {qa_filtering_dir} "
                     f"  --mlflow-experiment {phaseb_qa_filtering_experiment} "
                     f"  --mlflow-run-name qa_thresholding"
                 ),
@@ -665,12 +687,12 @@ def build_steps(cfg: dict[str, Any]) -> list[dict[str, Any]]:
                     f"silver-ensemble evaluate-best-checkpoint "
                     f"  --checkpoints-dir {_baseline_ckpt_dir} "
                     f"  --databank-path {_baseline_db_parquet} "
-                        f"  --split-type test "
-                        f"  --dataset-version {ensemble_version} "
-                        f"  --batch-size {cfg['ensemble_batch_size']} "
-                        f"  --output-dir {mode_out} "
-                        f"  --mlflow-experiment {compare_experiment} "
-                        f"  --mlflow-run-name ensemble_only "
+                    f"  --split-type test "
+                    f"  --dataset-version {ensemble_version} "
+                    f"  --batch-size {cfg['ensemble_batch_size']} "
+                    f"  --output-dir {mode_out} "
+                    f"  --mlflow-experiment {compare_experiment} "
+                    f"  --mlflow-run-name ensemble_only "
                     f"  --setup-name ensemble_only "
                 ),
             }
@@ -821,6 +843,32 @@ def build_steps(cfg: dict[str, Any]) -> list[dict[str, Any]]:
                     f"  --setup-name ensemble_qa_retrained_t{threshold} "
                     f"  --qa-mode full_pipeline "
                     f"  --qa-threshold {threshold}"
+                ),
+            }
+        )
+
+    if cfg.get("run_phaseB_qa", True) and cfg.get("run_phaseC_ablation", True):
+        report_dir = f"{paper_runs}/reports/{dataset}/{crop_tag}/{variant}/{split_name}/ablation_diagnostics"
+        ablation_dir = (
+            f"{paper_runs}/ablation/{dataset}/{crop_tag}/{variant}/{split_name}"
+        )
+        steps.append(
+            {
+                "id": "phaseC_ablation_diagnostics_report",
+                "phase": "C",
+                "name": "Phase C — ablation diagnostics report",
+                "cmd": (
+                    f"mkdir -p {report_dir} && "
+                    f"silver-evaluation report-ablation-diagnostics "
+                    f"  --qa-metrics-csv {qa_metrics_csv} "
+                    f"  --qa-filtering-csv {qa_filtering_csv} "
+                    f"  --ablation-dir {ablation_dir} "
+                    f"  --dataset {dataset} "
+                    f"  --crop-tag {crop_tag} "
+                    f"  --variant {variant} "
+                    f"  --split-name {split_name} "
+                    f"  --default-threshold {threshold} "
+                    f"  --output-dir {report_dir}"
                 ),
             }
         )
