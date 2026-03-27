@@ -20,7 +20,7 @@ from silver_truth.evaluation.reporting import (
     write_overflow_impact_bundle,
     write_hsc_reporting_bundle,
 )
-from silver_truth.evaluation.ablation_reporting import (
+from silver_truth.evaluation.qa_reporting import (
     generate_ablation_diagnostics_report,
     write_ablation_diagnostics_report,
 )

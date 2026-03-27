@@ -17,7 +17,7 @@ FOLD=""
 PHASE="all"
 KEEP_SCRATCH=0
 MLFLOW_BACKEND="file"
-LOG_ROOT=""
+LOG_ROOT="${HOME}/logs/ablation_hpc"
 EXTRA_ARGS=()
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -52,7 +52,7 @@ Options:
   --dry-run             Pass --dry-run to scripts/run_ablation.py.
   --durable-root PATH   Durable storage for paper_runs and MLflow.
   --scratch-root PATH   Scratch runtime root. Default uses SLURM_JOB_ID.
-  --log-root PATH       Durable log root. Default: <durable-root>/logs
+  --log-root PATH       Durable log root. Default: $HOME/logs/ablation_hpc
   --venv-dir PATH       Virtualenv to activate. Default: <repo>/.venv
   --mlflow-backend MODE MLflow backend: file or sqlite. Default: file
   --keep-scratch        Do not delete the per-job scratch directory on exit.
@@ -182,9 +182,6 @@ DURABLE_ROOT="$(make_abs "${DURABLE_ROOT}")"
 SCRATCH_ROOT="$(make_abs "${SCRATCH_ROOT}")"
 VENV_DIR="$(make_abs "${VENV_DIR}")"
 CONFIG="$(make_abs "${CONFIG}")"
-if [[ -z "${LOG_ROOT}" ]]; then
-    LOG_ROOT="${DURABLE_ROOT}/logs"
-fi
 LOG_ROOT="$(make_abs "${LOG_ROOT}")"
 
 CONFIG_STEM="$(basename "${CONFIG}")"
