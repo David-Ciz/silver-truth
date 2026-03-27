@@ -17,6 +17,7 @@ FOLD=""
 PHASE="all"
 KEEP_SCRATCH=0
 MLFLOW_BACKEND="file"
+LOG_ROOT=""
 EXTRA_ARGS=()
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -51,6 +52,7 @@ Options:
   --dry-run             Pass --dry-run to scripts/run_ablation.py.
   --durable-root PATH   Durable storage for paper_runs and MLflow.
   --scratch-root PATH   Scratch runtime root. Default uses SLURM_JOB_ID.
+  --log-root PATH       Durable log root. Default: <durable-root>/logs
   --venv-dir PATH       Virtualenv to activate. Default: <repo>/.venv
   --mlflow-backend MODE MLflow backend: file or sqlite. Default: file
   --keep-scratch        Do not delete the per-job scratch directory on exit.
@@ -95,6 +97,10 @@ while [[ $# -gt 0 ]]; do
             ;;
         --scratch-root)
             SCRATCH_ROOT="${2:-}"
+            shift 2
+            ;;
+        --log-root)
+            LOG_ROOT="${2:-}"
             shift 2
             ;;
         --venv-dir)
@@ -176,13 +182,86 @@ DURABLE_ROOT="$(make_abs "${DURABLE_ROOT}")"
 SCRATCH_ROOT="$(make_abs "${SCRATCH_ROOT}")"
 VENV_DIR="$(make_abs "${VENV_DIR}")"
 CONFIG="$(make_abs "${CONFIG}")"
+if [[ -z "${LOG_ROOT}" ]]; then
+    LOG_ROOT="${DURABLE_ROOT}/logs"
+fi
+LOG_ROOT="$(make_abs "${LOG_ROOT}")"
+
+CONFIG_STEM="$(basename "${CONFIG}")"
+CONFIG_STEM="${CONFIG_STEM%.yaml}"
+JOB_NAME_SAFE="${SLURM_JOB_NAME:-ablation}"
+JOB_NAME_SAFE="${JOB_NAME_SAFE//[^A-Za-z0-9._-]/_}"
+JOB_TAG="${JOB_NAME_SAFE}__${CONFIG_STEM}__fold-${FOLD}__job-${SLURM_JOB_ID:-manual}"
+JOB_LOG_DIR="${LOG_ROOT}/jobs/${JOB_TAG}"
+JOB_RUN_LOG="${JOB_LOG_DIR}/run.log"
+JOB_META_FILE="${JOB_LOG_DIR}/metadata.env"
+JOB_SUMMARY_FILE="${JOB_LOG_DIR}/summary.env"
+JOB_INDEX_FILE="${LOG_ROOT}/job_index.tsv"
 
 cleanup() {
+    local exit_code=$?
+    local final_status="success"
+    if [[ "${exit_code}" -ne 0 ]]; then
+        final_status="failed"
+    fi
+
+    if [[ -n "${JOB_SUMMARY_FILE:-}" ]]; then
+        mkdir -p "$(dirname "${JOB_SUMMARY_FILE}")"
+        cat > "${JOB_SUMMARY_FILE}" <<EOF
+status=${final_status}
+exit_code=${exit_code}
+job_id=${SLURM_JOB_ID:-manual}
+job_name=${SLURM_JOB_NAME:-ablation}
+config=${CONFIG}
+fold=${FOLD}
+phase=${PHASE}
+durable_root=${DURABLE_ROOT}
+log_root=${LOG_ROOT}
+job_log_dir=${JOB_LOG_DIR}
+run_log=${JOB_RUN_LOG}
+scratch_root=${SCRATCH_ROOT}
+completed_at=$(date --iso-8601=seconds 2>/dev/null || date)
+EOF
+    fi
+
+    if [[ -n "${JOB_INDEX_FILE:-}" ]]; then
+        mkdir -p "$(dirname "${JOB_INDEX_FILE}")"
+        if [[ ! -f "${JOB_INDEX_FILE}" ]]; then
+            printf 'job_id\tjob_name\tconfig\tfold\tphase\tstatus\tdurable_root\tjob_log_dir\trun_log\n' > "${JOB_INDEX_FILE}"
+        fi
+        printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' \
+            "${SLURM_JOB_ID:-manual}" \
+            "${SLURM_JOB_NAME:-ablation}" \
+            "${CONFIG}" \
+            "${FOLD}" \
+            "${PHASE}" \
+            "${final_status}" \
+            "${DURABLE_ROOT}" \
+            "${JOB_LOG_DIR}" \
+            "${JOB_RUN_LOG}" >> "${JOB_INDEX_FILE}"
+    fi
+
     if [[ "${KEEP_SCRATCH}" -eq 0 && -n "${SCRATCH_ROOT:-}" && -d "${SCRATCH_ROOT}" ]]; then
         rm -rf "${SCRATCH_ROOT}"
     fi
 }
 trap cleanup EXIT
+
+mkdir -p "${LOG_ROOT}/jobs" "${LOG_ROOT}/slurm" "${JOB_LOG_DIR}"
+cat > "${JOB_META_FILE}" <<EOF
+job_id=${SLURM_JOB_ID:-manual}
+job_name=${SLURM_JOB_NAME:-ablation}
+config=${CONFIG}
+fold=${FOLD}
+phase=${PHASE}
+durable_root=${DURABLE_ROOT}
+log_root=${LOG_ROOT}
+job_log_dir=${JOB_LOG_DIR}
+run_log=${JOB_RUN_LOG}
+scratch_root=${SCRATCH_ROOT}
+started_at=$(date --iso-8601=seconds 2>/dev/null || date)
+EOF
+exec > >(tee -a "${JOB_RUN_LOG}") 2>&1
 
 echo "=== Ablation HPC job ${SLURM_JOB_ID:-manual} started at $(date) ==="
 echo "Node: ${SLURMD_NODENAME:-$(hostname)}"
@@ -192,6 +271,9 @@ echo "Fold: ${FOLD}"
 echo "Phase: ${PHASE}"
 echo "Scratch root: ${SCRATCH_ROOT}"
 echo "Durable root: ${DURABLE_ROOT}"
+echo "Log root: ${LOG_ROOT}"
+echo "Job log dir: ${JOB_LOG_DIR}"
+echo "Combined run log: ${JOB_RUN_LOG}"
 echo "Keep scratch: ${KEEP_SCRATCH}"
 echo "MLflow backend: ${MLFLOW_BACKEND}"
 
