@@ -149,6 +149,8 @@ def _train_model(
     # model_type = ModelType.DPT
 
     model_type = run_params["model_type"]
+    model_enc = run_params["model_enc"]
+    pretrain = run_params["pretrain"]
     max_epochs = run_params["max_epochs"]
     if model_type == ModelType.Unet_Mult_Input:
         model_pl = Unet_Mult_Input(device)
@@ -157,9 +159,11 @@ def _train_model(
 
     else:
         num_inputs = 1 if is_single_input else 2
-        model_pl = SMP_Model(model_type, device, num_inputs)
+        model_pl = SMP_Model(model_type, device, model_enc, pretrain, num_inputs=num_inputs)
 
     mlflow.log_param("model_type", model_type)
+    mlflow.log_param("model_enc", model_enc)
+    mlflow.log_param("pretrain", pretrain)
     mlflow.log_param("model", model_pl.model)
     mlflow.log_param("loss_type", model_pl.loss_type)
 

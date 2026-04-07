@@ -35,7 +35,8 @@ def build_qa_databank(
         original_dataset_path,
         qa_output_path,
         qa_parquet_path,
-        crop_size=build_opt["crop_size"],
+        crop="crop_size" in build_opt,
+        crop_size=build_opt["crop_size"] if "crop_size" in build_opt else 0,
     )
     # compress images to save space
     ext.compress_images(qa_output_path)
@@ -233,7 +234,8 @@ build_opt_list = [
 
 build_opt_list = [
     {
-        "name": "BF-C2DL-MuSC",
+        #"name": "BF-C2DL-MuSC",
+        "name": "BF-C2DL-HSC",
         "databank": Databank_type.Norm,
         "dataset": Version.C1,
         "crop_size": 64,
@@ -256,14 +258,15 @@ build_opt_list = [
 ## OPTIONAL: check cell size histogram
 #show_cell_size_hist(build_opt_list[0])
 
-ensemble_databanks = build_ensemble_databanks(build_opt_list)
+#ensemble_databanks = build_ensemble_databanks(build_opt_list)
 
 databank_opt = build_opt_list[0]
 run_sequence = [
         #{"model_type": ModelType.Unet_Dynamic, "max_epochs": 2, "databank_opt": databank_opt},
         #{"model_type": ModelType.Unet_Mult_Input, "max_epochs": 100, "databank_opt": databank_opt},
         #{"model_type": ModelType.Unet, "max_epochs": 100, "databank_opt": databank_opt},
-        {"model_type": ModelType.UnetPlusPlus, "max_epochs": 100, "databank_opt": databank_opt}
+        {"model_type": ModelType.Unet, "model_enc": "resnet152", "pretrain":"imagenet", "max_epochs": 100, "databank_opt": databank_opt},
+        #{"model_type": ModelType.UnetPlusPlus, "max_epochs": 100, "databank_opt": databank_opt}
     ]
 
 train_model(databank_opt, run_sequence)
@@ -274,7 +277,6 @@ models_paths = [
 ]
 #evaluate_models(models_paths, build_opt_list)
 
-a = 0
 
 # ----- ######## ----- #
 
