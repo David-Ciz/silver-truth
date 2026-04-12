@@ -200,6 +200,8 @@ def _train_model(
         ],
     )
 
+    print(f"\n### Training model: {str(model_type)}, encoder: {model_enc}, weights: {pretrain}.\n\n")
+
     trainer.fit(model_pl, train_loader, val_loader)
 
     # Test best model on validation and test set
@@ -340,5 +342,5 @@ def run(run_params: dict, rand_seed: int = 42) -> None:
     )
 
     # DEBUG only
-    _visualize_reconstructions(model, _get_stacked_images(val_set, 16, is_single_input))
+    #_visualize_reconstructions(model, _get_stacked_images(val_set, 16, is_single_input))
     print("Done.")
