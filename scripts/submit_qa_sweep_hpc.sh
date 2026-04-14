@@ -26,7 +26,7 @@ Options:
   --campaign-root PATH      Durable output root for paper_runs and MLflow.
   --log-root PATH           Durable log root for Slurm/job logs.
   --mlflow-backend MODE     MLflow backend passed through to run_ablation_hpc.sh: file or sqlite.
-  --folds "1 2"             Space-separated folds to submit. Default: "1 2"
+  --folds "1 2 mixed"       Space-separated folds to submit. Default: "1 2"
   --datasets "hsc64 musc256"
                             Dataset/crop presets to submit. Default: both.
   --architectures "..."
@@ -93,9 +93,9 @@ esac
 
 for fold in "${FOLDS[@]}"; do
     case "${fold}" in
-        1|2) ;;
+        1|2|mixed) ;;
         *)
-            echo "ERROR: folds must be 1 or 2, got '${fold}'" >&2
+            echo "ERROR: folds must be 1, 2, or mixed, got '${fold}'" >&2
             exit 2
             ;;
     esac
@@ -139,7 +139,13 @@ for dataset_key in "${DATASETS[@]}"; do
         fi
 
         for fold in "${FOLDS[@]}"; do
-            job_name="qa_${dataset_key}_${architecture}_f${fold}"
+            job_fold="${fold}"
+            if [[ "${fold}" == "mixed" ]]; then
+                job_fold="mixed"
+            else
+                job_fold="f${fold}"
+            fi
+            job_name="qa_${dataset_key}_${architecture}_${job_fold}"
             cmd=(
                 sbatch
                 --job-name "${job_name}"
