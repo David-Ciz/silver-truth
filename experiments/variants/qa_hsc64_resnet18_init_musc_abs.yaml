@@ -1,0 +1,3 @@
+extends: qa_hsc64_resnet18.yaml
+
+qa_init_model_template: "/mnt/proj1/eu-25-40/innovaite/silver-truth-hpc/campaigns/qa_transfer_2026_04_14/paper_runs/qa_models/BF-C2DL-MuSC/sz256/qa_musc256_resnet18_qa_resnet18_mixed.pt"
