@@ -16,7 +16,9 @@ from silver_truth.evaluation.stacked_jaccard_logic import (
 )
 from silver_truth.evaluation.reporting import (
     analyze_overflow_impact,
+    generate_hsc_main_comparison_bundle,
     generate_hsc_reporting_bundle,
+    write_hsc_main_comparison_bundle,
     write_overflow_impact_bundle,
     write_hsc_reporting_bundle,
 )
@@ -907,6 +909,62 @@ def report_hsc_results(
     click.echo(f"Markdown summary: {written['markdown']}")
 
 
+@click.command("report-hsc-main-comparison")
+@click.option(
+    "--comparison-root",
+    type=click.Path(exists=True, file_okay=False, path_type=Path),
+    default=Path("data/paper_runs/clean_comparison_20260312_231619"),
+    show_default=True,
+    help="Root directory containing fold-1/ and fold-2/ clean comparison exports.",
+)
+@click.option(
+    "--output-dir",
+    type=click.Path(path_type=Path),
+    default=Path("data/paper_runs/reports/hsc_main_comparison"),
+    show_default=True,
+    help="Directory where the main-comparison statistical note is written.",
+)
+@click.option(
+    "--bootstrap-samples",
+    type=int,
+    default=10000,
+    show_default=True,
+    help="Number of stratified bootstrap resamples for confidence intervals.",
+)
+@click.option(
+    "--bootstrap-seed",
+    type=int,
+    default=42,
+    show_default=True,
+    help="Random seed for bootstrap confidence intervals.",
+)
+def report_hsc_main_comparison(
+    comparison_root: Path,
+    output_dir: Path,
+    bootstrap_samples: int,
+    bootstrap_seed: int,
+):
+    """
+    Write the manuscript-safe HSC main comparison statistical note.
+
+    This report focuses on the clean cross-fold HSC comparison between the
+    learned ensemble, SILVER-TRUTH, and the competitor baselines. Confidence
+    intervals are bootstrapped over test images within each fold and then
+    averaged across folds to stay aligned with fold-level reporting.
+    """
+    bundle = generate_hsc_main_comparison_bundle(
+        comparison_root=comparison_root,
+        bootstrap_samples=bootstrap_samples,
+        bootstrap_seed=bootstrap_seed,
+    )
+    written = write_hsc_main_comparison_bundle(output_dir, bundle)
+
+    click.echo(f"Main comparison note written to: {output_dir}")
+    click.echo(f"Core summary: {written['core_summary']}")
+    click.echo(f"Paired comparisons: {written['comparisons']}")
+    click.echo(f"Markdown summary: {written['markdown']}")
+
+
 @click.command("report-overflow-impact")
 @click.argument("results_path", type=click.Path(exists=True, path_type=Path))
 @click.argument("dataset_dataframe_path", type=click.Path(exists=True, path_type=Path))
@@ -1052,6 +1110,7 @@ cli.add_command(merge_qa_predictions)
 cli.add_command(evaluate_fusion_crops)
 cli.add_command(filter_parquet)
 cli.add_command(report_hsc_results)
+cli.add_command(report_hsc_main_comparison)
 cli.add_command(report_overflow_impact)
 cli.add_command(report_ablation)
 

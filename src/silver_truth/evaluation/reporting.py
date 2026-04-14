@@ -63,6 +63,54 @@ def bootstrap_mean_ci(
     }
 
 
+def bootstrap_stratified_mean_ci(
+    values_by_group: dict[str, pd.Series | np.ndarray | list[float]],
+    *,
+    confidence: float = 0.95,
+    n_resamples: int = 10_000,
+    seed: int = 42,
+) -> dict[str, float]:
+    arrays: list[np.ndarray] = []
+    for values in values_by_group.values():
+        array = np.asarray(values, dtype=float)
+        array = array[np.isfinite(array)]
+        if len(array) == 0:
+            continue
+        arrays.append(array)
+
+    if not arrays:
+        return {
+            "mean": float("nan"),
+            "ci_lower": float("nan"),
+            "ci_upper": float("nan"),
+        }
+
+    observed_group_means = np.asarray([array.mean() for array in arrays], dtype=float)
+    observed_mean = float(observed_group_means.mean())
+
+    if n_resamples <= 0 or all(len(array) == 1 for array in arrays):
+        return {
+            "mean": observed_mean,
+            "ci_lower": observed_mean,
+            "ci_upper": observed_mean,
+        }
+
+    rng = np.random.default_rng(seed)
+    resampled_group_means = []
+    for array in arrays:
+        sample_idx = rng.integers(0, len(array), size=(n_resamples, len(array)))
+        resampled_group_means.append(array[sample_idx].mean(axis=1))
+
+    sample_means = np.mean(np.vstack(resampled_group_means), axis=0)
+    alpha = 1.0 - confidence
+
+    return {
+        "mean": observed_mean,
+        "ci_lower": float(np.quantile(sample_means, alpha / 2.0)),
+        "ci_upper": float(np.quantile(sample_means, 1.0 - alpha / 2.0)),
+    }
+
+
 def paired_wilcoxon_test(
     reference_values: pd.Series | np.ndarray | list[float],
     candidate_values: pd.Series | np.ndarray | list[float],
@@ -176,6 +224,107 @@ def write_hsc_reporting_bundle(
     bundle["core_summary"].to_csv(paths["core_summary"], index=False)
     bundle["comparisons"].to_csv(paths["comparisons"], index=False)
     paths["markdown"].write_text(_render_markdown_report(bundle), encoding="utf-8")
+
+    return paths
+
+
+def generate_hsc_main_comparison_bundle(
+    *,
+    comparison_root: Path,
+    bootstrap_samples: int = 10_000,
+    bootstrap_seed: int = 42,
+    confidence: float = 0.95,
+) -> dict[str, pd.DataFrame]:
+    per_image = _load_hsc_main_comparison_records(comparison_root)
+    summary = _summarize_methods(
+        per_image,
+        confidence=confidence,
+        bootstrap_samples=bootstrap_samples,
+        bootstrap_seed=bootstrap_seed,
+    )
+    core_summary = _build_core_summary(summary)
+
+    best_competitor = _best_competitor_row(summary)
+    comparison_rows: list[dict[str, Any]] = []
+    if best_competitor is not None and "ensemble_only" in set(summary["method_key"]):
+        for metric in ("iou", "f1"):
+            paired = _paired_metric_rows(
+                per_image,
+                reference_key=str(best_competitor["method_key"]),
+                candidate_key="ensemble_only",
+                metric=metric,
+            )
+            paired["metric"] = metric
+            paired["reference_method_key"] = str(best_competitor["method_key"])
+            paired["reference_method_label"] = str(best_competitor["method_label"])
+            paired["candidate_method_key"] = "ensemble_only"
+            paired["candidate_method_label"] = "ensemble_only"
+            comparison_rows.append(paired)
+
+    comparisons = pd.DataFrame.from_records(comparison_rows)
+
+    limitations = pd.DataFrame.from_records(
+        [
+            {
+                "scope": "main_hsc_comparison",
+                "status": "bootstrap_supported",
+                "note": (
+                    "The main HSC ensemble-only comparison includes 95% "
+                    "fold-stratified bootstrap CIs over test images."
+                ),
+            },
+            {
+                "scope": "qa_gated_hsc_ablation_rows",
+                "status": "descriptive_only",
+                "note": (
+                    "The broader HSC QA-gated ablation rows remain fold-level "
+                    "descriptive results only because the frozen local snapshot "
+                    "does not contain the full per-image exports for both folds."
+                ),
+            },
+            {
+                "scope": "pooled_paired_test",
+                "status": "descriptive_only",
+                "note": (
+                    "The pooled paired Wilcoxon rows are reported descriptively "
+                    "only: they pool image pairs across folds and therefore "
+                    "inherit the strong fold-size imbalance (8 vs 49 test images)."
+                ),
+            },
+        ]
+    )
+
+    return {
+        "per_image": per_image,
+        "summary": summary,
+        "core_summary": core_summary,
+        "comparisons": comparisons,
+        "limitations": limitations,
+    }
+
+
+def write_hsc_main_comparison_bundle(
+    output_dir: Path, bundle: dict[str, pd.DataFrame]
+) -> dict[str, Path]:
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    paths = {
+        "per_image": output_dir / "per_image_metrics.csv",
+        "summary": output_dir / "method_summary.csv",
+        "core_summary": output_dir / "core_method_summary.csv",
+        "comparisons": output_dir / "paired_comparisons.csv",
+        "limitations": output_dir / "limitations.csv",
+        "markdown": output_dir / "summary_report.md",
+    }
+
+    bundle["per_image"].to_csv(paths["per_image"], index=False)
+    bundle["summary"].to_csv(paths["summary"], index=False)
+    bundle["core_summary"].to_csv(paths["core_summary"], index=False)
+    bundle["comparisons"].to_csv(paths["comparisons"], index=False)
+    bundle["limitations"].to_csv(paths["limitations"], index=False)
+    paths["markdown"].write_text(
+        _render_main_comparison_markdown_report(bundle), encoding="utf-8"
+    )
 
     return paths
 
@@ -642,14 +791,20 @@ def _summarize_methods(
         ["method_key", "method_group", "method_label"]
     ):
         method_fold_summary = fold_summary[fold_summary["method_key"] == method_key]
-        iou_ci = bootstrap_mean_ci(
-            group["iou"],
+        iou_ci = bootstrap_stratified_mean_ci(
+            {
+                str(fold): fold_group["iou"]
+                for fold, fold_group in group.groupby("fold", sort=False)
+            },
             confidence=confidence,
             n_resamples=bootstrap_samples,
             seed=bootstrap_seed,
         )
-        f1_ci = bootstrap_mean_ci(
-            group["f1"],
+        f1_ci = bootstrap_stratified_mean_ci(
+            {
+                str(fold): fold_group["f1"]
+                for fold, fold_group in group.groupby("fold", sort=False)
+            },
             confidence=confidence,
             n_resamples=bootstrap_samples,
             seed=bootstrap_seed,
@@ -815,6 +970,41 @@ def _resolve_method_token(
         return group_match.iloc[0]
 
     return None
+
+
+def _load_hsc_main_comparison_records(comparison_root: Path) -> pd.DataFrame:
+    frames = []
+    for fold in _FOLDS:
+        fold_root = comparison_root / fold
+        frames.append(
+            _load_competitor_metrics(
+                fold_root / "competitors.csv",
+                fold=fold,
+                source_type="competitor_csv",
+            )
+        )
+        frames.append(
+            _load_competitor_metrics(
+                fold_root / "silver_truth.csv",
+                fold=fold,
+                source_type="silver_truth_csv",
+            )
+        )
+        frames.append(
+            _load_ensemble_eval(
+                fold_root / "checkpoints" / "C1_ds1-42-7015_QA--_M2--_set-test.parquet",
+                fold=fold,
+                method_group="ensemble_only",
+                method_label="ensemble_only",
+                artifact_key="ensemble_only",
+            )
+        )
+
+    combined = pd.concat(frames, ignore_index=True)
+    combined = combined.drop_duplicates(subset=["method_key", "fold", "image_id"])
+    return combined.sort_values(
+        ["method_group", "method_label", "fold", "image_id"]
+    ).reset_index(drop=True)
 
 
 def _load_competitor_metrics(
@@ -1004,5 +1194,34 @@ def _render_markdown_report(bundle: dict[str, pd.DataFrame]) -> str:
         lines.append("No missing artifacts in the requested baseline report.")
     else:
         lines.append(missing.to_markdown(index=False))
+
+    return "\n".join(lines) + "\n"
+
+
+def _render_main_comparison_markdown_report(bundle: dict[str, pd.DataFrame]) -> str:
+    core_summary = bundle["core_summary"]
+    comparisons = bundle["comparisons"]
+    limitations = bundle["limitations"]
+
+    lines = [
+        "# HSC Main Comparison Statistical Note",
+        "",
+        "## Main Comparison",
+        "",
+    ]
+
+    if core_summary.empty:
+        lines.append("No reportable methods were loaded.")
+    else:
+        lines.append(core_summary.to_markdown(index=False, floatfmt=".4f"))
+
+    lines.extend(["", "## Paired Comparison", ""])
+    if comparisons.empty:
+        lines.append("No paired comparisons were available.")
+    else:
+        lines.append(comparisons.to_markdown(index=False, floatfmt=".4f"))
+
+    lines.extend(["", "## Scope Note", ""])
+    lines.append(limitations.to_markdown(index=False))
 
     return "\n".join(lines) + "\n"

@@ -74,7 +74,6 @@ class JaccardDataset(Dataset):
         parquet_file,
         data_root=None,
         transform=None,
-        augment=False,
         target_column=None,
         input_channels: Optional[Sequence[int] | str] = None,
         image_cache: Optional[dict[str, np.ndarray]] = None,
@@ -84,7 +83,6 @@ class JaccardDataset(Dataset):
         self.data = pd.read_parquet(parquet_file)
         self.data_root = Path(data_root) if data_root else None
         self.transform = transform
-        self.augment = augment
         self.target_column = self._resolve_target_column(target_column)
         self.input_channels = self._resolve_input_channels(input_channels)
         self.cache_images = cache_images
@@ -348,32 +346,8 @@ class JaccardLightningModule(pl.LightningModule):
 
 
 # ---------------------------------------------------------------------------
-# Transforms
+# Transforms / image pre-processing
 # ---------------------------------------------------------------------------
-
-
-def tensor_normalize(tensor, mean, std):
-    """Normalize tensor with given mean and std."""
-    for t, m, s in zip(tensor, mean, std):
-        t.sub_(m).div_(s)
-    return tensor
-
-
-class NormalizeTransform:
-    """Transform to normalize tensor to [-1, 1] from [0, 1]."""
-
-    def __call__(self, x):
-        return tensor_normalize(x, mean=[0.5, 0.5], std=[0.5, 0.5])
-
-
-def get_transform():
-    """
-    Get the default transform for the dataset.
-
-    Assumes input is already normalized to [0, 1] range.
-    Maps [0, 1] -> [-1, 1] which is standard for pretrained models.
-    """
-    return NormalizeTransform()
 
 
 def prepare_images_for_model(
@@ -590,7 +564,6 @@ def train(
         parquet_file,
         data_root=data_root,
         transform=None,
-        augment=False,
         target_column=target_column,
         input_channels=input_channels,
         image_cache=shared_image_cache,
@@ -600,7 +573,6 @@ def train(
         parquet_file,
         data_root=data_root,
         transform=None,
-        augment=False,
         target_column=target_column,
         input_channels=input_channels,
         image_cache=shared_image_cache,

@@ -1,0 +1,5 @@
+extends: qa_phase_only_base.yaml
+
+dataset: BF-C2DL-MuSC
+crop_size: 256
+qa_model_type: efficientnet_b4

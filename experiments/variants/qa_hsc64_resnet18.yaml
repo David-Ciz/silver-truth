@@ -1,0 +1,5 @@
+extends: qa_phase_only_base.yaml
+
+dataset: BF-C2DL-HSC
+crop_size: 64
+qa_model_type: resnet18

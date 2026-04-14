@@ -2,6 +2,10 @@
 
 Prepared on 2026-03-26 from the local MLflow store at `data/mlflow/mlruns` and the saved QA Excel/filtering artifacts.
 
+Current status:
+- Use `docs/manuscript_artifact_registry.md` as the frozen source-of-truth for manuscript tables and figures.
+- Treat this file as lookup/history notes rather than the final citation registry.
+
 ## 1. Implementation details
 
 ### QA network (HSC)
@@ -131,56 +135,55 @@ MLflow naming note:
 ## 5. QA validity analysis for Section 5.4 (HSC test sheets)
 
 Sources:
-- Fold 1 Excel: `data/mlflow/mlruns/621395107482066401/e384717d5ef54524bfc47a59dc45af3e/artifacts/baseline_qa_predictions_fold-1.xlsx`
-- Fold 2 Excel: `data/mlflow/mlruns/695533842535544002/58061dff8ea34d69b5bfaefb08325e4b/artifacts/baseline_qa_predictions_fold-2.xlsx`
-- Fold 1 filtering CSV: `data/mlflow/mlruns/358557697386534952/f59c9f6a1b014fff809da13b359bd8d2/artifacts/qa_filtering/baseline_qa_predictions_fold-1_filtering_metrics.csv`
-- Fold 2 filtering CSV: `data/mlflow/mlruns/503523312460336893/cb41bad08d124d798cddbdaf5685e3e6/artifacts/qa_filtering/baseline_qa_predictions_fold-2_filtering_metrics.csv`
+- Authoritative fold 1 QA workbook from the March 27, 2026 threshold sweep:
+  `/mnt/proj1/eu-25-40/innovaite/silver-truth-hpc/campaigns/ablation_threshold_sweep_2026-03-27/paper_runs/qa_results/BF-C2DL-HSC/sz64/hsc_crop64_qa_predictions_fold-1.xlsx`
+  (`qa_regression` run `0537f033bcb641d2afbb6024a1ecbd3d`)
+- Authoritative fold 2 QA workbook from the March 27, 2026 threshold sweep:
+  `/mnt/proj1/eu-25-40/innovaite/silver-truth-hpc/campaigns/ablation_threshold_sweep_2026-03-27/paper_runs/qa_results/BF-C2DL-HSC/sz64/hsc_crop64_qa_predictions_fold-2.xlsx`
+  (`qa_regression` run `a705d23af00642c6b6e4362a1812afea`)
 
-Computed from the `test` sheets with `scipy.stats.pearsonr()`:
+Important note:
+- The local cached `data/mlflow/.../baseline_qa_predictions_fold-*.xlsx` files do exist, but they do **not** match the March 27, 2026 threshold-sweep runs and should not be used for the paper figure.
+- The stale local files have test counts `1809` and `1509`, while the authoritative export DB reports `1500` and `1254` test samples for the latest HSC64 QA runs.
 
-| Fold | Pearson r | Filtered count at `t=0.75` | Filtered pct at `t=0.75` |
-| --- | --- | --- | --- |
-| Fold 1 | `0.3627442551` | `597` | `33.0017%` |
-| Fold 2 | `0.2285150920` | `1502` | `99.5361%` |
+Authoritative summary metrics from `hpc_run_results/hsc-qafix-export_export.db`:
+
+| Fold | Pearson r | Spearman rho | Filtered count at `t=0.75` | Filtered pct at `t=0.75` |
+| --- | --- | --- | --- | --- |
+| Fold 1 | `0.3273443779` | `0.1817055109` | unavailable locally | unavailable locally |
+| Fold 2 | `0.0825282679` | `0.0719059907` | unavailable locally | unavailable locally |
 
 ### QA calibration comparison: actual vs predicted Jaccard
 
-These numbers are computed from the saved HSC QA Excel `test` sheets, using:
-- `actual = "Jaccard index"`
-- `predicted = "Predicted Jaccard index"`
+These numbers are from the authoritative `qa_regression` metrics logged in the March 27, 2026 export DB:
 
-| Fold | Actual mean | Predicted mean | Bias (`pred - actual`) | MAE | RMSE | Pearson r |
-| --- | --- | --- | --- | --- | --- | --- |
-| Fold 1 | `0.8050` | `0.7611` | `-0.0439` | `0.0701` | `0.0855` | `0.3627` |
-| Fold 2 | `0.8201` | `0.6526` | `-0.1675` | `0.1834` | `0.2030` | `0.2285` |
-
-Threshold behavior at `t=0.75`:
-
-| Fold | Actual rows `>= 0.75` | Predicted rows `>= 0.75` |
-| --- | --- | --- |
-| Fold 1 | `1449 / 1809` = `80.10%` | `1212 / 1809` = `67.00%` |
-| Fold 2 | `1188 / 1509` = `78.73%` | `7 / 1509` = `0.46%` |
+| Fold | Actual mean | Predicted mean | Bias (`pred - actual`) | MAE | RMSE | Pearson r | Spearman rho |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| Fold 1 | `0.7952` | `0.8164` | `+0.0212` | `0.0580` | `0.0786` | `0.3273` | `0.1817` |
+| Fold 2 | `0.8043` | `0.7054` | `-0.0989` | `0.1427` | `0.1686` | `0.0825` | `0.0719` |
 
 Interpretation:
-- Fold 1 is weak but still usable as a ranker.
-- Fold 2 is badly miscalibrated on the `test` split: predictions are compressed far below the true IoU range, so a threshold of `0.75` is effectively unusable there.
-- This explains why the filtering report at `t=0.75` looks extreme on fold 2: most rows are truly good by actual Jaccard, but the QA model scores almost all of them below `0.75`.
+- Fold 1 still shows only weak association on the held-out test set.
+- Fold 2 is substantially worse on the held-out test set, with near-zero correlation and clear underestimation.
+- The row-level March 27 workbooks are not present in this workspace, so the filtering counts and the final scatter panel cannot be recomputed locally until those files are synced.
 
 Split note:
-- Yes, the alarming numbers above are from the `test` sheets.
-- The saved regression metrics are much better on train/validation than on test:
-  - Fold 1: train Pearson `0.9433`, validation Pearson `0.8450`, test Pearson `0.3627`
-  - Fold 2: train Pearson `0.5189`, validation Pearson `0.2840`, test Pearson `0.2285`
+- These authoritative numbers are from the `test` split metrics in the export DB for the March 27, 2026 threshold-sweep run.
+- The earlier local cached workbooks produced more optimistic values, but those are stale and should not be cited.
 
 ### Paper-ready wording for Section 5.4
 
 Suggested paragraph:
 
-> The QA regressor showed limited generalization on the held-out HSC test folds. On the test sheets, the correlation between predicted and actual Jaccard was only `r=0.3627` on fold 1 and `r=0.2285` on fold 2. The model also showed strong underestimation on fold 2: the mean predicted Jaccard was `0.6526` while the mean actual Jaccard was `0.8201`. This calibration failure directly affected threshold-based filtering. At `t=0.75`, `78.73%` of fold-2 test rows had actual Jaccard at least `0.75`, but only `0.46%` of predictions were at least `0.75`. Therefore, the current HSC results do not support aggressive QA thresholding as a reliable gating mechanism, and QA filtering should be interpreted as exploratory rather than as a validated source of the final performance gains.
+> The QA regressor showed limited generalization on the held-out HSC64 test folds. In the March 27, 2026 threshold-sweep run, the test correlation between predicted and actual Jaccard reached only `r=0.3273` on fold 1 and `r=0.0825` on fold 2, with Spearman correlations `rho=0.1817` and `rho=0.0719`, respectively. Fold 2 also showed underestimation, with mean predicted Jaccard `0.7054` versus mean actual Jaccard `0.8043`. These results indicate that the current HSC64 QA model provides at best weak ranking signal on fold 1 and very poor ranking signal on fold 2, so threshold-based QA gating should be treated cautiously.
 
 Suggested short follow-up sentence if needed:
 
-> In the current HSC setting, the learned QA model appears to provide weak ranking signal on fold 1 and poor calibration on fold 2, which makes hard thresholding unstable.
+> In the current HSC64 setting, the learned QA model appears weak on fold 1 and near-uninformative on fold 2, which makes hard thresholding unstable.
+
+Suggested figure caption:
+
+> Predicted IoU versus actual IoU on the held-out HSC64 test cells for fold-1 and fold-2. In the March 27, 2026 threshold-sweep run, the QA regressor shows weak association with the ground-truth IoU on fold-1 (Pearson `r=0.3273`, Spearman `rho=0.1817`) and very weak association on fold-2 (Pearson `r=0.0825`, Spearman `rho=0.0719`). The row-level workbooks needed to regenerate this exact scatter are not yet synced into the local workspace.
 
 ## 6. Generated figures
 
@@ -188,5 +191,5 @@ Figure script:
 - `scripts/generate_paper_figures.py`
 
 Outputs:
-- `data/paper_runs/figures/hsc_qa_scatter.png`
+- `data/paper_runs/figures/hsc_qa_scatter.png` currently reflects stale local cached workbooks and should be regenerated after syncing the March 27, 2026 HSC64 QA workbooks.
 - `data/paper_runs/figures/musc_context_curve.png`
