@@ -1,0 +1,3 @@
+extends: qa_hsc64_resnet18.yaml
+
+qa_init_model_template: "{paper_runs_root}/qa_models/BF-C2DL-MuSC/sz256/qa_musc256_resnet18_qa_resnet18_mixed.pt"

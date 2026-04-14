@@ -299,6 +299,7 @@ def build_steps(cfg: dict[str, Any]) -> list[dict[str, Any]]:
     paper_base = paper_ready.replace("_paper_ready.parquet", "_paper_base.parquet")
     qa_model = cfg["qa_model_template"]
     qa_excel = cfg["qa_excel_template"]
+    qa_init_model = cfg.get("qa_init_model_template")
     qa_excel_stem = Path(qa_excel).stem
     qa_metrics_dir = (
         f"{paper_runs}/qa_results/{dataset}/{crop_tag}/{variant}/{split_name}_metrics"
@@ -478,6 +479,7 @@ def build_steps(cfg: dict[str, Any]) -> list[dict[str, Any]]:
                     f"  --output-excel {qa_excel} "
                     f"  --model-type {cfg['qa_model_type']} "
                     f"  --input-channels {cfg['qa_input_channels']} "
+                    f"{f'  --init-model {qa_init_model} ' if qa_init_model else ''}"
                     f"  --mlflow-experiment {phaseb_qa_train_experiment} "
                     f"  --mlflow-run-name qa_train"
                 ),

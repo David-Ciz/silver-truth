@@ -225,6 +225,13 @@ Recommended paper-safe transfer run order:
 This experiment has now been completed using the MuSC `sz256` ensemble checkpoint
 as initialization for the HSC `sz64` ensemble.
 
+Important semantics:
+
+- this was a **MuSC-pretrained, HSC-fine-tuned** ensemble run
+- it was not a direct cold application of the MuSC model to HSC
+- the source weights were reused, then the target model was retrained on HSC
+- this distinction matters because the later QA zero-shot transfer result is negative
+
 Fair comparison:
 
 - scratch HSC ensemble baseline vs transfer HSC ensemble baseline

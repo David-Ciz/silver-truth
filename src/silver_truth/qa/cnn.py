@@ -466,6 +466,69 @@ def load_model(path, device):
     return model, metadata
 
 
+def initialize_model_from_checkpoint(
+    model: nn.Module | JaccardLightningModule,
+    checkpoint_path: str | Path,
+    *,
+    expected_model_type: Optional[str] = None,
+    expected_input_channels: Optional[Sequence[int] | str] = None,
+    strict: bool = True,
+) -> dict:
+    """
+    Initialize a QA model from a previously saved legacy ``.pt`` checkpoint.
+
+    Parameters
+    ----------
+    model:
+        Target model to receive the weights. Can be either the plain ``Jaccard``
+        module or the ``JaccardLightningModule`` wrapper used during training.
+    checkpoint_path:
+        Path to a checkpoint created by ``save_model``.
+    expected_model_type:
+        Optional architecture name to validate against checkpoint metadata.
+    expected_input_channels:
+        Optional input-channel specification to validate against checkpoint
+        metadata before loading the weights.
+    strict:
+        Forwarded to ``load_state_dict``.
+
+    Returns
+    -------
+    dict
+        The metadata dictionary stored in the source checkpoint.
+    """
+    checkpoint = torch.load(checkpoint_path, map_location="cpu")
+    metadata = checkpoint.get("metadata", {})
+
+    source_model_type = metadata.get("model_type")
+    if (
+        expected_model_type is not None
+        and source_model_type is not None
+        and str(source_model_type) != str(expected_model_type)
+    ):
+        raise ValueError(
+            "Checkpoint model_type mismatch: "
+            f"expected '{expected_model_type}', got '{source_model_type}'."
+        )
+
+    source_input_channels = metadata.get("input_channels")
+    if expected_input_channels is not None and source_input_channels is not None:
+        expected_input_channels_str = (
+            expected_input_channels
+            if isinstance(expected_input_channels, str)
+            else ",".join(str(channel) for channel in expected_input_channels)
+        )
+        if str(source_input_channels) != str(expected_input_channels_str):
+            raise ValueError(
+                "Checkpoint input_channels mismatch: "
+                f"expected '{expected_input_channels_str}', got '{source_input_channels}'."
+            )
+
+    nn_model = model.model if isinstance(model, JaccardLightningModule) else model
+    nn_model.load_state_dict(checkpoint["model_state_dict"], strict=strict)
+    return metadata
+
+
 def save_results_to_excel(train_results, val_results, test_results, output_path):
     """Save evaluation results to Excel with separate sheets per split."""
     with pd.ExcelWriter(output_path) as writer:
@@ -506,6 +569,7 @@ def train(
     input_channels: Optional[Sequence[int] | str] = None,
     output_model="cnn_jaccard.pt",
     output_excel="results_cnn.xlsx",
+    init_model=None,
     batch_size=16,
     learning_rate=1e-4,
     num_epochs=50,
@@ -618,6 +682,15 @@ def train(
         augment_batches=augment,
     )
     print(f"Using model: {model_type}")
+    init_metadata: dict[str, object] = {}
+    if init_model is not None:
+        init_metadata = initialize_model_from_checkpoint(
+            lightning_model,
+            init_model,
+            expected_model_type=model_type,
+            expected_input_channels=input_channels,
+        )
+        print(f"Initialized weights from checkpoint: {init_model}")
 
     # ------------------------------------------------------------------
     # Logger + callbacks
@@ -656,6 +729,7 @@ def train(
             "parquet_file": str(parquet_file),
             "target_column": str(train_dataset.target_column),
             "input_channels": ",".join(str(ch) for ch in train_dataset.input_channels),
+            "init_model": str(init_model) if init_model is not None else "",
         }
     )
 
@@ -725,7 +799,10 @@ def train(
         "test_samples": len(test_indices),
         "target_column": str(train_dataset.target_column),
         "input_channels": ",".join(str(ch) for ch in train_dataset.input_channels),
+        "init_model": str(init_model) if init_model is not None else None,
     }
+    if init_metadata:
+        metadata["init_model_metadata"] = init_metadata
     save_model(lightning_model, output_model_path, metadata)
 
     # Log remaining summary metrics and artifacts via the active MLflow run
@@ -737,6 +814,8 @@ def train(
     ):
         mlflow.log_metrics({"best_val_loss": best_val_loss, "final_epoch": final_epoch})
         mlflow.log_param("lightning_checkpoint_dir", str(checkpoint_dir))
+        if init_model is not None:
+            mlflow.log_param("init_model", str(init_model))
         mlflow.log_artifact(str(output_model_path))
 
         # Infer device used by the trainer for evaluation

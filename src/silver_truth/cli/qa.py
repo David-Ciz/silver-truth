@@ -255,6 +255,12 @@ def cnn() -> None:
     default="results_cnn.xlsx",
     help="Path to save evaluation results.",
 )
+@click.option(
+    "--init-model",
+    type=click.Path(exists=True, dir_okay=False),
+    default=None,
+    help="Optional source QA checkpoint to load before fine-tuning.",
+)
 @click.option("--batch-size", type=int, default=16, help="Batch size for training.")
 @click.option("--learning-rate", type=float, default=1e-4, help="Learning rate.")
 @click.option("--num-epochs", type=int, default=50, help="Number of training epochs.")
@@ -316,6 +322,7 @@ def cnn_train(
     input_channels: str,
     output_model: str,
     output_excel: str,
+    init_model: Optional[str],
     batch_size: int,
     learning_rate: float,
     num_epochs: int,
@@ -341,6 +348,7 @@ def cnn_train(
         input_channels=input_channels,
         output_model=output_model,
         output_excel=output_excel,
+        init_model=init_model,
         batch_size=batch_size,
         learning_rate=learning_rate,
         num_epochs=num_epochs,

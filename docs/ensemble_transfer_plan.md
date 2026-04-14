@@ -254,6 +254,15 @@ Final comparison used:
 - same final evaluation level: `full_image_label`
 - same decision metric: `test_iou`
 
+Important comparison semantics:
+
+- This is **not** a cold zero-shot comparison.
+- The MuSC checkpoint was used as initialization for the HSC ensemble.
+- The target model was then retrained / fine-tuned on HSC for the matching fold.
+- So this result should be described as **MuSC-pretrained, HSC-fine-tuned
+  ensemble transfer**.
+- Do not describe it as direct MuSC inference on HSC.
+
 Fold-by-fold result:
 
 | Fold | HSC scratch ensemble | HSC transfer ensemble | Delta |
@@ -268,6 +277,7 @@ Interpretation:
 - the gain was not fold-specific noise; it appeared on both folds
 - fold-2 improved the most
 - this is a real ensemble-to-ensemble gain, not a fusion/QA side effect
+- this is positive evidence for **pretraining + fine-tuning**, not for zero-shot transfer
 
 Stricter comparison against the **best scratch ensemble row per fold** still favors transfer:
 

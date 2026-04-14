@@ -51,5 +51,6 @@ whole_image_parquet_template: "{runtime_root}/data/dataframes/{dataset}/whole_im
 paper_ready_parquet_template: "{paper_runs_root}/paper_inputs/{dataset}/{crop_tag}/{variant}/{split_name}_paper_ready.parquet"
 qa_model_template: "{paper_runs_root}/qa_models/{dataset}/{crop_tag}/{variant}_qa_{qa_model_type}_{split_name}.pt"
 qa_excel_template: "{paper_runs_root}/qa_results/{dataset}/{crop_tag}/{variant}_qa_predictions_{split_name}.xlsx"
+qa_init_model_template: null
 fusion_output_template: "{paper_runs_root}/fusion/{dataset}/{crop_tag}/{variant}/{split_name}"
 ablation_output_template: "{paper_runs_root}/ablation/{dataset}/{crop_tag}/{variant}/{split_name}/{mode}"
