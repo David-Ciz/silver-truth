@@ -140,17 +140,17 @@ Key directories used by current workflows:
 
 Defined stages include:
 
-- `create_fold1` (for `BF-C2DL-HSC`, `BF-C2DL-MuSC`)
-- `create_fold2` (for `BF-C2DL-HSC`, `BF-C2DL-MuSC`)
-- `create_mixed` (for `BF-C2DL-HSC`, `BF-C2DL-MuSC`)
+- `create_fold1` (for `BF-C2DL-HSC`, `BF-C2DL-MuSC`, `DIC-C2DH-HeLa`)
+- `create_fold2` (for `BF-C2DL-HSC`, `BF-C2DL-MuSC`, `DIC-C2DH-HeLa`)
+- `create_mixed` (for `BF-C2DL-HSC`, `BF-C2DL-MuSC`, `DIC-C2DH-HeLa`)
 - `create_qa_crops_base` (foreach `${datasets}`)
 - `create_qa_crops_split_mixed` (foreach `${datasets}`)
 - `create_qa_crops_split_fold1` (foreach `${datasets}`)
 - `create_qa_crops_split_fold2` (foreach `${datasets}`)
 - `create_ensemble_databank_c1_hsc_mixed`
-- `generate_job_files_mixed` (HSC campaigns 01/02)
-- `generate_job_files_fold1` (HSC campaigns 01/02)
-- `generate_job_files_fold2` (HSC campaigns 01/02)
+- `generate_job_files_mixed` (HSC and HeLa campaigns 01/02)
+- `generate_job_files_fold1` (HSC and HeLa campaigns 01/02)
+- `generate_job_files_fold2` (HSC and HeLa campaigns 01/02)
 
 Important:
 
@@ -204,7 +204,8 @@ Metrics:
 - The fusion command used by the maintained experiment path is `silver-fusion run-fusion-crops`.
 - `silver-qa attach-split` is marked DEPRECATED in docstring but is still used in DVC stages.
 - `dvc.yaml` and `dvc.lock` can diverge during active development; trust current `dvc.yaml` for intended pipeline definition.
-- `params.yaml` currently defines both `BF-C2DL-HSC` and `BF-C2DL-MuSC` under `datasets`.
+- `params.yaml` currently defines `BF-C2DL-HSC`, `BF-C2DL-MuSC`, and `DIC-C2DH-HeLa` under `datasets`.
+- The first committed HeLa crop baseline is `sz256`, based on the direct GT bbox comparison captured in [HeLa, HSC, and MuSC Profile Notes](datasets/hela_hsc_musc_profile.md).
 
 ## Practical Run Order (Current Recommended)
 

@@ -1,0 +1,3 @@
+extends: base
+dataset: DIC-C2DH-HeLa
+crop_size: 256

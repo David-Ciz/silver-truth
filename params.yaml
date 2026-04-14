@@ -6,3 +6,6 @@ datasets:
   BF-C2DL-MuSC:
     default_crop_size: 256
     crop_sizes: [64, 128, 192, 256, 320, 512]
+  DIC-C2DH-HeLa:
+    default_crop_size: 256
+    crop_sizes: [256]

@@ -38,10 +38,14 @@ These are the repository-level scripts that currently have clear documentation s
   - maintained paper runner; orchestrates Phase A/B/C from YAML configs in `experiments/variants/`
 - `scripts/run_ablation_hpc.sh`
   - maintained Slurm wrapper for the ablation runner; stages data to scratch and isolates outputs under a durable campaign root
+- `scripts/submit_hela_ablation_hpc.sh`
+  - convenience submitter for the first `DIC-C2DH-HeLa` `sz256` ablation jobs; defaults logs to `/home/davidciz/silver-truth/logs`
 - `scripts/run_qa_transfer.py`
   - maintained zero-shot QA transfer runner; evaluates a source QA checkpoint on a different dataset/split and writes transfer-specific artifacts under `paper_runs/qa_transfer/`
 - `scripts/run_qa_transfer_hpc.sh`
   - Slurm wrapper for the QA transfer runner; stages source/target datasets to scratch and logs a dedicated transfer run bundle
+- `scripts/analyze_dataset_profiles.py`
+  - compares synchronized datasets at the raw-frame and GT-object level; writes crop-fit and size-profile reports under `data/analysis/dataset_profiles/`
 - `scripts/generate_api_docs.py`
   - refreshes `docs/api_reference_generated.md` from source docstrings
 
@@ -154,3 +158,22 @@ That helper:
 - is currently referenced from `ztest_commands.py`
 
 Use `segmentation-size-stats` instead when the real question is dataset-wide crop-size safety or minimum usable box size.
+
+### Compare Multiple Datasets Before Opening a New Crop-Size Branch
+
+Use:
+
+```bash
+PYTHONPATH=src .venv/bin/python scripts/analyze_dataset_profiles.py
+```
+
+This script:
+
+- scans `DIC-C2DH-HeLa`, `BF-C2DL-HSC`, and `BF-C2DL-MuSC` by default
+- records raw-frame counts, GT-frame counts, competitor counts, and image sizes
+- computes GT bbox fit rates across a grid of crop sizes
+- writes reusable outputs under `data/analysis/dataset_profiles/`
+
+Current reference note:
+
+- [HeLa, HSC, and MuSC Profile Notes](datasets/hela_hsc_musc_profile.md)

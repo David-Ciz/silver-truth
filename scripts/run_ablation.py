@@ -115,7 +115,11 @@ def _databank_parquet(databank_dir: str, dataset: str, version: str = "C1") -> s
     Reproduce the parquet filename written by build-databank inside the given dir.
     Pattern: {version}_{ds_code}-42-7015_QA--.parquet
     """
-    _DS_CODES = {"BF-C2DL-HSC": "ds1", "BF-C2DL-MuSC": "ds2"}
+    _DS_CODES = {
+        "BF-C2DL-HSC": "ds1",
+        "BF-C2DL-MuSC": "ds2",
+        "DIC-C2DH-HeLa": "ds3",
+    }
     ds_code = _DS_CODES.get(dataset, dataset)
     name = f"{version}_{ds_code}-42-7015_QA--"
     return f"{databank_dir}/{name}.parquet"

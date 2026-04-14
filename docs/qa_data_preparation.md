@@ -32,6 +32,12 @@ Outputs:
 - `data/dataframes/{DATASET}/qa_crops/fold-1_sz{CROP_SIZE}_qa_dataset.parquet`
 - `data/dataframes/{DATASET}/qa_crops/fold-2_sz{CROP_SIZE}_qa_dataset.parquet`
 
+Current dataset defaults in DVC:
+
+- `BF-C2DL-HSC`: `sz64`
+- `BF-C2DL-MuSC`: `sz64`, `sz128`, `sz192`, `sz256`, `sz320`, `sz512`
+- `DIC-C2DH-HeLa`: `sz256`
+
 ## 3. Label Generation (`jaccard_score`)
 
 CNN training requires a regression target (usually `jaccard_score`).

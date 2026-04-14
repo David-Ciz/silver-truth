@@ -7,6 +7,7 @@ import torch
 ORIGINAL_DATASETS = {
     "BF-C2DL-HSC": "ds1",
     "BF-C2DL-MuSC": "ds2",
+    "DIC-C2DH-HeLa": "ds3",
 }
 
 DATABANKS_DIR = "data/ensemble_data/databanks"

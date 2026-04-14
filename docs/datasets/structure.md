@@ -130,6 +130,13 @@ All images are stored in TIFF format with the following characteristics:
 - Silver truth can be used as a more extensive ground truth alternative
 - Each sequence (01 and 02) should be processed independently
 
+## Current Crop-Profile Notes
+
+For the current direct size comparison across `DIC-C2DH-HeLa`, `BF-C2DL-HSC`, and
+`BF-C2DL-MuSC`, including current crop-size recommendations and the rationale for
+the first HeLa baseline at `256 x 256`, see
+[HeLa, HSC, and MuSC Profile Notes](hela_hsc_musc_profile.md).
+
 ## Related Documentation
 
 - [Label Synchronization Process](../data_processing/label_synchronization.md)
