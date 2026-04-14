@@ -40,6 +40,7 @@ For detailed installation instructions and basic usage examples, please refer to
 *   [DVC Guide](dvc_guide.md): Complete guide to setting up DVC and downloading datasets.
 *   [Paper Protocol (Fold-Locked)](paper_protocol.md): Exact paper run order from fold prep to ablation/sweep.
 *   [QA Sweep Results](qa_sweep_results.md): Consolidated Pearson/Spearman tables for the QA-only HSC64 and MuSC256 architecture sweep.
+*   [QA Transfer Workflow](qa_transfer_workflow.md): Zero-shot cross-dataset QA transfer runner, configs, and HPC usage.
 *   [Manuscript Artifact Registry](manuscript_artifact_registry.md): Frozen source-of-truth map from each manuscript table/figure to exact export DBs, run IDs, and local artifact files.
 *   [Ablation Runner Explained](ablation_runner_explained.md): Human-level explanation of what the ablation runner expands, why the step count grows, and how to read it.
 *   [Ensemble C3 Experiment Log](ensemble_c3_experiment_log.md): Negative-result log for the richer consensus-channel ensemble input experiment on HSC and MuSC.

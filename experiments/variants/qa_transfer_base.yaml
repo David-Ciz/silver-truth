@@ -1,0 +1,12 @@
+source_split: mixed
+source_model_type: resnet18
+input_channels: "0,1"
+batch_size: 16
+generate_plots: true
+
+mlflow_tracking_uri: "file:{project_root}/data/mlflow/mlruns"
+mlflow_experiment: "qa-transfer-{source_dataset}-to-{target_dataset}"
+
+source_model_template: "{paper_runs_root}/qa_models/{source_dataset}/{source_crop_tag}/{source_variant}_qa_{source_model_type}_{source_split}.pt"
+target_parquet_template: "{runtime_root}/data/dataframes/{target_dataset}/qa_crops/{target_split}_sz{target_crop_size}_qa_dataset.parquet"
+transfer_output_root_template: "{paper_runs_root}/qa_transfer/{source_dataset}_to_{target_dataset}/{source_variant}/{target_split}"

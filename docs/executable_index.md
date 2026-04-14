@@ -38,6 +38,10 @@ These are the repository-level scripts that currently have clear documentation s
   - maintained paper runner; orchestrates Phase A/B/C from YAML configs in `experiments/variants/`
 - `scripts/run_ablation_hpc.sh`
   - maintained Slurm wrapper for the ablation runner; stages data to scratch and isolates outputs under a durable campaign root
+- `scripts/run_qa_transfer.py`
+  - maintained zero-shot QA transfer runner; evaluates a source QA checkpoint on a different dataset/split and writes transfer-specific artifacts under `paper_runs/qa_transfer/`
+- `scripts/run_qa_transfer_hpc.sh`
+  - Slurm wrapper for the QA transfer runner; stages source/target datasets to scratch and logs a dedicated transfer run bundle
 - `scripts/generate_api_docs.py`
   - refreshes `docs/api_reference_generated.md` from source docstrings
 

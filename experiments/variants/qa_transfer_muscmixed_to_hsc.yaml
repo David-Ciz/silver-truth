@@ -1,0 +1,9 @@
+extends: qa_transfer_base.yaml
+
+source_dataset: BF-C2DL-MuSC
+source_crop_size: 256
+source_variant: qa_musc256_resnet18
+
+target_dataset: BF-C2DL-HSC
+target_crop_size: 64
+target_splits: [fold-1, fold-2]
