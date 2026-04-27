@@ -4,9 +4,10 @@ import torch
 from torch import optim
 from torch.nn import functional as F
 import segmentation_models_pytorch as smp
-from src.silver_truth.ensemble.act_functions import LevelTrigger
-from src.silver_truth.ensemble.models_loss_type import LossType
 from enum import Enum
+from silver_truth.ensemble.act_functions import LevelTrigger
+from silver_truth.ensemble.models_loss_type import LossType
+
 
 """
 smp.Unet.loss_type = property(lambda self:self._loss_type,                              # type: ignore
@@ -38,95 +39,70 @@ class ModelType(Enum):
 
 
 class SMP_Model(pl.LightningModule):
-    def __init__(
-        self, model_type: ModelType, device: torch.device, num_inputs: int = 1
-    ):
+    def __init__(self, model_type: ModelType, device: torch.device, enc_name:str="resnet34", pretrain:str|None=None, num_inputs: int=1):
         super().__init__()
         self.save_hyperparameters()
-        self.model = self._get_model(model_type, num_inputs)
+        self.model = self._get_model(model_type, enc_name, pretrain, num_inputs)
         self.level_trigger = LevelTrigger(device)
         self.loss_type = LossType.MSE
         # self.loss_function = DiceLoss("binary", from_logits=True)
 
-    def _get_model(self, model_type: ModelType, num_inputs: int):
+    def _get_model(self, model_type: ModelType, enc_name:str, pretrain:str|None, num_inputs: int):
         # Bug on load_from_checkpoint() --> model_type != ModelType.[type]
         match ModelType(model_type.value):
             case ModelType.Unet:
                 return smp.Unet(
-                    encoder_name="resnet34",
-                    encoder_weights=None,
-                    in_channels=num_inputs,
+                    encoder_name=enc_name, encoder_weights=pretrain, in_channels=num_inputs
                 )
             case ModelType.UnetPlusPlus:
                 return smp.UnetPlusPlus(
-                    encoder_name="resnet34",
-                    encoder_weights=None,
-                    in_channels=num_inputs,
+                    encoder_name=enc_name, encoder_weights=pretrain, in_channels=num_inputs
                 )
             case ModelType.FPN:
                 return smp.FPN(
-                    encoder_name="resnet34",
-                    encoder_weights=None,
-                    in_channels=num_inputs,
+                    encoder_name=enc_name, encoder_weights=pretrain, in_channels=num_inputs
                 )
             case ModelType.PSPNet:
                 return smp.PSPNet(
-                    encoder_name="resnet34",
-                    encoder_weights=None,
-                    in_channels=num_inputs,
+                    encoder_name=enc_name, encoder_weights=pretrain, in_channels=num_inputs
                 )
             case ModelType.DeepLabV3:
                 return smp.DeepLabV3(
-                    encoder_name="resnet34",
-                    encoder_weights=None,
-                    in_channels=num_inputs,
+                    encoder_name=enc_name, encoder_weights=pretrain, in_channels=num_inputs
                 )
             case ModelType.DeepLabV3Plus:
                 return smp.DeepLabV3Plus(
-                    encoder_name="resnet34",
-                    encoder_weights=None,
-                    in_channels=num_inputs,
+                    encoder_name=enc_name, encoder_weights=pretrain, in_channels=num_inputs
                 )
             case ModelType.LinkNet:
                 return smp.Linknet(
-                    encoder_name="resnet34",
-                    encoder_weights=None,
-                    in_channels=num_inputs,
+                    encoder_name=enc_name, encoder_weights=pretrain, in_channels=num_inputs
                 )
             case ModelType.MAnet:
                 return smp.MAnet(
-                    encoder_name="resnet34",
-                    encoder_weights=None,
-                    in_channels=num_inputs,
+                    encoder_name=enc_name, encoder_weights=pretrain, in_channels=num_inputs
                 )
             case ModelType.PAN:
                 return smp.PAN(
-                    encoder_name="resnet34",
-                    encoder_weights=None,
-                    in_channels=num_inputs,
+                    encoder_name=enc_name, encoder_weights=pretrain, in_channels=num_inputs
                 )
             case ModelType.UPerNet:
                 return smp.UPerNet(
-                    encoder_name="resnet34",
-                    encoder_weights=None,
-                    in_channels=num_inputs,
+                    encoder_name=enc_name, encoder_weights=pretrain, in_channels=num_inputs
                 )
             case ModelType.Segformer:
                 return smp.Segformer(
-                    encoder_name="resnet34",
-                    encoder_weights=None,
-                    in_channels=num_inputs,
+                    encoder_name=enc_name, encoder_weights=pretrain, in_channels=num_inputs
                 )
             case ModelType.DPT:
                 return smp.DPT(
-                    encoder_name="resnet34",
-                    encoder_weights=None,
-                    in_channels=num_inputs,
+                    encoder_name=enc_name, encoder_weights=pretrain, in_channels=num_inputs
                 )
             case ModelType.Unet_Mult_Input:
                 raise Exception("Error: Network not implemente here.")
             case ModelType.Unet_Dynamic:
                 raise Exception("Error: Network not implemente here.")
+    
 
     def forward(self, x):
         x = self.model(x)

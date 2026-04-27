@@ -8,13 +8,14 @@ import pytorch_lightning as pl
 from pytorch_lightning.callbacks import Callback, EarlyStopping, ModelCheckpoint
 import mlflow
 import matplotlib.pyplot as plt
+import albumentations as A
 from silver_truth.ensemble.model_unet_mult_input import Unet_Mult_Input
 from silver_truth.ensemble.model_unet_dynamic import Unet_Dynamic
-from src.silver_truth.ensemble.datasets import Version, get_dataset_class
-from src.silver_truth.ensemble.models_loss_type import LossType
-from src.silver_truth.ensemble.models import ModelType, SMP_Model
-import src.silver_truth.ensemble.utils as utils
-import albumentations as A
+from silver_truth.ensemble.datasets import Version, get_dataset_class
+from silver_truth.ensemble.models_loss_type import LossType
+from silver_truth.ensemble.models import ModelType, SMP_Model
+import silver_truth.ensemble.utils as utils
+
 
 # TODO: create config pipepline:
 # config dictionary should be provided
@@ -148,6 +149,8 @@ def _train_model(
     # model_type = ModelType.DPT
 
     model_type = run_params["model_type"]
+    model_enc = run_params["model_enc"]
+    pretrain = run_params["pretrain"]
     max_epochs = run_params["max_epochs"]
     if model_type == ModelType.Unet_Mult_Input:
         model_pl = Unet_Mult_Input(device)
@@ -156,9 +159,11 @@ def _train_model(
 
     else:
         num_inputs = 1 if is_single_input else 2
-        model_pl = SMP_Model(model_type, device, num_inputs)
+        model_pl = SMP_Model(model_type, device, model_enc, pretrain, num_inputs=num_inputs)
 
     mlflow.log_param("model_type", model_type)
+    mlflow.log_param("model_enc", model_enc)
+    mlflow.log_param("pretrain", pretrain)
     mlflow.log_param("model", model_pl.model)
     mlflow.log_param("loss_type", model_pl.loss_type)
 
@@ -194,6 +199,8 @@ def _train_model(
             EarlyStopping(monitor="val_loss", patience=10),
         ],
     )
+
+    print(f"\n### Training model: {str(model_type)}, encoder: {model_enc}, weights: {pretrain}.\n\n")
 
     trainer.fit(model_pl, train_loader, val_loader)
 
@@ -277,18 +284,16 @@ def run(run_params: dict, rand_seed: int = 42) -> None:
 
     mlflow.log_param("dataset_transform", transform)
 
-    is_single_input = (
-        databank_opt["dataset"] == Version.A1
-        or databank_opt["dataset"] == Version.B1
-        or databank_opt["dataset"] == Version.C1
-    )
+    is_single_input = databank_opt["dataset"] == Version.A1 or \
+                      databank_opt["dataset"] == Version.B1 or \
+                      databank_opt["dataset"] == Version.C1
 
     # get datasets
     dataset_class = get_dataset_class(databank_opt["dataset"])
     train_set = dataset_class(parquet_path, "train", transform)
     val_set = dataset_class(parquet_path, "validation")
     test_set = dataset_class(parquet_path, "test")
-
+    
     # split dataset
     # dataset_split = [0.7, 0.15, 0.15]
     # train_set, val_set, test_set = torch.utils.data.random_split(ensemble_dataset, dataset_split)
@@ -299,12 +304,9 @@ def run(run_params: dict, rand_seed: int = 42) -> None:
     batch_size = None
     if is_single_input:
         batch_size = 7
-    # dataloaders
+    # dataloaders    
     train_loader = data.DataLoader(
-        train_set,
-        batch_size=batch_size,
-        shuffle=True,
-        drop_last=False,  # True
+        train_set, batch_size=batch_size, shuffle=True, drop_last=False#True
     )
     val_loader = data.DataLoader(
         val_set, batch_size=batch_size, shuffle=False, drop_last=False
@@ -340,5 +342,5 @@ def run(run_params: dict, rand_seed: int = 42) -> None:
     )
 
     # DEBUG only
-    _visualize_reconstructions(model, _get_stacked_images(val_set, 16, is_single_input))
+    #_visualize_reconstructions(model, _get_stacked_images(val_set, 16, is_single_input))
     print("Done.")
