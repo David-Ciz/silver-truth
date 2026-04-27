@@ -115,7 +115,7 @@ def build_ensemble_databanks(build_opt_list, qa_parquet_dir="data/ensemble_data/
 def train_model(databank_opt, run_sequence):
     ##### 6) train models
     experiment_name = f"{utils.get_databank_name(databank_opt)}_exp1"
-    ensemble.run_experiment(experiment_name, run_sequence)
+    ensemble.run_experiment__old(experiment_name, run_sequence)
 
 
 def evaluate_models(models_paths, build_opt_list):
