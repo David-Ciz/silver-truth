@@ -315,8 +315,8 @@ MODEL_ENCODER_WEIGHTS = {
     "densenet201": ["imagenet"],    # 18M
     "densenet161": ["imagenet"],    # 26M
 
-    "inceptionresnetv2": ["imagenet", "imagenet+background"],   # 54M
-    "inceptionv4": ["imagenet", "imagenet+background"],         # 41M
+    "inceptionresnetv2": ["imagenet"],   # 54M
+    "inceptionv4": ["imagenet"],         # 41M
 
     "efficientnet-b0": ["imagenet", "advprop"],     # 4M
     "efficientnet-b1": ["imagenet", "advprop"],     # 6M
@@ -369,9 +369,9 @@ MODEL_ENCODER_WEIGHTS = {
 run_sequence = []
 run_models = [ModelType.UnetPlusPlus]
 run_encs = [
-    "dpn107", "dpn131", "vgg19", "vgg19_bn", "senet154", "se_resnet152", 
-    "se_resnext101_32x4d", "densenet161", "inceptionresnetv2", "inceptionv4", "efficientnet-b7", 
-    "mobilenet_v2", "xception", "timm-efficientnet-b7", "timm-efficientnet-b8", 
+    #"vgg19", "vgg19_bn", "senet154", 
+    #"se_resnet152", "se_resnext101_32x4d", "densenet161", "inceptionresnetv2", "inceptionv4", 
+    "efficientnet-b7", "mobilenet_v2", "xception", "timm-efficientnet-b7", "timm-efficientnet-b8", 
     "timm-tf_efficientnet_lite4", "timm-skresnet34", "timm-skresnext50_32x4d", "mit_b5", "mobileone_s4",
     ]
 
@@ -381,6 +381,10 @@ for run_model in run_models:
         for model_weight in MODEL_ENCODER_WEIGHTS[model_enc]:
             run_sequence.append({"model_type": run_model, "model_enc": model_enc, "pretrain":model_weight, "max_epochs": 100, "databank_opt": databank_opt})
 
+#run_sequence = [
+#    {"model_type": ModelType.UnetPlusPlus, "model_enc": "resnext101_32x8d", "pretrain":None, "max_epochs": 100, "databank_opt": databank_opt},
+#    {"model_type": ModelType.Unet, "model_enc": "resnext101_32x8d", "pretrain":None, "max_epochs": 100, "databank_opt": databank_opt},
+#    ]
 train_model(databank_opt, run_sequence)
 
 models_paths = [
