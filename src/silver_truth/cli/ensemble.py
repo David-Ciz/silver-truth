@@ -2,6 +2,7 @@ import click
 import logging
 from pathlib import Path
 from typing import Optional
+from silver_truth.ensemble.databanks_builds import Databank_type
 import silver_truth.ensemble.ensemble as ensemble
 import silver_truth.ensemble.utils as utils
 from silver_truth.ensemble.datasets import Version
@@ -145,6 +146,7 @@ def build_databank(
     build_opt = {
         "name": dataset_name,
         "version": Version[version],
+        "databank": Databank_type.Norm, #TODO: may need to be added to the options.
         "crop_size": crop_size,
         "split_seed": split_seed,
         "split_sets": _parse_split_sets(split_sets),
