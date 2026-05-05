@@ -1,0 +1,777 @@
+%% ***************************************************************************
+%% My paper
+%%
+%% Authors: Emmett Brown, Marty McFly, Biff Tannen
+%%
+%% NOTE: this file will not compile until you called the script
+%% generate-preamble.php once. See the file Readme.md to understand what
+%% to do.
+%%
+%% This paper is an instance of the PaperShell template. For more
+%% information, please visit https://github.com/sylvainhalle/PaperShell
+%% ***************************************************************************
+%% ---------------------------
+%% Author preamble. The contents of this file change depending on the
+%% paper class you choose.
+%% ---------------------------
+\input{preamble.inc.tex}
+
+%% ---------------------------
+%% If you wish to include additional packages, define new environments or
+%% new commands, put them in the file includes.tex
+%%
+%% Write your abstract in the file abstract.tex.
+%% ---------------------------
+
+%% ---------------------------
+%% Introduction
+%% ---------------------------
+\section{Introduction} %% {{{
+
+Deep learning has revolutionized biomedical image segmentation, with numerous powerful models now
+available for tasks ranging from cell tracking to tumor delineation \cite{minaee2021image}.
+However, this abundance creates a fundamental challenge: \emph{when multiple AI models produce
+conflicting results for the same image, which should we trust?} This question is particularly
+critical in high-stakes applications such as medical diagnosis, drug discovery, and scientific
+research, where a single incorrect segmentation can invalidate experimental results or lead to
+harmful clinical decisions.
+
+The standard solution—ensemble methods that combine predictions from multiple models—has
+achieved impressive performance gains across many domains \cite{nanni2023exploring}. Yet
+traditional ensembles simply average or vote across all model outputs, treating every prediction
+equally regardless of its quality. This approach has a critical flaw: it hides errors rather than
+removing them. When one model confidently produces an incorrect segmentation, that error propagates
+into the final result, potentially undermining the reliability that ensembles are meant to provide.
+
+This limitation is especially problematic in the era of increasing AI regulation and
+accountability. The European Union's AI Act and similar frameworks worldwide demand transparency
+and robustness from AI systems used in medical and scientific contexts. For computational
+biologists analyzing cell behavior, medical researchers studying tissue samples, or clinicians
+making diagnostic decisions, the "black box" nature of both individual models and their ensembles
+creates a trust deficit. What is needed is not just accuracy, but \emph{explainable, auditable, and
+robust} AI systems that can justify their decisions at a granular level.
+
+Current approaches to this problem operate at the wrong level of granularity. Model-level filtering
+strategies evaluate the overall performance of each base learner and discard entire models that
+perform poorly on average \cite{mavska2023cell}. However, this fails to account for intra-model
+variability: a model might excel in most cases but fail catastrophically on specific difficult
+instances. Instance-level quality assessment is needed, but existing weighted ensemble methods
+\cite{dang2021weighted} merely adjust the influence of poor predictions rather than proactively
+removing them before fusion.
+
+\textbf{Our Contribution.} In this paper, we study a learned ensemble pipeline for cell
+segmentation composed of an optional instance-level QA stage and a learned fusion model. Our
+approach employs a two-stage pipeline: first, a \emph{QA Referee} (a ResNet-based convolutional
+neural network) evaluates every predicted object instance from each base learner, assigning it a
+quality score. Instances meeting a quality threshold are passed to the second stage, where a
+\emph{Fusion Engine} (based on UNet++ architecture) combines the filtered predictions into a final
+segmentation. We evaluate the full pipeline and ablated variants through a controlled fold-based
+study to determine which components are effective. This design provides two key properties:
+
+\begin{enumerate}
+    \item \textbf{Granular robustness:} By filtering at the object instance level rather than the model level, our framework can leverage the strengths of each model while avoiding their specific failure cases.
+    \item \textbf{Transparent auditing:} The QA scores provide an interpretable audit trail, allowing researchers and clinicians to understand why specific predictions were accepted or rejected.
+\end{enumerate}
+
+We validate our framework on data from the Cell Tracking Challenge \cite{maska2023cell}, using
+outputs from five competitor models as base learners. On the \textit{BF-C2DL-HSC} dataset, the
+strongest configuration within our pipeline family reaches near parity with the best reproducible
+competitor, while learned variants exhibit a strong fold asymmetry driven in part by QA calibration
+failure. On \textit{BF-C2DL-MuSC}, performance is strongly governed by the input crop context
+window, improving from 128\,px to an optimum at 256\,px before reversing at 320\,px. The CTC silver
+truth is treated throughout as a gold-guided upper-reference construction rather than a deployable
+baseline, with the primary comparison targets being the best reproducible competitor and practical
+fusion baselines.
+
+\textbf{Paper Organization.} The remainder of this paper is organized as follows. Section~\ref{sec:related_work} reviews related work on ensemble methods, quality assessment approaches, and dynamic selection strategies. Section~3 details our methodology, including the QA referee architecture, fusion engine design, and instance matching strategy. Section~4 describes our experimental setup, including the datasets, base learners, and evaluation metrics. Section~5 presents quantitative results on both datasets, a crop-context sensitivity study, and an ablation of each pipeline component. Section~6 discusses the implications of our findings and limitations. Section~7 outlines future research directions, and Section~8 concludes.
+
+%% }}} --- Section
+
+%% ---------------------------
+%% A section
+%% ---------------------------
+
+%% ---------------------------
+%% Related Work
+%% ---------------------------
+%% ---------------------------
+%% Related Work
+%% ---------------------------
+\section{Related Work} \label{sec:related_work}
+
+Image segmentation is a fundamental process in computer vision, critical for applications ranging
+from medical imaging to autonomous driving. While deep learning has revolutionized this field
+\cite{minaee2021image}, challenges remain in ensuring robustness and reliability, particularly when
+ground truth data is unavailable. This section reviews existing literature on ensemble methods,
+quality assessment (QA) techniques, and dynamic selection strategies, highlighting the gap that our
+instance-level QA framework addresses.
+
+\subsection{Ensemble Methods in Image Segmentation}
+Ensemble methods combine multiple models to create a predictive system that is more robust and
+accurate than any single constituent model. In the context of image segmentation, ensembles help
+overcome the limitations of individual models, leading to more precise results
+\cite{nanni2023exploring}.
+
+Common ensemble strategies include Bagging, Boosting, and Stacking. In segmentation specifically,
+simple strategies such as averaging probability maps have been used to achieve state-of-the-art
+results. For binary masks, bitwise combinations have shown promise in polyp segmentation
+\cite{kang2019ensemble}, while ensembles of 2D convolutional neural networks have been effectively
+employed for tumor segmentation \cite{lyksborg2015ensemble}.
+
+More advanced approaches utilize weighted ensembles. For example, weights for segmentation models
+can be determined by swarm algorithms, such as comprehensive learning particle swarm optimization
+\cite{dang2021weighted}. Other research has explored ensembling backbone networks using Bayesian
+voting schemes \cite{catalano2024more}. For instance segmentation, specific challenges arise in
+matching objects across models. Techniques like the Simple Instance Segmentation Ensemble (SISE)
+combine objects with the highest Intersection over Union (IoU) using logical disjunction
+\cite{cerpa2021ensemble}. Other strategies involve fusing 2D mask slices using confidence scores to
+generate 3D nuclei instances \cite{wu2022ensemble}. However, standard ensembles often average all
+results, potentially hiding errors rather than removing them.
+
+The work most closely related to ours is DeepFuse, a full-resolution CNN-based fusion and
+refinement network for computing silver-standard annotations from multiple segmentation masks
+\cite{akbas2025deepfuse}. DeepFuse is important because it moves beyond voting-based fusion and
+reports consistent gains over methods such as SIMPLE and STAPLE on 26 Cell Tracking Challenge
+training sequences. At the same time, it addresses a different problem setting from ours. DeepFuse
+learns rater-specific refinement behavior within an $N$-to-1 architecture, which in practice ties
+the trained fusion model to a fixed input ensemble; adapting to a changed set of base learners
+would therefore likely require retraining. Its evaluation is also framed around silver-standard
+construction against CTC gold-standard annotations. Our work is complementary: rather than
+redesigning the fusion mechanism itself, we focus on instance-level quality control before fusion,
+using a rater-agnostic normalized-overlap representation and a QA referee that predicts candidate
+quality without access to ground truth at inference time. This targets the more deployable setting
+where the available raters may change over time and no reference annotations are available online.
+
+\subsection{Quality Assessment Approaches}
+Quality assessment (QA) aims to determine the reliability of a model's output. Approaches vary
+significantly depending on the availability of ground truth data.
+
+\subsubsection{QA with Ground Truth}
+When ground truth is available, metrics such as the Intersection over Union (IoU)—also known as
+the Jaccard index—and the Dice coefficient are prevalent. These metrics measure the overlap
+between the predicted segmentation and the ground truth and are standard in benchmarking
+\cite{mavska2023cell}.
+
+\subsubsection{QA without Ground Truth}
+Assessing quality without ground truth is critical for inference in clinical settings. Unsupervised
+approaches may evaluate shape characteristics like contrast or homogeneity on multi-spectral images
+\cite{chabrier2004unsupervised}. A dominant trend involves self-evaluation via uncertainty maps
+derived from the neural network's final layer. For instance, uncertainty features from Bayesian
+vision transformers have been used to control quality in cardiac T1 mapping
+\cite{arega2023automatic}, while others leverage uncertainty estimates to predict segmentation
+quality scores \cite{devries2018leveraging}.
+
+However, self-evaluation has a caveat: a confidently wrong model yields false positives. To
+mitigate this, some approaches employ a separate regression network trained to predict the quality
+score (e.g., IoU) using only the source image and the segmentation mask as inputs, such as QANet
+\cite{arbelle2019qanet}. Real-time prediction of segmentation quality has also been explored for
+cardiovascular MRI \cite{robinson2018real}. Other innovative methods include Reverse Classification
+Accuracy, where a model is trained on a new image to see how well it segments known data
+\cite{valindria2017reverse}, or using foundation models like the Segment Anything Model (SAM) to
+generate comparison prompts \cite{zhang2023sqa}.
+
+\subsection{Dynamic Ensembles and Pruning}
+Dynamic ensembles adjust their composition or weighting based on the specific input or context.
+This process often involves "ensemble pruning," where only a subset of base learners is selected to
+improve efficiency and performance \cite{bian2019ensemble}.
+
+Selection criteria can include competence estimation, diversity preservation, or historical
+performance. In classification tasks, meta-learners have been used to select base learners based on
+multiple criteria \cite{markatopoulou2015dynamic, swaminathan2022meta}. In medical imaging, dynamic
+ensemble selection has been explored for tasks like glaucoma detection, extracting metrics from
+segmentations for further processing \cite{zulfira2021segmentation}. Comprehensive frameworks exist
+that select final segmentations from multiple candidates and on-the-fly ensembles based on quality
+control scores \cite{gonzales2023quality}.
+
+\subsection{Gap in Literature}
+Despite these advancements, a gap remains at the intersection of dynamic ensembles and instance
+segmentation. Current state-of-the-art methods, such as the Cell Tracking Challenge baseline,
+typically employ model-level filtering \cite{mavska2023cell}. They discard entire models that
+perform poorly on average, without screening individual segmentation instances. This approach fails
+to account for intra-model variability; a model might perform well generally but fail on specific
+difficult instances.
+
+There is currently a lack of instance-level QA filtering for segmentation ensembles in the
+literature. Existing weighted averaging methods may mitigate the impact of poor inputs but do not
+proactively remove them. Our work addresses this by introducing a "QA Referee" that filters
+strictly at the object instance level before fusion, ensuring only high-quality segments contribute
+to the final ensemble.
+
+%% }}} --- Section
+
+%% ---------------------------
+%% Methodology
+%% ---------------------------
+\section{Methodology} %% {{{
+\label{sec:methodology}
+
+\subsection{Framework Overview}
+
+The proposed pipeline operates at the level of individual cell instances rather than whole images.
+Given a set of $K$ base learner segmentation results for a single microscopy sequence, the
+framework proceeds in three stages (Figure~\ref{fig:pipeline}):
+
+\textbf{(1) Instance extraction and matching.} For each ground-truth cell marker, one crop is
+extracted per base learner, yielding up to $K$ candidate crops per cell. Crops are aligned using
+the marker-based strategy described in Section~\ref{sec:instance_matching}. Each crop is stored as
+a four-channel TIFF with channels: raw image, competitor mask, GT mask, and tracking marker.
+
+\textbf{(2) QA scoring and filtering.} The QA Referee (Section~\ref{sec:qa_referee}) scores each
+candidate crop independently, producing a scalar quality estimate. Candidates below the configured
+threshold $\tau$ are discarded. If all candidates for a cell fall below $\tau$, the top-scoring
+candidate is kept as a fallback to ensure full image coverage.
+
+\textbf{(3) Fusion and reconstruction.} The surviving candidates for each cell are passed to the
+Fusion Engine (Section~\ref{sec:fusion_engine}), which predicts a fused binary mask crop. Each
+fused crop is pasted back into the full-image canvas at the coordinates stored during extraction,
+and the resulting labeled image is evaluated with the full-image label-aware IoU metric.
+
+
+\begin{figure}[ht]
+\centering
+\includegraphics[width=0.9\textwidth]{fig/MLEM-QA_diagram}
+\caption{QA-Gated Ensemble Pipeline Overview. The pipeline consists of three stages: (1) instance extraction and matching, (2) QA scoring and filtering, and (3) fusion and reconstruction. Each stage processes the data sequentially, with the QA Referee evaluating the quality of each candidate crop before passing it to the Fusion Engine for final mask prediction.}
+\label{fig:pipeline}
+\end{figure}
+
+% The diagram should show: base learner outputs → crop extraction → QA Referee → filter → Fusion Engine → reconstruction → evaluation
+
+\subsection{QA Referee}
+\label{sec:qa_referee}
+
+The QA Referee is a regression network trained to predict the crop-level Jaccard index (IoU)
+between a competitor's proposed cell mask and the ground-truth mask, without access to the ground
+truth at inference time.
+
+\textbf{Architecture.} We use a modified ResNet-18 \cite{he2016deep} with the first convolutional
+layer replaced to accept 2-channel input ($7\times7$, stride 2, padding 3). The two input channels
+are: (0) the raw microscopy crop and (1) the competitor segmentation mask crop. The final fully
+connected layer produces a single scalar output (predicted IoU). No sigmoid activation is applied;
+the network is trained with MSE loss directly on the continuous IoU target.
+
+\textbf{Training.} The network is trained using the Adam optimizer with weight decay $10^{-4}$.
+Training labels are the ground-truth crop-level Jaccard scores computed by comparing each
+competitor mask against the GT mask for that cell. The model is selected by lowest validation loss
+across training epochs.
+% TODO (David): Fill in: PyTorch version, learning rate, batch size, number of epochs, augmentations used during QA training.
+% These are in your MLflow run parameters — look for the QA training runs under the HSC experiment.
+
+\textbf{Inference.} At inference time, only channels 0 and 1 (raw crop and competitor mask) are
+available. The referee outputs a predicted quality score for each (cell, competitor) pair. Scores
+are merged back into the QA parquet as \texttt{predicted\_jaccard\_index} for downstream filtering.
+
+\subsection{Fusion Engine}
+\label{sec:fusion_engine}
+
+The Fusion Engine is a learned model that predicts a fused binary mask for a single cell crop,
+given the aggregated evidence from multiple competitors.
+
+\textbf{Input representation.} For each logical cell, competitor masks are spatially aligned around
+the crop center and summed into a \emph{normalized overlap image}: a single-channel image where
+each pixel value represents the fraction of competitors that predicted foreground at that location.
+We evaluate two input variants: \textbf{C1} (normalized overlap only, 1 channel) and \textbf{C2}
+(normalized overlap + raw image, 2 channels). Results in this paper use the C1 variant unless
+noted.
+
+\textbf{Architecture.} The Fusion Engine uses a UNet++ architecture \cite{zhou2018unet++} with an
+encoder backbone.
+% TODO (David): Fill in encoder backbone (e.g., ResNet-34), number of decoder levels, output activation (sigmoid for binary mask).
+% Check your MLflow ensemble training runs for the exact segmentation-models config.
+
+\textbf{Training.} The model is trained to predict the binary ground-truth mask crop for each cell.
+% TODO (David): Fill in: loss function (BCE? Dice+BCE?), optimizer, LR, epochs, batch size, augmentations.
+% Also note: is the model trained on HSC only, or pretrained on another dataset and fine-tuned?
+
+\textbf{Inference.} The predicted mask is thresholded at 0.5 and pasted back into the full-image
+canvas using stored reconstruction coordinates. Overlapping regions between adjacent cells are
+resolved by a deterministic priority rule to produce a reproducible labeled output.
+
+\subsection{Instance Matching Strategy}
+\label{sec:instance_matching}
+
+A critical challenge in ensemble-based segmentation is ensuring that corresponding cell instances
+are properly aligned across predictions from different models. Without proper synchronization, the
+fusion engine would attempt to combine incompatible or misaligned segmentation masks, leading to
+degraded performance. To address this, we leverage the gold reference tracking annotations provided
+by the Cell Tracking Challenge dataset.
+
+\subsubsection{Leveraging Reference Tracking Annotations}
+
+The Cell Tracking Challenge provides gold reference tracking annotations—human-made consensus
+annotations consisting of cell markers that are interlinked between frames to form cell lineage
+trees. These tracking markers provide complete cell instance coverage but contain only approximate
+cell region information (typically represented as single-point markers at cell centroids).
+Critically, these markers provide a consistent cell identity across all frames and serve as the
+ground truth for synchronizing segmentations from different models.
+
+Our approach employs a marker-based label fusion strategy implemented through a four-stage
+pipeline:
+
+\paragraph{1. Extraction Stage.}
+For each marker in the tracking annotation image, we scan the corresponding segmentation result to
+identify the best matching label. The extraction process uses a majority overlap criterion: we
+identify which segmented cell overlaps most with each marker, requiring at least 50\% of the
+marker's voxels to coincide with a single segmentation label. This conservative threshold ensures
+that each marker is associated with its most likely corresponding cell and prevents ambiguous or
+spurious matches.
+
+Formally, for a tracking marker $m$ and a set of predicted segmentation masks $\{S_1, S_2, ...,
+S_n\}$ from a base learner, we select the mask $S_i$ that maximizes:
+\begin{equation}
+\arg\max_{S_i} \frac{|m \cap S_i|}{|m|}
+\end{equation}
+subject to the constraint that $\frac{|m \cap S_i|}{|m|} \geq 0.5$.
+
+\paragraph{2. Fusion Stage.}
+Once matching labels are identified across all base learners, we combine them using weighted
+voting. Each voxel's label assignment in the fused result is determined by accumulating votes from
+all matched segments across the ensemble. Votes are weighted by configurable importance values that
+can be adjusted based on the historical performance of each base learner. Only voxels that exceed a
+minimum acceptance weight threshold (50\% by default) are retained in the fused result, ensuring
+that the final segmentation represents a consensus among multiple models rather than an outlier
+prediction.
+
+\paragraph{3. Insertion Stage.}
+The fused segment for each cell is inserted into the output image under its corresponding tracking
+marker label. This stage manages collisions where multiple markers claim overlapping regions. We
+track collision volumes and flag problematic markers based on two criteria: (1) markers with
+collision ratios exceeding 20\%, indicating significant spatial conflict, and (2) markers touching
+image boundaries, which may represent partially visible cells. These flagged instances can be
+removed based on configuration settings to ensure clean training data for the QA referee and fusion
+engine.
+
+\paragraph{4. Post-processing Stage.}
+Finally, we resolve remaining collisions and perform cleanup operations. Markers that failed to
+find matches in the extraction stage, experienced extensive collisions, or bordered the image are
+logged and potentially excluded from the final synchronized output. This ensures that the aligned
+segmentation dataset contains only reliably matched cells with consistent labeling between
+segmentation predictions and tracking ground truth.
+
+\subsubsection{Benefits for QA-Gated Ensembling}
+
+This instance matching strategy provides several critical benefits for our framework:
+\begin{itemize}
+    \item \textbf{Consistent Instance Identity:} All base learners' predictions for the same cell are aligned to the same tracking marker, enabling meaningful comparison and fusion.
+    \item \textbf{Quality Control:} The matching process itself filters out low-quality predictions that fail to achieve sufficient overlap with tracking markers.
+    \item \textbf{Collision Detection:} Ambiguous regions where segmentations conflict are explicitly identified and can be handled appropriately.
+    \item \textbf{Training Data Integrity:} The synchronized labels ensure that the QA referee is trained on properly aligned instance-level examples, improving its ability to predict quality scores accurately.
+\end{itemize}
+
+By utilizing the existing gold reference tracking annotations in this manner, we transform them
+from a simple evaluation benchmark into an active component of our methodology, enabling robust
+instance-level ensemble fusion without requiring additional manual annotation effort.
+
+\subsection{Filtering Criteria and Threshold Selection}
+\label{sec:filtering_criteria}
+
+% TODO: Threshold selection (e.g., 0.75 IoU)
+% TODO: Empirical analysis of different thresholds
+% TODO: Trade-offs between precision and recall
+
+%% }}} --- Section
+
+%% ---------------------------
+%% Experimental Setup
+%% ---------------------------
+\section{Experimental Setup} %% {{{
+\label{sec:experimental_setup}
+
+\subsection{Datasets}
+\label{sec:dataset}
+
+We evaluate our framework on two datasets from the Cell Tracking Challenge \cite{maska2023cell}:
+
+\textbf{BF-C2DL-HSC} (Brightfield, Hematopoietic Stem Cells). Two sequences (01, 02), each 1,764
+frames at $1010\times1010$ pixels (8-bit grayscale), totalling 3,528 images. HSC cells are
+particularly challenging due to low contrast and clustering. From five base learner outputs we
+extracted 2,754 instance crops; including silver-truth fused instances the pool grows to 4,713.
+Splits follow a 70/15/15 train/val/test ratio. Crops are extracted at 64\,px.
+
+\textbf{BF-C2DL-MuSC} (Brightfield, Muscle Stem Cells). Two sequences at the same resolution. MuSC
+cells are larger and more elongated than HSC, making context window size critical: only 53.6\% of
+MuSC ground-truth bounding boxes fit within a 64\,px crop (41.6\% for sequence 02 alone). We
+therefore evaluate crop sizes of 128, 192, 256, and 320\,px on this dataset; sz64 results are
+included for reference only and are not used to draw conclusions.
+
+Both datasets are evaluated using a two-fold split (fold-1: sequence 01 test; fold-2: sequence 02
+test), with training data from the complementary sequence. All reported results are fold-level IoU
+scores averaged over the two folds unless noted otherwise.
+
+\subsection{Base Learners}
+\label{sec:base_learners}
+
+We use five base learners drawn from Cell Tracking Challenge competitor submissions:
+\textbf{CALT-US}, \textbf{DREX-US}, \textbf{KIT-Sch-GE}, \textbf{KTH-SE}, and \textbf{MU-Lux-CZ}.
+These represent a diverse range of segmentation architectures, from deep learning U-Net variants to
+graph-based and classical approaches. Diversity is intentional: it reduces the likelihood that all
+base learners fail simultaneously on the same instances. Per-competitor IoU scores on BF-C2DL-HSC
+are reported in Table~\ref{tab:competitors}.
+
+\begin{table}[ht]
+\centering
+\caption{Per-competitor IoU on BF-C2DL-HSC (fold-1: seq01 test; fold-2: seq02 test).}
+\label{tab:competitors}
+\begin{tabular}{lccc}
+\hline
+\textbf{Competitor} & \textbf{Fold-1 IoU} & \textbf{Fold-2 IoU} & \textbf{Mean} \\
+\hline
+CALT-US    & 0.8526 & 0.8953 & 0.8739 \\
+KIT-Sch-GE & 0.8166 & 0.8345 & 0.8255 \\
+MU-Lux-CZ  & 0.7967 & 0.8790 & 0.8378 \\
+KTH-SE     & 0.7536 & 0.6801 & 0.7169 \\
+DREX-US    & 0.6408 & 0.6666 & 0.6537 \\
+\hline
+\end{tabular}
+\end{table}
+
+CALT-US is the strongest competitor on both folds and serves as the primary baseline throughout.
+The large spread between CALT-US (mean 0.8739) and DREX-US (mean 0.6537) confirms substantial
+diversity in base learner quality, which is a prerequisite for effective instance-level ensemble
+filtering.
+
+\subsection{Comparison Hierarchy}
+\label{sec:baselines}
+
+We adopt the following ordered comparison hierarchy, from primary to reference-only:
+
+\begin{enumerate}
+    \item \textbf{Best reproducible competitor:} The highest-performing individual CTC competitor method (CALT-US on HSC; varies by fold on MuSC). This is our primary baseline — a deployable, test-time method with no access to oracle information.
+    \item \textbf{Practical fusion baselines:} Simple fusion methods applied to the same five competitor outputs without learning: \textit{Simple} (majority-vote pixel fusion, \texttt{fusion\_only\_\_simple}) and \textit{Threshold flat voting} (\texttt{fusion\_only\_\_threshold\_flat}). These are reproducible without any training.
+    \item \textbf{Our learned methods:} The learned pipeline variants described in Section~\ref{sec:methodology}, evaluated in ablation (Section~\ref{sec:ablation}).
+    \item \textbf{CTC Silver Truth (upper reference only):} The challenge-provided fused reference construction, generated using gold detection markers, selected high-performing methods, and per-video threshold optimization against gold truth \cite{mavska2023cell}. Silver truth is \emph{not} a deployable test-time method and is reported as a strong upper-reference bound, not as a like-for-like competitor.
+\end{enumerate}
+
+\subsection{Evaluation Metrics}
+\label{sec:metrics}
+We evaluate all methods using two complementary metrics standard in cell segmentation benchmarking
+\cite{mavska2023cell}:
+
+\textbf{Intersection over Union (IoU / Jaccard Index).} For a predicted segmentation mask $\hat{S}$
+and ground truth mask $S^*$, IoU is defined as:
+\begin{equation}
+\text{IoU}(\hat{S}, S^*) = \frac{|\hat{S} \cap S^*|}{|\hat{S} \cup S^*|}
+\end{equation}
+IoU measures spatial overlap and is sensitive to both over- and under-segmentation, making it the
+primary metric for cell boundary quality.
+
+\textbf{F1 Score.} Defined as the harmonic mean of precision and recall at the instance level:
+\begin{equation}
+F_1 = \frac{2 \cdot \text{Precision} \cdot \text{Recall}}{\text{Precision} + \text{Recall}}
+\end{equation}
+where an instance is counted as a true positive if its IoU with the nearest ground truth instance
+exceeds 0.5. F1 captures detection accuracy—whether the correct number of cells is
+found—complementing the boundary quality measured by IoU.
+
+\subsection{Implementation Details}
+\label{sec:implementation}
+
+Both models are implemented in PyTorch 2.9.1 with PyTorch Lightning 2.5.5.
+
+\textbf{QA Referee.} The modified ResNet-18 is trained for up to 50 epochs with early stopping
+(patience 10) using the Adam optimizer (learning rate $10^{-4}$, weight decay $10^{-4}$) and batch
+size 16. Training augmentations are applied via \texttt{prepare\_images\_for\_model()}: random
+horizontal flip, random vertical flip, and random 90-degree rotations. On an NVIDIA A100-SXM4-40GB
+GPU, one training run completes in approximately 35 seconds per fold.
+
+\textbf{Fusion Engine.} The UNet++ model with a ResNet-34 encoder (no pretrained weights) is
+trained for up to 100 epochs with early stopping using the Adam optimizer (learning rate $10^{-3}$)
+and batch size 7. The loss function is MSE applied to the predicted binary mask. Augmentations use
+the \texttt{basic} preset: horizontal flip, random 90-degree rotation. Training is managed via
+\texttt{segmentation-models-pytorch} 0.5.0. In practice, runs converge early (observed stopping
+around epoch 33 on HSC). Local runs used Apple MPS; HPC ablation runs used an NVIDIA
+A100-SXM4-40GB.
+
+%% }}} --- Section
+
+%% ---------------------------
+%% Results
+%% ---------------------------
+\section{Results} %% {{{
+\label{sec:results}
+
+\subsection{BF-C2DL-HSC Results}
+\label{sec:hsc_results}
+
+Table~\ref{tab:hsc_results} reports the frozen summary of per-fold and average IoU scores on
+\textit{BF-C2DL-HSC} at crop size 64\,px.
+
+\begin{table}[ht]
+\centering
+\caption{Frozen summary results on BF-C2DL-HSC (sz64). Silver truth is a gold-guided upper reference, not a deployable baseline. ``Best single ours'' denotes the strongest single configuration in our study, while ``Foldwise best ours'' combines the winning configuration on each fold and is included only to show attainable performance within the pipeline family.}
+\label{tab:hsc_results}
+\begin{tabular}{lccc}
+\hline
+\textbf{Summary row} & \textbf{Fold-1} & \textbf{Fold-2} & \textbf{Mean} \\
+\hline
+Silver truth                             & 0.8528 & 0.8979 & 0.8753 \\
+\hline
+Best competitor (CALT-US)                & 0.8526 & 0.8953 & 0.8739 \\
+Best single ours (\texttt{fusion\_only\_\_simple}) & 0.8579 & 0.8873 & 0.8726 \\
+\hline
+Foldwise best ours                       & 0.8700 & 0.8873 & 0.8786 \\
+\hline
+\end{tabular}
+% SOURCE: leaderboard-update-2026-03-26.md (final frozen leaderboard snapshot).
+% Foldwise best configuration: fold-1 = ensemble_qa_retrained_t0.75 (0.8700),
+% fold-2 = fusion_only__simple (0.8873).
+\end{table}
+
+The HSC result is best described as near parity rather than a clear win. The strongest single
+configuration in our study is the practical fusion baseline \texttt{fusion\_only\_\_simple}, which
+reaches 0.8726 mean IoU, only 0.0014 below the best competitor (0.8739). The foldwise-best score
+within our pipeline family is 0.8786, with \texttt{ensemble\_qa\_retrained\_t0.75} winning fold-1
+(0.8700) and \texttt{fusion\_only\_\_simple} winning fold-2 (0.8873). This indicates that the
+method family is competitive on HSC, but no single learned configuration delivers a clean average
+win across both folds. The large fold asymmetry remains the main limitation.
+
+\subsection{BF-C2DL-MuSC Crop-Context Sensitivity}
+\label{sec:musc_results}
+
+Because MuSC cells are substantially larger than HSC cells — only 53.6\% fit within a 64\,px crop
+— we evaluate multiple crop sizes. Table~\ref{tab:musc_results} reports the crop-context sweep.
+
+\begin{table}[ht]
+\centering
+\caption{IoU on BF-C2DL-MuSC across crop sizes. sz64 invalid (cells don't fit; reference only). F1/F2 = fold-1/fold-2 IoU. ``Best fuser'' = best non-learned fusion baseline per setting. ``Best learned'' = best learned method, foldwise-averaged. Silver truth is upper reference.}
+\label{tab:musc_results}
+\begin{tabular}{lcccccc}
+\hline
+\textbf{Crop} & \multicolumn{2}{c}{\textbf{Silver}} & \multicolumn{2}{c}{\textbf{Best competitor}} & \textbf{Best fuser} & \textbf{Best learned} \\
+              & F1 & F2 & F1 & F2 & (mean) & (mean) \\
+\hline
+sz64\textsuperscript{*}  & 0.7853 & 0.8354 & 0.7853 & 0.8161 & 0.6060 & 0.6295 \\
+sz128 & 0.7853 & 0.8354 & 0.7853 & 0.8161 & 0.6873 & 0.7606 \\
+sz192 & 0.7853 & 0.8354 & 0.7853 & 0.8161 & 0.7164 & 0.7872 \\
+\textbf{sz256} & 0.7853 & 0.8354 & 0.7853 & 0.8161 & 0.7250 & \textbf{0.7950} \\
+sz320 & 0.7853 & 0.8354 & 0.7853 & 0.8161 & 0.7278 & 0.7744 \\
+\hline
+\end{tabular}
+\smallskip\\
+\small \textsuperscript{*}sz64 not valid for MuSC; included for reference only.\\
+\small Best fuser at sz128/192: \texttt{fusion\_only\_\_bic\_flat\_voting}; at sz256/320: \texttt{fusion\_only\_\_threshold\_flat}.\\
+\small Best learned at sz128: \texttt{ensemble\_baseline}; sz192: \texttt{ensemble\_only}; sz256: \texttt{full\_pipeline\_t0.75\_\_simple}; sz320: \texttt{qa\_only\_\_top1}.
+\end{table}
+
+Best learned performance improves monotonically from sz128 (0.7606) through sz256 (0.7950), then
+reverses at sz320 (0.7744). This identifies sz256 as the optimal context window for MuSC
+morphology. At sz256 fold-1, the best learned configuration effectively ties the best competitor
+(0.7852 vs.\ 0.7853, gap $-$0.0001). Fold-2 remains below the best competitor by 0.0112 (0.8049
+vs.\ 0.8161). The mean gap to the best competitor at sz256 is $-$0.0165.
+
+Notably, even the non-learned fusion baselines improve with crop size (mean 0.6060 at sz64 to
+0.7278 at sz320), confirming that context window size, not the learned component alone, is the
+primary performance driver on MuSC. The learned methods consistently outperform simple fusion
+baselines at every crop size, with the gap at sz256 being 0.0700 (0.7950 vs.\ 0.7250).
+
+\subsection{Ablation Study}
+\label{sec:ablation}
+
+Table~\ref{tab:ablation} summarizes which component family is strongest in the frozen experiments.
+Rather than reproducing stale pre-freeze per-method values, we report the winning configuration
+class for each key setting.
+
+\begin{table}[ht]
+\centering
+\caption{Frozen ablation summary. ``Winner'' denotes the strongest configuration class for the given setting.}
+\label{tab:ablation}
+\begin{tabular}{llll}
+\hline
+\textbf{Dataset / setting} & \textbf{Winner} & \textbf{Representative score} & \textbf{Interpretation} \\
+\hline
+HSC sz64, fold-1 & learned QA-gated variant & 0.8700 & \texttt{ensemble\_qa\_retrained\_t0.75} is strongest on fold-1 \\
+HSC sz64, fold-2 & practical fusion baseline & 0.8873 & \texttt{fusion\_only\_\_simple} is strongest on fold-2 \\
+HSC sz64, average & practical fusion baseline & 0.8726 & strongest single configuration; near parity with competitor \\
+MuSC sz192 & learned fusion only & 0.7872 & \texttt{ensemble\_only} is strongest before the optimum context \\
+MuSC sz256 & mixed winner set & 0.7950 & best overall MuSC context; winners differ by fold \\
+MuSC sz320 & QA-only selection & 0.7744 & larger context degrades performance despite QA wins \\
+\hline
+\end{tabular}
+% SOURCE: leaderboard-update-2026-03-26.md (final frozen leaderboard snapshot).
+\end{table}
+
+The ablation picture is not one of a single dominant component. On HSC, a learned QA-gated variant
+is strongest on fold-1, but the practical fusion baseline wins fold-2 and is the strongest single
+configuration on average. On MuSC, the winning component changes with crop size:
+\texttt{ensemble\_only} is best at sz192, foldwise-best performance peaks at sz256, and
+\texttt{qa\_only\_\_top1} becomes strongest at sz320 even as the overall crop-size trend
+deteriorates. This instability is precisely why we do not present QA as the main validated
+mechanism.
+
+\subsection{QA Validity Analysis}
+\label{sec:qa_analysis}
+
+Table~\ref{tab:qa_validity} reports the Pearson correlation between predicted and ground-truth IoU
+on the test sheet of each fold, together with the number and percentage of instances filtered at
+$\tau = 0.75$.
+
+\begin{table}[ht]
+\centering
+\caption{QA Referee validity on BF-C2DL-HSC. Pearson $r$ computed on the test split between predicted and ground-truth IoU. Filtered count at $\tau = 0.75$.}
+\label{tab:qa_validity}
+\begin{tabular}{lccc}
+\hline
+\textbf{Fold} & \textbf{Pearson $r$} & \textbf{Filtered (count)} & \textbf{Filtered (\%)} \\
+\hline
+Fold-1 & 0.363 & 597  & 33.0\% \\
+Fold-2 & 0.229 & 1502 & 99.5\% \\
+\hline
+\end{tabular}
+\end{table}
+
+The fold-1 correlation ($r = 0.363$) indicates weak but non-trivial rank informativeness. The
+fold-2 result ($r = 0.229$, 99.5\% of instances filtered) reveals a critical calibration failure:
+the QA model trained on sequence 01 assigns near-universally low quality scores when applied to
+sequence 02, effectively discarding almost all candidates before fusion. This explains the
+consistent underperformance of QA-gated configurations on fold-2 (Table~\ref{tab:hsc_results}):
+with 99.5\% of instances removed, the fallback mechanism (retaining the top-1 candidate per cell)
+is activated for virtually every cell, reducing the QA-gated pipeline to a nearest-neighbor
+selection. Figure~\ref{fig:qa_scatter} shows the predicted vs.\ actual IoU scatter for each fold.
+
+%% }}} --- Section
+
+%% ---------------------------
+%% Discussion
+%% ---------------------------
+\section{Discussion} %% {{{
+\label{sec:discussion}
+
+\subsection{What the Learned Ensemble Achieves}
+
+On HSC, the overall pipeline family is competitive with the strongest reproducible competitor under
+a limited two-fold evaluation. The best single configuration in our frozen experiments is the
+practical fusion baseline at 0.8726 mean IoU, only 0.0014 below the best competitor, while the
+foldwise-best result reaches 0.8786. This indicates that the learned setting is promising, but the
+paper should not claim a stable average win for any single learned variant.
+
+On MuSC, the dominant finding is the sensitivity of all learned methods to crop context size. The
+monotone improvement from sz128 to sz256, followed by degradation at sz320, identifies an optimal
+context window. This result holds across both folds and across multiple learned configurations. It
+suggests that the fusion model requires sufficient morphological context to learn meaningful
+patterns, but that beyond a threshold the additional background introduces noise that the model
+cannot filter.
+
+\subsection{Why QA is Not Yet a Stable Contribution}
+
+The QA validity analysis (Section~\ref{sec:qa_analysis}) reveals the primary mechanism behind
+fold-2 underperformance. On fold-2, the QA model filters 99.5\% of all instances at $\tau = 0.75$,
+a clear calibration failure: the model trained on sequence 01 assigns near-universally low quality
+scores to sequence 02 instances, suggesting that the learned quality signal does not transfer
+between sequences even within the same dataset. The Pearson correlation on fold-2 ($r = 0.229$)
+confirms that ranking is also unreliable. With almost all instances removed, the fallback to top-1
+selection is triggered for virtually every cell, making the fold-2 QA-gated pipeline equivalent to
+a degenerate single-candidate selection.
+
+This is not a threshold calibration issue that can be fixed by lowering $\tau$: the root cause is
+that the QA model's score distribution shifts substantially between sequences. Sequence 01 and
+sequence 02, while from the same biological experiment, differ in their imaging characteristics,
+cell densities, and motion patterns. The QA referee, trained only on one sequence, learns score
+thresholds that are not portable to the other.
+
+The QA component should therefore be treated as an exploratory mechanism whose reliability is
+conditional on the training and test data coming from the same distribution. This is a fundamental
+limitation under a two-fold cross-sequence evaluation regime, and would require either more
+training sequences, domain-adaptive calibration, or sequence-specific thresholding to address
+reliably.
+
+\subsection{Fair Interpretation of the Silver Truth Reference}
+
+The CTC silver truth is constructed using gold detection/tracking markers, selected high-performing
+methods, and per-video threshold optimization against gold annotations \cite{mavska2023cell}. It is
+not a deployable inference-time method, and should not be treated as a standard baseline to be
+beaten in a like-for-like sense. In this paper, silver truth serves as an approximate upper bound:
+a construction that benefits from oracle-guided matching unavailable to a deployable system. The
+gap between our best result and silver truth ($-$0.0027 on HSC, $-$0.0261 on MuSC sz256) reflects
+both the margin available from oracle-guided fusion and the remaining room for learned methods to
+improve.
+
+\subsection{Limitations}
+
+Several limitations of the current framework should be acknowledged. First, the two-fold evaluation
+provides limited statistical power; results on fold-2 may be dominated by the reduced training set
+for that split. Second, the instance matching strategy depends on the availability of gold
+reference tracking annotations, limiting applicability outside benchmarked datasets. Third, the
+filtering threshold $\tau$ is a hyperparameter requiring held-out tuning; incorrect selection can
+reduce recall without a corresponding precision gain. Finally, the MuSC sz256 result, while
+competitive on fold-1, does not yet generalize to a consistent average win across both folds.
+
+\subsection{Broader Applicability}
+
+Although validated on cell segmentation, the core pipeline — instance extraction, QA scoring, and
+learned fusion — is domain-agnostic. Any scenario with multiple segmentation models producing
+conflicting instance outputs is a candidate: tumor and organ segmentation in clinical MRI/CT,
+nuclei segmentation in digital pathology, industrial defect detection, and satellite imagery object
+segmentation. The primary requirement is a set of instances with known ground-truth quality scores
+for QA training, which is available whenever benchmark annotations exist.
+
+%% }}} --- Section
+
+%% ---------------------------
+%% Future Work
+%% ---------------------------
+\section{Future Work} %% {{{
+\label{sec:future_work}
+
+Several directions emerge naturally from this work.
+
+\textbf{Temporal QA.} In the current framework, each frame is evaluated independently. A natural
+extension is to incorporate temporal consistency as an additional quality signal—penalizing
+instances whose quality scores fluctuate implausibly between consecutive frames. This would be
+particularly valuable for live-cell imaging sequences where cell behavior is predictably smooth.
+
+\textbf{Adaptive Thresholds.} The filtering threshold is currently set globally at $\tau = 0.75$. A
+data-driven threshold—adjusted per sequence, cell type, or image region—could improve recall in
+challenging regions without sacrificing precision in easy ones.
+
+\textbf{Larger Training Sets and Additional Datasets.} The fold asymmetry observed on both HSC and
+MuSC suggests that data volume is the primary bottleneck. Evaluating the pipeline on additional CTC
+datasets with more training sequences would clarify whether the competitive HSC result generalizes.
+
+\textbf{Extension to 3D Volumetric Data.} Extending the QA Referee and Fusion Engine to native 3D
+volumetric microscopy data (e.g., light-sheet fluorescence microscopy) is a straightforward
+architectural adaptation with potentially high impact for whole-organism imaging studies.
+
+\textbf{Model-Agnostic QA via Meta-Learning.} A meta-learning approach could train a QA model that
+generalizes to unseen segmentation architectures without retraining, reducing the data collection
+overhead required to deploy the framework in new settings.
+
+%% }}} --- Section
+
+%% ---------------------------
+%% Conclusion
+%% ---------------------------
+\section{Conclusion} %% {{{
+\label{sec:conclusion}
+
+We have presented a learned ensemble pipeline for cell segmentation that combines an instance-level
+QA Referee with a learned Fusion Engine. Evaluated on two Cell Tracking Challenge datasets using
+five diverse base learners, our frozen experiments show that the pipeline family is competitive
+with the strongest reproducible competitor on BF-C2DL-HSC: the best single configuration reaches
+0.8726 mean IoU versus 0.8739 for the best competitor, while the foldwise-best score reaches
+0.8786. On BF-C2DL-MuSC, performance is strongly governed by crop context size: results improve
+from 128\,px to 256\,px before reversing at 320\,px, identifying an optimal context window of
+256\,px for this morphology. At sz256, the best learned configuration effectively ties the best
+competitor on fold-1 (gap $-$0.0001) and reduces the average gap to 0.0165.
+
+The QA component shows promise but does not yet provide consistent improvements across folds and
+datasets under the current limited-data evaluation regime. We treat it as an exploratory mechanism
+and provide QA validity analysis to characterize its rank-informativeness. The CTC silver truth is
+used throughout as a gold-guided upper reference rather than a like-for-like baseline, and the
+primary comparison targets are the best reproducible competitor and practical non-learned fusion
+baselines.
+
+These results demonstrate that learned ensemble fusion can approach the performance of individually
+strong competitors under limited annotations, and that crop context window selection is a critical
+design decision when cells vary substantially in size across datasets.
+
+%% }}} --- Section
+
+%% ---------------------------
+%% Bibliography and postamble
+%% ---------------------------
+\input{midamble.inc.tex}
+\bibliography{paper}
+\input{postamble.inc.tex}
+
+\end{document}
+
+%% :folding=explicit:wrap=soft:mode=latex:

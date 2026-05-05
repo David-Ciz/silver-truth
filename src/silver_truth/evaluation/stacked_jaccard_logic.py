@@ -6,6 +6,8 @@ from typing import Optional
 import logging
 from tqdm import tqdm
 
+from silver_truth.metrics.metrics import crop_with_padding
+
 
 def jaccard_score(mask1, mask2):
     """
@@ -247,16 +249,17 @@ def calculate_evaluation_metrics_cropped(
             crop_x_end = int(row["crop_x_end"])
             crop_size = row.get("crop_size", None)
 
-            gt_crop = gt_full_mask[crop_y_start:crop_y_end, crop_x_start:crop_x_end]
-
-            # Pad if necessary (same logic as in preprocessing)
+            output_shape = None
             if crop_size is not None:
-                pad_y = int(crop_size) - gt_crop.shape[0]
-                pad_x = int(crop_size) - gt_crop.shape[1]
-                if pad_y > 0 or pad_x > 0:
-                    gt_crop = np.pad(
-                        gt_crop, ((0, max(0, pad_y)), (0, max(0, pad_x))), "constant"
-                    )
+                output_shape = (int(crop_size), int(crop_size))
+            gt_crop = crop_with_padding(
+                gt_full_mask,
+                crop_y_start,
+                crop_y_end,
+                crop_x_start,
+                crop_x_end,
+                output_shape=output_shape,
+            )
 
             gt_mask = gt_crop
 

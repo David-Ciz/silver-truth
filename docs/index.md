@@ -39,6 +39,8 @@ For detailed installation instructions and basic usage examples, please refer to
 *   [Executable Index](executable_index.md): Task-oriented list of what agents should try first, including maintained CLI entrypoints, scripts, and reusable functions.
 *   [DVC Guide](dvc_guide.md): Complete guide to setting up DVC and downloading datasets.
 *   [Paper Protocol (Fold-Locked)](paper_protocol.md): Exact paper run order from fold prep to ablation/sweep.
+*   [HeLa Ablation Results 2026-04-14](hela_ablation_results_2026-04-14.md): Fold-locked readout for the first `DIC-C2DH-HeLa` `sz256` run, including QA and ensemble recommendations.
+*   [HeLa QA Follow-Up 2026-04-17](hela_qa_follow_up_2026-04-17.md): Split/timepoint audit of the saved HeLa QA predictions explaining the fold-specific calibration failure.
 *   [QA Sweep Results](qa_sweep_results.md): Consolidated Pearson/Spearman tables for the QA-only HSC64 and MuSC256 architecture sweep.
 *   [QA Transfer Workflow](qa_transfer_workflow.md): Zero-shot cross-dataset QA transfer runner, configs, and HPC usage.
 *   [Manuscript Artifact Registry](manuscript_artifact_registry.md): Frozen source-of-truth map from each manuscript table/figure to exact export DBs, run IDs, and local artifact files.

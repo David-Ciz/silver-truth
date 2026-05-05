@@ -4,6 +4,56 @@ from scipy.ndimage import find_objects
 import logging
 
 
+def crop_with_padding(
+    image: np.ndarray,
+    y_start: int,
+    y_end: int,
+    x_start: int,
+    x_end: int,
+    output_shape: tuple[int, int] | None = None,
+) -> np.ndarray:
+    """
+    Crop a 2D image using possibly out-of-bounds coordinates.
+
+    Regions outside the source image are zero-padded in the returned crop. This
+    mirrors QA crop preprocessing, where boundary crops retain their requested
+    size and use zero padding outside image bounds.
+    """
+    if image.ndim != 2:
+        raise ValueError(f"Expected a 2D image, got shape={image.shape}")
+
+    if output_shape is None:
+        out_h = max(0, y_end - y_start)
+        out_w = max(0, x_end - x_start)
+    else:
+        out_h, out_w = output_shape
+
+    crop = np.zeros((out_h, out_w), dtype=image.dtype)
+    if out_h == 0 or out_w == 0:
+        return crop
+
+    src_y0 = max(0, y_start)
+    src_x0 = max(0, x_start)
+    src_y1 = min(image.shape[0], y_end)
+    src_x1 = min(image.shape[1], x_end)
+
+    if src_y1 <= src_y0 or src_x1 <= src_x0:
+        return crop
+
+    dst_y0 = max(0, -y_start)
+    dst_x0 = max(0, -x_start)
+    copy_h = min(src_y1 - src_y0, out_h - dst_y0)
+    copy_w = min(src_x1 - src_x0, out_w - dst_x0)
+
+    if copy_h <= 0 or copy_w <= 0:
+        return crop
+
+    crop[dst_y0 : dst_y0 + copy_h, dst_x0 : dst_x0 + copy_w] = image[
+        src_y0 : src_y0 + copy_h, src_x0 : src_x0 + copy_w
+    ]
+    return crop
+
+
 def calculate_labelwise_scores(gt_image, mask_image):
     """
     Calculate per-label IoU and F1 scores for a labeled segmentation mask.
@@ -76,26 +126,15 @@ def calculate_qa_jaccard_score(
             x_start = int(qa_row["crop_x_start"])
             x_end = int(qa_row["crop_x_end"])
 
-            # Extract GT region that corresponds to the crop
-            gt_region = gt_image[y_start:y_end, x_start:x_end]
-            gt_mask = (gt_region == target_label).astype(np.uint8)
-
-            # Ensure dimensions match (handle padding that might have been applied)
-            if gt_mask.shape != predicted_mask.shape:
-                # Resize to match predicted_mask
-                target_h, target_w = predicted_mask.shape
-                gt_h, gt_w = gt_mask.shape
-
-                if gt_h <= target_h and gt_w <= target_w:
-                    # GT region is smaller, pad it
-                    pad_y = target_h - gt_h
-                    pad_x = target_w - gt_w
-                    gt_mask = np.pad(
-                        gt_mask, ((0, pad_y), (0, pad_x)), "constant", constant_values=0
-                    )
-                else:
-                    # GT region is larger, crop it
-                    gt_mask = gt_mask[:target_h, :target_w]
+            gt_full_mask = (gt_image == target_label).astype(np.uint8)
+            gt_mask = crop_with_padding(
+                gt_full_mask,
+                y_start,
+                y_end,
+                x_start,
+                x_end,
+                output_shape=predicted_mask.shape,
+            )
 
         elif predicted_mask.shape == gt_image.shape:
             # Full image case - extract GT mask for the target label

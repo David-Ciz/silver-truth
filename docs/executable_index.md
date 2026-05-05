@@ -46,6 +46,8 @@ These are the repository-level scripts that currently have clear documentation s
   - Slurm wrapper for the QA transfer runner; stages source/target datasets to scratch and logs a dedicated transfer run bundle
 - `scripts/analyze_dataset_profiles.py`
   - compares synchronized datasets at the raw-frame and GT-object level; writes crop-fit and size-profile reports under `data/analysis/dataset_profiles/`
+- `scripts/analyze_qa_prediction_bundle.py`
+  - audits saved QA prediction Excel bundles for split drift, timepoint-level shift, and residual calibration by score range; useful for follow-up analysis after ablation runs
 - `scripts/generate_api_docs.py`
   - refreshes `docs/api_reference_generated.md` from source docstrings
 
@@ -177,3 +179,25 @@ This script:
 Current reference note:
 
 - [HeLa, HSC, and MuSC Profile Notes](datasets/hela_hsc_musc_profile.md)
+
+### Audit Why a QA Fold Behaves Differently Across Train / Validation / Test
+
+Use:
+
+```bash
+PYTHONPATH=src .venv/bin/python scripts/analyze_qa_prediction_bundle.py \
+  --input-root hela_results/hela_ablation_2026-04-14/paper_runs/qa_results/DIC-C2DH-HeLa/sz256 \
+  --output-dir hela_results/hela_ablation_2026-04-14/analysis/qa_follow_up
+```
+
+This script:
+
+- scans one or more `*_qa_predictions_*.xlsx` files
+- summarizes split composition, including campaign and timepoint coverage
+- reports per-timepoint true/predicted quality and residual bias
+- bins residuals by true Jaccard range so calibration failures are easy to spot
+
+Current reference notes:
+
+- [HeLa Ablation Results 2026-04-14](hela_ablation_results_2026-04-14.md)
+- [HeLa QA Follow-Up 2026-04-17](hela_qa_follow_up_2026-04-17.md)
