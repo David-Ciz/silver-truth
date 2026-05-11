@@ -73,24 +73,32 @@ def _evaluate_model(model, input_set, target_set):
 
 
 class EvaluationCallback(Callback):
-    def __init__(self, train_set, val_set, every_n_epochs=1):
+    def __init__(self, train_set, val_set, best_training, every_n_epochs=1):
         super().__init__()
         self.train_inputs, self.train_targets = train_set[0], train_set[1]
         self.val_inputs, self.val_targets = val_set[0], val_set[1]
         self.every_n_epochs = every_n_epochs
         self.best_f1 = 0
+        self.current_best_total = 0
+        self.best_training = best_training
 
     def on_train_epoch_end(self, trainer, pl_module):
         if trainer.current_epoch % self.every_n_epochs == 0:
             val_loss, val_f1, val_iou = _evaluate_model(
                 pl_module, self.val_inputs, self.val_targets
             )
+            if self.current_best_total < val_f1 + val_iou:
+                self.current_best_total = val_f1 + val_iou
+                self.best_training["loss"] = val_loss
+                self.best_training["f1"] = val_f1
+                self.best_training["iou"] = val_iou
+                self.best_training["epoch"] = trainer.current_epoch + 1
+                
             if self.best_f1 < val_f1:
                 self.best_f1 = val_f1
                 mlflow.log_metric("best_val_f1", value=self.best_f1)
-            mlflow.log_metric(
-                "val_loss", value=val_loss, step=trainer.current_epoch + 1
-            )
+
+            mlflow.log_metric("val_loss", value=val_loss, step=trainer.current_epoch + 1)
             mlflow.log_metric("val_f1", value=val_f1, step=trainer.current_epoch + 1)
             mlflow.log_metric("val_iou", value=val_iou, step=trainer.current_epoch + 1)
             print(f"val_loss: {val_loss}, val_f1: {val_f1}, val_iou: {val_iou}")
@@ -176,6 +184,8 @@ def _train_model(
 
     checkpoint_filename = f"M{model_type.value}-{databank_suffix}"
 
+    best_training_res = { "loss": 0, "f1": 0, "iou": 0, "epoch": 0}
+
     trainer = pl.Trainer(
         default_root_dir=os.path.join(os.getcwd(), _checkpoint_path),
         deterministic=True,
@@ -195,6 +205,7 @@ def _train_model(
             EvaluationCallback(
                 _get_eval_sets(train_dataset, is_single_input),
                 _get_eval_sets(val_dataset, is_single_input),
+                best_training_res
             ),
             EarlyStopping(monitor="val_loss", patience=10),
         ],
@@ -203,6 +214,16 @@ def _train_model(
     print(f"\n### Training model: {str(model_type)}, encoder: {model_enc}, weights: {pretrain}.\n\n")
 
     trainer.fit(model_pl, train_loader, val_loader)
+
+    mlflow.log_metric("best_val_f1", value=best_training_res["f1"])
+    mlflow.log_metric("best_val_iou", value=best_training_res["iou"])
+    
+    # save best in file
+    train_res_file_path = "./training_results.txt"
+    with open(train_res_file_path, "a+") as f:
+        f.write(f"\nmodel: {model_type.name}, enc: {model_enc}, pretrain: {pretrain}\n\t\
+epoch: {best_training_res["epoch"]:02d}, loss: {best_training_res["loss"]:.5f}, \
+f1: {best_training_res["f1"]:.5f}, iou: {best_training_res["iou"]:.5f}")
 
     # Test best model on validation and test set
     val_result = trainer.test(model_pl, dataloaders=val_loader, verbose=False)

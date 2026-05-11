@@ -107,6 +107,7 @@ def build_ensemble_databanks(build_opt_list, qa_parquet_dir="data/ensemble_data/
             qa_parquet_dir,
             f"qa_{build_opt['name']}_split{utils.get_splits_name(build_opt)}_res.parquet",
         )
+        qa_parquet_path = "data/dataframes/BF-C2DL-HSC/qa_crops/fold-1_sz64_qa_dataset.parquet"
         ensemble_databanks.append(ensemble.build_databank(build_opt, qa_parquet_path))
 
     return ensemble_databanks
@@ -238,7 +239,8 @@ build_opt_list = [
         "dataset": Version.C1,
         "crop_size": 64,
         "split_seed": 42,
-        "split_sets": [0.7, 0.15, 0.15],
+        #"split_sets": [0.7, 0.15, 0.15],
+        "split_sets": [0.8, 0.2, 0.0],
         "qa": None,
     },]
 
@@ -281,8 +283,8 @@ MODEL_ENCODER_WEIGHTS = {
     "resnext101_32x4d": ["ssl", "swsl"],            # 42M
     "resnext101_32x8d": ["imagenet", "instagram", "ssl", "swsl"],   # 86M
     "resnext101_32x16d": ["instagram", "ssl", "swsl"],              # 191M
-    "resnext101_32x32d": ["instagram"],             # 466M
-    "resnext101_32x48d": ["instagram"],             # 826M
+    #"resnext101_32x32d": ["instagram"],             # 466M
+    #"resnext101_32x48d": ["instagram"],             # 826M
 
     "dpn68": ["imagenet"],      # 11M
     "dpn68b": ["imagenet+5k"],  # 11M
@@ -338,7 +340,7 @@ MODEL_ENCODER_WEIGHTS = {
     "timm-efficientnet-b6": ["imagenet", "advprop", "noisy-student"],   # 40M
     "timm-efficientnet-b7": ["imagenet", "advprop", "noisy-student"],   # 63M
     "timm-efficientnet-b8": ["imagenet", "advprop"],                    # 84M
-    "timm-efficientnet-l2": ["noisy-student", "noisy-student-475"],     # 474M
+    #"timm-efficientnet-l2": ["noisy-student", "noisy-student-475"],     # 474M
 
     "timm-tf_efficientnet_lite0": ["imagenet"],     # 3M
     "timm-tf_efficientnet_lite1": ["imagenet"],     # 4M
@@ -366,18 +368,23 @@ MODEL_ENCODER_WEIGHTS = {
 
 run_sequence = []
 run_models = [ModelType.UnetPlusPlus]
+# higher memory models
 run_encs = [
-    #"vgg19", "vgg19_bn", "senet154", 
-    #"se_resnet152", "se_resnext101_32x4d", "densenet161", "inceptionresnetv2", "inceptionv4", 
+    "resnet34", "resnet50", "resnet101", "resnet152", "resnext50_32x4d", "resnext101_32x4d", "resnext101_32x8d", "resnext101_32x16d", 
+    "dpn107", "dpn131", "vgg19", "vgg19_bn", "senet154", "se_resnet152", 
+    "se_resnext101_32x4d", "densenet161", "inceptionresnetv2", "inceptionv4", 
     "efficientnet-b7", "mobilenet_v2", "xception", "timm-efficientnet-b7", "timm-efficientnet-b8", 
     "timm-tf_efficientnet_lite4", "timm-skresnet34", "timm-skresnext50_32x4d", "mit_b5", "mobileone_s4",
     ]
 
+# all models, overrides selection above
+run_encs = MODEL_ENCODER_WEIGHTS.keys()
+    
 # create run sequence dictionary
 for run_model in run_models:
     for model_enc in run_encs:
-        for model_weight in MODEL_ENCODER_WEIGHTS[model_enc]:
-            run_sequence.append({"model_type": run_model, "model_enc": model_enc, "pretrain":model_weight, "max_epochs": 100, "databank_opt": databank_opt})
+        for model_weight in [None] + MODEL_ENCODER_WEIGHTS[model_enc]:
+            run_sequence.append({"model_type": run_model, "model_enc": model_enc, "pretrain":model_weight, "max_epochs": 40, "databank_opt": databank_opt})
 
 #run_sequence = [
 #    {"model_type": ModelType.UnetPlusPlus, "model_enc": "resnext101_32x8d", "pretrain":None, "max_epochs": 100, "databank_opt": databank_opt},
