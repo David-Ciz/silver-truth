@@ -239,8 +239,8 @@ build_opt_list = [
         "dataset": Version.C1,
         "crop_size": 64,
         "split_seed": 42,
-        #"split_sets": [0.7, 0.15, 0.15],
-        "split_sets": [0.8, 0.2, 0.0],
+        "split_sets": [0.7, 0.15, 0.15],
+        #"split_sets": [0.8, 0.2, 0.0],
         "qa": None,
     },]
 
