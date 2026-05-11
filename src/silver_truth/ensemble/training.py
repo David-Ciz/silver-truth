@@ -207,7 +207,7 @@ def _train_model(
                 _get_eval_sets(val_dataset, is_single_input),
                 best_training_res
             ),
-            EarlyStopping(monitor="val_loss", patience=10),
+            EarlyStopping(monitor="val_loss", patience=30),
         ],
     )
 
