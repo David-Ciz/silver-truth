@@ -384,7 +384,7 @@ run_encs = MODEL_ENCODER_WEIGHTS.keys()
 for run_model in run_models:
     for model_enc in run_encs:
         for model_weight in [None] + MODEL_ENCODER_WEIGHTS[model_enc]:
-            run_sequence.append({"model_type": run_model, "model_enc": model_enc, "pretrain":model_weight, "max_epochs": 40, "databank_opt": databank_opt})
+            run_sequence.append({"model_type": run_model, "model_enc": model_enc, "pretrain":model_weight, "max_epochs": 100, "databank_opt": databank_opt})
 
 #run_sequence = [
 #    {"model_type": ModelType.UnetPlusPlus, "model_enc": "resnext101_32x8d", "pretrain":None, "max_epochs": 100, "databank_opt": databank_opt},
