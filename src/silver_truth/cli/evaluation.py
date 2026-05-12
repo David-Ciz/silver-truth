@@ -5,6 +5,7 @@ import logging
 
 import mlflow
 import pandas as pd
+import json
 
 from silver_truth.ensemble.reconstruction import (
     reconstruct_labeled_full_images_from_paths,
@@ -25,6 +26,10 @@ from silver_truth.evaluation.reporting import (
 from silver_truth.evaluation.qa_reporting import (
     generate_ablation_diagnostics_report,
     write_ablation_diagnostics_report,
+)
+from silver_truth.evaluation.preflight import (
+    build_split_sanity_audit,
+    write_split_sanity_bundle,
 )
 from silver_truth.metrics.qa_model_evaluation import (
     evaluate_qa_model_from_excel,
@@ -407,6 +412,61 @@ def merge_qa_predictions(
         excel_path=excel_path,
         output_path=output,
     )
+
+
+@click.command("audit-experiment-inputs")
+@click.option("--dataset", required=True, type=str, help="Dataset name.")
+@click.option("--crop-size", required=True, type=int, help="QA crop size.")
+@click.option(
+    "--split-name",
+    required=True,
+    type=str,
+    help="Split name, e.g. fold-1 or fold-2.",
+)
+@click.option(
+    "--whole-image-parquet",
+    required=True,
+    type=click.Path(exists=True, path_type=Path),
+    help="Whole-image split parquet.",
+)
+@click.option(
+    "--qa-parquet",
+    required=True,
+    type=click.Path(exists=True, path_type=Path),
+    help="Split-attached QA parquet.",
+)
+@click.option(
+    "--output-dir",
+    required=True,
+    type=click.Path(path_type=Path),
+    help="Directory for split_sanity outputs.",
+)
+def audit_experiment_inputs(
+    dataset: str,
+    crop_size: int,
+    split_name: str,
+    whole_image_parquet: Path,
+    qa_parquet: Path,
+    output_dir: Path,
+) -> None:
+    """Audit split sanity before QA or ensemble training."""
+    audit, sample_manifest = build_split_sanity_audit(
+        dataset=dataset,
+        crop_size=crop_size,
+        split_name=split_name,
+        whole_image_parquet=whole_image_parquet,
+        qa_parquet=qa_parquet,
+    )
+    written = write_split_sanity_bundle(audit, sample_manifest, output_dir)
+
+    click.echo(json.dumps(audit, indent=2))
+    click.echo(f"Wrote JSON: {written['json']}")
+    click.echo(f"Wrote Markdown: {written['markdown']}")
+    click.echo(f"Wrote sample manifest: {written['sample_manifest']}")
+
+    if not audit["scientifically_valid"]:
+        failed = [name for name, passed in audit["hard_checks"].items() if not passed]
+        raise click.ClickException("Split sanity gate failed: " + ", ".join(failed))
 
 
 @click.group()
@@ -1107,6 +1167,7 @@ cli.add_command(calculate_evaluation_metrics_cli)
 cli.add_command(evaluate_qa_model)
 cli.add_command(evaluate_qa_filtering)
 cli.add_command(merge_qa_predictions)
+cli.add_command(audit_experiment_inputs)
 cli.add_command(evaluate_fusion_crops)
 cli.add_command(filter_parquet)
 cli.add_command(report_hsc_results)

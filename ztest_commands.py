@@ -334,9 +334,11 @@ print("Same splits: ",same_splits_result)
 """
 
 
-dataset_path = "data/ensemble_data/datasets/v1.00/ensemble_BF-C2DL-HSC_split42.parquet"
+dataset_path = "archive/bad_splits_experiments/ensemble_data/datasets/v1.00/ensemble_BF-C2DL-HSC_split42.parquet"
 # model_path = "data/ensemble_data/results/checkpoints/model_MSE/lightning_logs/version_0/checkpoints/epoch=41-step=798.ckpt"
-model_path = "data/ensemble_data/results/checkpoints/UnetPlusPlus.ckpt"
+model_path = (
+    "archive/bad_splits_experiments/ensemble_data/results/checkpoints/UnetPlusPlus.ckpt"
+)
 # ensemble.generate_evaluation(model_path,dataset_path, "test")
 
 # experiment_name = "test_ensemble_exp2"

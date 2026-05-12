@@ -10,6 +10,7 @@ import logging
 
 from silver_truth.data_processing.utils.dataset_dataframe_creation import (
     load_dataframe_from_parquet_with_metadata,
+    save_dataframe_to_parquet_with_metadata,
     SILVER_TRUTH_COLUMN,
 )
 
@@ -111,6 +112,10 @@ def create_qa_dataset(
         excluded_columns = [
             "composite_key",
             "campaign_number",
+            "time_frame",
+            "split",
+            "has_gt",
+            "gt_cell_count",
             "gt_image",
             "tracking_markers",
             "source_image",
@@ -566,8 +571,19 @@ def attach_split_to_qa_dataset(
             "(campaign_number + original_image_path/source_image)."
         )
 
+    split_metadata_cols = [
+        column
+        for column in [
+            "split",
+            "time_frame",
+            "has_gt",
+            "gt_cell_count",
+            "composite_key",
+        ]
+        if column in dataset_df.columns
+    ]
     split_lookup = (
-        dataset_df[dataset_join_cols + ["split"]]
+        dataset_df[dataset_join_cols + split_metadata_cols]
         .dropna(subset=dataset_join_cols + ["split"])
         .copy()
     )
@@ -604,9 +620,26 @@ def attach_split_to_qa_dataset(
             f"Sample unmatched keys: {sample_rows.to_dict(orient='records')}"
         )
 
+    split_counts = {
+        f"{split_name}_qa_rows": int(count)
+        for split_name, count in merged["split"].value_counts().to_dict().items()
+    }
+    total_supervised_rows = max(
+        split_counts.get("train_qa_rows", 0)
+        + split_counts.get("validation_qa_rows", 0),
+        1,
+    )
+    actual_val_fraction_by_qa_rows = (
+        split_counts.get("validation_qa_rows", 0) / total_supervised_rows
+    )
+
+    merged.attrs.update(dataset_df.attrs)
+    merged.attrs.update(split_counts)
+    merged.attrs["actual_val_fraction_by_qa_rows"] = actual_val_fraction_by_qa_rows
+
     output_path = Path(output_parquet_path)
     output_path.parent.mkdir(parents=True, exist_ok=True)
-    merged.to_parquet(output_path)
+    save_dataframe_to_parquet_with_metadata(merged, str(output_path))
     logging.info(
         "QA split attachment complete. Rows: %d, output: %s",
         len(merged),

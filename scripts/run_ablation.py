@@ -309,6 +309,7 @@ def build_steps(cfg: dict[str, Any]) -> list[dict[str, Any]]:
         f"{paper_runs}/qa_results/{dataset}/{crop_tag}/{variant}/{split_name}_filtering"
     )
     qa_filtering_csv = f"{qa_filtering_dir}/{qa_excel_stem}_filtering_metrics.csv"
+    split_audit_dir = f"{paper_runs}/audits/{dataset}/{crop_tag}/{variant}/{split_name}"
 
     fusion_out = cfg["fusion_output_template"]
     ablation_out = cfg["ablation_output_template"]
@@ -373,6 +374,31 @@ def build_steps(cfg: dict[str, Any]) -> list[dict[str, Any]]:
                     f"  --mlflow-experiment {phasea_fusion_experiment} "
                     f"  --mlflow-run-name fusion_baseline "
                     f"  --mlflow-tracking-path {mlflow_uri.replace('file:', '')}"
+                ),
+            }
+        )
+
+    if any(
+        [
+            cfg.get("run_phaseA_ensemble", True),
+            cfg.get("run_phaseB_qa", True),
+            cfg.get("run_phaseC_ablation", True),
+        ]
+    ):
+        steps.append(
+            {
+                "id": "preflight_split_sanity_audit",
+                "phase": "A",
+                "name": "Preflight split sanity audit (block invalid QA/ensemble runs)",
+                "cmd": (
+                    f"mkdir -p {split_audit_dir} && "
+                    f"silver-evaluation audit-experiment-inputs "
+                    f"  --dataset {dataset} "
+                    f"  --crop-size {cfg['crop_size']} "
+                    f"  --split-name {split_name} "
+                    f"  --whole-image-parquet {whole_image_parquet} "
+                    f"  --qa-parquet {qa_parquet} "
+                    f"  --output-dir {split_audit_dir}"
                 ),
             }
         )

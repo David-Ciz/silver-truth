@@ -40,7 +40,8 @@ Core behavior:
 - Can optionally audit oversized GT cells from dataset parquets and generate source/GT context visualizations for crop-size review.
 - Assigns splits with either:
 - `mixed` strategy (`train/validation/test` via GT-cell-count balancing).
-- `fold-1` or `fold-2` strategy (leave-one-sequence-out with temporal train/val split on the training sequence).
+- `fold-1` or `fold-2` strategy (leave-one-sequence-out, with validation
+  selected inside the held-in sequence by supervised GT-cell support).
 - Stores competitor columns in parquet metadata (`df.attrs["competitor_columns"]`).
 
 ### `silver-qa`
@@ -211,11 +212,12 @@ Metrics:
 
 For fold-locked paper runs:
 
-1. Reproduce fold and QA split stages via DVC.
-2. Run `python scripts/run_ablation.py --config experiments/variants/baseline.yaml --fold 1 --phase A`.
-3. Run the same for fold 2.
-4. Run Phase B on both folds.
-5. Run Phase C on both folds.
+1. Follow [Paper Protocol](paper_protocol.md) and the
+   [Clean Slate Experiment Rerun Plan](clean_slate_experiment_rerun_plan_2026-05-05.md).
+2. Reproduce fold and QA split stages via DVC.
+3. Run preflight audits before training.
+4. Run `python scripts/run_ablation.py --config <variant.yaml> --fold <1|2>`.
+5. Record current artifacts in [Manuscript Artifact Registry](manuscript_artifact_registry.md).
 
 For fusion baseline comparison on QA crops:
 

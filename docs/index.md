@@ -38,15 +38,14 @@ For detailed installation instructions and basic usage examples, please refer to
 *   [Repository Workflow Map](repository_workflow_map.md): Canonical map of what currently runs, what each CLI does, and where ablations are orchestrated.
 *   [Executable Index](executable_index.md): Task-oriented list of what agents should try first, including maintained CLI entrypoints, scripts, and reusable functions.
 *   [DVC Guide](dvc_guide.md): Complete guide to setting up DVC and downloading datasets.
-*   [Paper Protocol (Fold-Locked)](paper_protocol.md): Exact paper run order from fold prep to ablation/sweep.
-*   [HeLa Ablation Results 2026-04-14](hela_ablation_results_2026-04-14.md): Fold-locked readout for the first `DIC-C2DH-HeLa` `sz256` run, including QA and ensemble recommendations.
-*   [HeLa QA Follow-Up 2026-04-17](hela_qa_follow_up_2026-04-17.md): Split/timepoint audit of the saved HeLa QA predictions explaining the fold-specific calibration failure.
-*   [QA Sweep Results](qa_sweep_results.md): Consolidated Pearson/Spearman tables for the QA-only HSC64 and MuSC256 architecture sweep.
-*   [QA Transfer Workflow](qa_transfer_workflow.md): Zero-shot cross-dataset QA transfer runner, configs, and HPC usage.
-*   [Manuscript Artifact Registry](manuscript_artifact_registry.md): Frozen source-of-truth map from each manuscript table/figure to exact export DBs, run IDs, and local artifact files.
+*   [Paper Protocol](paper_protocol.md): Current post-audit paper protocol pointer. The old fold-locked protocol was archived.
+*   [Clean Slate Experiment Rerun Plan](clean_slate_experiment_rerun_plan_2026-05-05.md): Current experiment battery and no-test-tuning rules for reruns.
+*   [Experiment Preflight Methodology](experiment_preflight_methodology_2026-05-05.md): Required split, crop, target, and artifact gates before paper runs.
+*   [Dataset Split Fix Plan](dataset_split_fix_plan_2026-05-05.md): Root cause and corrected split definition for fold train/validation/test construction.
+*   [Rerun Hypotheses Backlog](rerun_hypotheses_backlog_2026-05-05.md): Preserved hypotheses from archived notes, rewritten as rerunnable experiments.
+*   [Manuscript Artifact Registry](manuscript_artifact_registry.md): Empty post-audit registry template for final rerun artifacts.
 *   [Ablation Runner Explained](ablation_runner_explained.md): Human-level explanation of what the ablation runner expands, why the step count grows, and how to read it.
-*   [Ensemble C3 Experiment Log](ensemble_c3_experiment_log.md): Negative-result log for the richer consensus-channel ensemble input experiment on HSC and MuSC.
-*   [Ensemble Transfer Plan](ensemble_transfer_plan.md): Fold-locked plan for validating MuSC first, then testing MuSC -> HSC transfer.
+*   [LUMI MuSC Boundary-Safe Rerun Runbook](lumi_musc_boundarysafe_rerun_runbook_2026-05-05.md): LUMI-oriented workflow for clean MuSC reruns.
 *   [Function Index](function_index.md): Fast map of key functions/CLI commands by workflow.
 *   [API Reference (Generated)](api_reference_generated.md): Signatures and one-line summaries from docstrings.
 *   [Label Synchronization Process](label_synchronizer.md): Detailed explanation of how labels are synchronized.
@@ -55,6 +54,10 @@ For detailed installation instructions and basic usage examples, please refer to
 *   [Jupyter Notebooks Overview](notebooks.MD): A guide to the various analytical and utility notebooks.
 *   [Project Roadmap](Roadmap.md): High-level overview of project phases, goals, and progress.
 *   [References and Related Publications](References.md): Context for key research papers relevant to the project.
+
+Archived pre-split-fix result notes live under
+`archive/docs_pre_split_fix_2026-05-05/`. They are historical context only and
+must not be used as manuscript result sources.
 
 ## Contact
 

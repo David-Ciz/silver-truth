@@ -1,5 +1,7 @@
 import ast
-import os
+import json
+import subprocess
+from datetime import datetime, timezone
 
 import pandas as pd
 from pathlib import Path
@@ -22,6 +24,7 @@ RES_FOLDER_FIRST = "01_RES"
 RES_FOLDER_SECOND = "02_RES"
 SILVER_TRUTH_COLUMN = "SILVER-TRUTH"
 REFERENCE_COLUMNS_ATTR = "reference_columns"
+SPLIT_AUDIT_ATTR = "split_audit_json"
 
 
 def is_valid_competitor_folder(folder):
@@ -337,6 +340,8 @@ def _make_paths_relative(df: pd.DataFrame, base_dir: Path) -> pd.DataFrame:
             "tracking_markers",
             "time_frame",
             "split",
+            "has_gt",
+            "gt_cell_count",
         ]
     ]
 
@@ -374,6 +379,350 @@ def count_cells_in_image(image_path: str) -> int:
         return 0
 
 
+def _has_valid_gt_path(path_value: Any) -> bool:
+    return (
+        path_value is not None
+        and isinstance(path_value, (str, Path))
+        and Path(path_value).exists()
+    )
+
+
+def _ensure_supervised_columns(df: pd.DataFrame) -> pd.DataFrame:
+    df = df.copy()
+
+    if "gt_image" not in df.columns:
+        df["has_gt"] = False
+        df["gt_cell_count"] = 0
+        return df
+
+    if "has_gt" not in df.columns:
+        df["has_gt"] = df["gt_image"].apply(_has_valid_gt_path)
+    else:
+        df["has_gt"] = df["has_gt"].fillna(False).astype(bool)
+
+    if "gt_cell_count" not in df.columns:
+        df["gt_cell_count"] = 0
+        gt_mask = df["has_gt"] & df["gt_image"].notna()
+        if gt_mask.any():
+            df.loc[gt_mask, "gt_cell_count"] = (
+                df.loc[gt_mask, "gt_image"].apply(count_cells_in_image).astype(int)
+            )
+    else:
+        df["gt_cell_count"] = (
+            pd.to_numeric(df["gt_cell_count"], errors="coerce").fillna(0).astype(int)
+        )
+
+    df.loc[~df["has_gt"], "gt_cell_count"] = 0
+    return df
+
+
+def _parse_split_ratios(
+    split_ratios: str, expected: int, mode_name: str
+) -> list[float]:
+    ratios = [float(r) for r in split_ratios.split(",")]
+    if len(ratios) != expected:
+        raise ValueError(
+            f"{mode_name} requires exactly {expected} ratios. Got {len(ratios)}: {split_ratios}"
+        )
+    total = sum(ratios)
+    if total <= 0:
+        raise ValueError(
+            f"{mode_name} ratios must sum to a positive value: {split_ratios}"
+        )
+    return [ratio / total for ratio in ratios]
+
+
+def _summarize_split_counts(df: pd.DataFrame) -> dict[str, dict[str, Any]]:
+    summary: dict[str, dict[str, Any]] = {}
+    for split_name in ["train", "validation", "test"]:
+        split_df = df[df["split"] == split_name].copy()
+        gt_df = split_df[split_df["has_gt"]].copy()
+        summary[split_name] = {
+            "raw_frames": int(len(split_df)),
+            "gt_images": int(len(gt_df)),
+            "gt_cells": int(gt_df["gt_cell_count"].sum()) if not gt_df.empty else 0,
+            "campaigns": sorted(
+                split_df["campaign_number"].dropna().astype(str).unique().tolist()
+            )
+            if "campaign_number" in split_df.columns
+            else [],
+            "time_frame_min": int(split_df["time_frame"].min())
+            if not split_df.empty and "time_frame" in split_df.columns
+            else None,
+            "time_frame_max": int(split_df["time_frame"].max())
+            if not split_df.empty and "time_frame" in split_df.columns
+            else None,
+            "gt_time_frames": sorted(gt_df["time_frame"].dropna().astype(int).tolist())
+            if not gt_df.empty and "time_frame" in gt_df.columns
+            else [],
+            "gt_composite_keys": gt_df["composite_key"].dropna().astype(str).tolist()
+            if "composite_key" in gt_df.columns
+            else [],
+        }
+    return summary
+
+
+def _evaluate_fold_constraints(
+    split_summary: dict[str, dict[str, Any]],
+    *,
+    held_in_gt_cells: int,
+    train_seq: str,
+    test_seq: str,
+) -> dict[str, Any]:
+    train_summary = split_summary["train"]
+    validation_summary = split_summary["validation"]
+    test_summary = split_summary["test"]
+
+    actual_val_fraction = (
+        validation_summary["gt_cells"] / held_in_gt_cells if held_in_gt_cells else 0.0
+    )
+    train_val_campaigns = set(train_summary["campaigns"]) | set(
+        validation_summary["campaigns"]
+    )
+    test_campaigns = set(test_summary["campaigns"])
+
+    checks = {
+        "test_sequence_is_disjoint": train_val_campaigns == {train_seq}
+        and test_campaigns == {test_seq}
+        and train_val_campaigns.isdisjoint(test_campaigns),
+        "train_supervised_cells_gt_validation": train_summary["gt_cells"]
+        > validation_summary["gt_cells"],
+        "validation_supervised_cells_min_fraction": actual_val_fraction >= 0.10,
+        "validation_supervised_cells_max_fraction": actual_val_fraction <= 0.40,
+        "validation_gt_images_min": validation_summary["gt_images"] >= 1,
+        "train_gt_images_min": train_summary["gt_images"] >= 2,
+        "test_gt_images_min": test_summary["gt_images"] >= 1,
+    }
+    return {
+        "checks": checks,
+        "passed": all(checks.values()),
+        "actual_val_fraction_by_gt_cells": float(actual_val_fraction),
+    }
+
+
+def _apply_fold_candidate(
+    df: pd.DataFrame,
+    *,
+    train_seq: str,
+    test_seq: str,
+    validation_gt_keys: set[str],
+    selection_mode: str,
+    held_in_gt_cells: int,
+) -> tuple[pd.DataFrame, dict[str, Any]]:
+    result = df.copy()
+    result["split"] = "train"
+    result.loc[result["campaign_number"] == test_seq, "split"] = "test"
+
+    train_mask = result["campaign_number"] == train_seq
+    held_in_gt = result[train_mask & result["has_gt"]].copy()
+    validation_gt = held_in_gt[
+        held_in_gt["composite_key"].isin(validation_gt_keys)
+    ].copy()
+
+    if selection_mode == "contiguous_gt_block" and not validation_gt.empty:
+        min_time = int(validation_gt["time_frame"].min())
+        max_time = int(validation_gt["time_frame"].max())
+        validation_mask = train_mask & result["time_frame"].between(min_time, max_time)
+        result.loc[validation_mask, "split"] = "validation"
+    else:
+        result.loc[result["composite_key"].isin(validation_gt_keys), "split"] = (
+            "validation"
+        )
+
+    split_summary = _summarize_split_counts(result)
+    constraint_eval = _evaluate_fold_constraints(
+        split_summary,
+        held_in_gt_cells=held_in_gt_cells,
+        train_seq=train_seq,
+        test_seq=test_seq,
+    )
+    validation_frames = split_summary["validation"]["raw_frames"]
+    validation_gt_images = split_summary["validation"]["gt_images"]
+    target_gt_images = max(
+        1, round(len(held_in_gt) * constraint_eval["actual_val_fraction_by_gt_cells"])
+    )
+
+    audit = {
+        "selection_mode": selection_mode,
+        "selected_validation_gt_keys": sorted(validation_gt_keys),
+        "selected_validation_gt_images": validation_gt["gt_image"]
+        .dropna()
+        .astype(str)
+        .tolist()
+        if "gt_image" in validation_gt.columns
+        else [],
+        "selected_validation_time_frames": sorted(
+            validation_gt["time_frame"].dropna().astype(int).tolist()
+        )
+        if "time_frame" in validation_gt.columns
+        else [],
+        "split_summary": split_summary,
+        "constraints": constraint_eval,
+        "score": (
+            0 if constraint_eval["passed"] else 1,
+            abs(constraint_eval["actual_val_fraction_by_gt_cells"]),
+            abs(validation_gt_images - target_gt_images),
+            validation_frames,
+        ),
+    }
+    return result, audit
+
+
+def _score_candidate(
+    audit: dict[str, Any],
+    *,
+    target_val_fraction: float,
+    fallback_preference: int,
+) -> tuple[Any, ...]:
+    summary = audit["split_summary"]["validation"]
+    actual_val_fraction = audit["constraints"]["actual_val_fraction_by_gt_cells"]
+    return (
+        0 if audit["constraints"]["passed"] else 1,
+        abs(actual_val_fraction - target_val_fraction),
+        fallback_preference,
+        summary["gt_images"],
+        summary["raw_frames"],
+    )
+
+
+def _select_validation_gt_key_candidates(
+    held_in_gt: pd.DataFrame, target_val_fraction: float
+) -> tuple[dict[str, set[str]], str]:
+    held_in_gt = held_in_gt.sort_values("time_frame").reset_index(drop=True)
+    if held_in_gt.empty:
+        return {
+            "contiguous_gt_block": set(),
+            "subset_sum_fallback": set(),
+        }, "contiguous_gt_block"
+
+    total_cells = int(held_in_gt["gt_cell_count"].sum())
+    target_cells = total_cells * target_val_fraction
+    target_gt_images = max(1, round(len(held_in_gt) * target_val_fraction))
+
+    best_contiguous: tuple[tuple[Any, ...], set[str]] | None = None
+    for start_idx in range(len(held_in_gt)):
+        running_cells = 0
+        for end_idx in range(start_idx, len(held_in_gt)):
+            running_cells += int(held_in_gt.iloc[end_idx]["gt_cell_count"])
+            candidate_keys = set(
+                held_in_gt.iloc[start_idx : end_idx + 1]["composite_key"].astype(str)
+            )
+            score = (
+                abs(running_cells - target_cells),
+                abs(len(candidate_keys) - target_gt_images),
+                len(candidate_keys),
+            )
+            if best_contiguous is None or score < best_contiguous[0]:
+                best_contiguous = (score, candidate_keys)
+
+    counts = held_in_gt["gt_cell_count"].astype(int).tolist()
+    keys = held_in_gt["composite_key"].astype(str).tolist()
+    states: dict[int, list[int]] = {0: []}
+    for idx, count in enumerate(counts):
+        updated = dict(states)
+        for running_sum, subset in states.items():
+            new_sum = running_sum + count
+            new_subset = subset + [idx]
+            existing_subset = updated.get(new_sum)
+            if existing_subset is None or abs(len(new_subset) - target_gt_images) < abs(
+                len(existing_subset) - target_gt_images
+            ):
+                updated[new_sum] = new_subset
+        states = updated
+
+    best_subset: tuple[tuple[Any, ...], set[str]] | None = None
+    for running_sum, subset in states.items():
+        if not subset:
+            continue
+        candidate_keys = {keys[idx] for idx in subset}
+        score = (
+            abs(running_sum - target_cells),
+            abs(len(subset) - target_gt_images),
+            len(subset),
+        )
+        if best_subset is None or score < best_subset[0]:
+            best_subset = (score, candidate_keys)
+
+    candidates = {
+        "contiguous_gt_block": best_contiguous[1]
+        if best_contiguous is not None
+        else set(keys[:1]),
+        "subset_sum_fallback": best_subset[1]
+        if best_subset is not None
+        else set(keys[:1]),
+    }
+    preferred_mode = (
+        "subset_sum_fallback"
+        if best_subset is not None
+        and best_contiguous is not None
+        and best_subset[0] < best_contiguous[0]
+        else "contiguous_gt_block"
+    )
+    return candidates, preferred_mode
+
+
+def _safe_git_sha() -> str | None:
+    try:
+        result = subprocess.run(
+            ["git", "rev-parse", "HEAD"],
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+        return result.stdout.strip() or None
+    except Exception:
+        return None
+
+
+def _build_split_audit_markdown(audit: dict[str, Any]) -> str:
+    counts = audit["split_counts"]
+    lines = [
+        f"# Split Audit — {audit['dataset']} {audit['fold']}",
+        "",
+        f"- Created at: {audit['created_at']}",
+        f"- Split strategy: {audit['split_strategy']}",
+        f"- Validation selection mode: {audit['validation_selection_mode']}",
+        f"- Target validation fraction by GT cells: {audit['target_val_fraction']:.4f}",
+        f"- Actual validation fraction by GT cells: {audit['actual_val_fraction_by_gt_cells']:.4f}",
+        f"- Whole-image hard constraints passed: {audit['whole_image_hard_constraints_passed']}",
+        "",
+        "| Split | Raw frames | GT images | GT cells | Campaigns |",
+        "|---|---:|---:|---:|---|",
+    ]
+    for split_name in ["train", "validation", "test"]:
+        split_counts = counts[split_name]
+        lines.append(
+            f"| {split_name} | {split_counts['raw_frames']} | {split_counts['gt_images']} | {split_counts['gt_cells']} | {', '.join(split_counts['campaigns']) or '-'} |"
+        )
+
+    lines.extend(
+        [
+            "",
+            "## Validation GT frames",
+            "",
+            ", ".join(audit["selected_validation_gt_keys"]) or "(none)",
+            "",
+            "## Whole-image hard constraints",
+            "",
+        ]
+    )
+    for check_name, passed in audit["whole_image_constraints"].items():
+        lines.append(f"- {check_name}: {'PASS' if passed else 'FAIL'}")
+    return "\n".join(lines) + "\n"
+
+
+def _write_split_audit_files(audit: dict[str, Any], output_path: Path) -> None:
+    audit_dir = output_path.parent.parent / "split_audits"
+    audit_dir.mkdir(parents=True, exist_ok=True)
+    audit_prefix = audit_dir / f"{audit['dataset']}_{audit['fold']}_split_audit"
+    audit_prefix.with_suffix(".json").write_text(
+        json.dumps(audit, indent=2) + "\n", encoding="utf-8"
+    )
+    audit_prefix.with_suffix(".md").write_text(
+        _build_split_audit_markdown(audit), encoding="utf-8"
+    )
+
+
 def add_stratified_split(df: pd.DataFrame, split_ratios: str) -> pd.DataFrame:
     """
     Splits data into train/val/test based on cell counts for images WITH Ground Truth.
@@ -381,40 +730,25 @@ def add_stratified_split(df: pd.DataFrame, split_ratios: str) -> pd.DataFrame:
     """
     # 1. Parse Ratios
     try:
-        ratios = [float(r) for r in split_ratios.split(",")]
-        if len(ratios) != 3:
-            raise ValueError("Split ratios must be a list of 3 numbers.")
-        total_ratio = sum(ratios)
-        ratios = [r / total_ratio for r in ratios]
+        ratios = _parse_split_ratios(split_ratios, expected=3, mode_name="Mixed mode")
     except ValueError as e:
         print(f"Invalid split ratios: {e}. Returning unsplit df.")
         return df
 
-    # 2. Identify Rows with Valid GT
-    # We define a helper to check if GT exists on disk
-    def has_valid_gt(path):
-        return path is not None and isinstance(path, str) and os.path.exists(path)
+    df = _ensure_supervised_columns(df)
 
-    print("Verifying Ground Truth existence...")
-    # Create a mask for valid data
-    df["has_gt"] = df["gt_image"].apply(has_valid_gt)
-    print(df)
     # 3. Split the DataFrame
     df_labeled = df[df["has_gt"]].copy()
     df_unlabeled = df[~df["has_gt"]].copy()
-    print(df_unlabeled)
     print(f"Labeled images (for training): {len(df_labeled)}")
     print(f"Unlabeled images (for inference/silver truth): {len(df_unlabeled)}")
 
     # 4. Stratify ONLY the Labeled Data
     if not df_labeled.empty:
-        # Calculate cell counts (Assuming count_cells_in_image is defined)
-        df_labeled["_cell_count"] = df_labeled["gt_image"].apply(count_cells_in_image)
-
         # Sort desc (Greedy Bin Packing)
-        df_sorted = df_labeled.sort_values(by="_cell_count", ascending=False)
+        df_sorted = df_labeled.sort_values(by="gt_cell_count", ascending=False)
 
-        total_cells = df_sorted["_cell_count"].sum()
+        total_cells = df_sorted["gt_cell_count"].sum()
         target_train = total_cells * ratios[0]
         target_val = total_cells * ratios[1]
 
@@ -422,7 +756,7 @@ def add_stratified_split(df: pd.DataFrame, split_ratios: str) -> pd.DataFrame:
         current_val = 0
         splits = []
 
-        for count in df_sorted["_cell_count"]:
+        for count in df_sorted["gt_cell_count"]:
             if current_train + count <= target_train:
                 splits.append("train")
                 current_train += count
@@ -433,16 +767,13 @@ def add_stratified_split(df: pd.DataFrame, split_ratios: str) -> pd.DataFrame:
                 splits.append("test")
 
         df_sorted["split"] = splits
-        df_labeled = df_sorted.drop(columns=["_cell_count"])
+        df_labeled = df_sorted
 
     # 5. Handle Unlabeled Data
     df_unlabeled["split"] = "unlabeled"
 
     # 6. Recombine
     df_final = pd.concat([df_labeled, df_unlabeled])
-
-    # Drop the helper column
-    df_final = df_final.drop(columns=["has_gt"])
 
     return df_final
 
@@ -467,74 +798,117 @@ def add_fold_split(df: pd.DataFrame, mode: str, split_ratios: str) -> pd.DataFra
     train_seq = "01" if mode == "fold-1" else "02"
     test_seq = "02" if mode == "fold-1" else "01"
 
-    # Parse ratios
     try:
-        ratios = [float(r) for r in split_ratios.split(",")]
-        if len(ratios) != 2:
-            raise ValueError(
-                f"Fold mode requires exactly 2 ratios (Train, Val). Got {len(ratios)}: {split_ratios}"
-            )
-        # Normalize
-        total = sum(ratios)
-        val_ratio = ratios[1] / total
+        ratios = _parse_split_ratios(split_ratios, expected=2, mode_name="Fold mode")
+        val_ratio = ratios[1]
         print(
             f"Fold Split: Using Validation Ratio {val_ratio:.2f} (from {split_ratios})"
         )
     except ValueError as e:
         print(f"Error parsing split ratios for fold mode: {e}")
-        # Fallback or strict fail? Strict fail is better for clarity.
         raise
 
     print(f"Fold Config: Train on {train_seq}, Test on {test_seq}")
 
-    # 1. Assign Test Set
-    df.loc[df["campaign_number"] == test_seq, "split"] = "test"
-
-    # 2. Assign Train/Validation (Temporal split of Train Sequence)
-    # We grab the training sequence data
-    train_seq_mask = df["campaign_number"] == train_seq
-
-    # We need to sort by time_frame to split temporally
-    # Let's get the indices of the train sequence rows
-    train_seq_indices = df[train_seq_mask].index
-
-    # Create a temporary view/copy of the train sequence part
-    train_seq_df = df.loc[train_seq_indices].copy()
-
-    # Ensure time_frame is int
-    if "time_frame" not in train_seq_df.columns:
-        # attempt to parse from key "XX_YYYY.tif" -> YYYY
-        # composite_key: "01_0000.tif"
-        train_seq_df["time_frame"] = train_seq_df["composite_key"].apply(
-            lambda x: int(x.split("_")[1].split(".")[0])
+    result = _ensure_supervised_columns(df)
+    if "time_frame" not in result.columns:
+        result["time_frame"] = result["composite_key"].apply(
+            lambda x: int(str(x).split("_")[1].split(".")[0])
         )
 
-    train_seq_df = train_seq_df.sort_values("time_frame")
+    train_seq_gt = result[
+        (result["campaign_number"] == train_seq) & result["has_gt"]
+    ].copy()
+    train_seq_gt = train_seq_gt.sort_values("time_frame")
+    held_in_gt_cells = int(train_seq_gt["gt_cell_count"].sum())
 
-    n_train_seq = len(train_seq_df)
-    # Calculate split point. We want val_ratio to be validation (end of sequence)
-    # Train is (1 - val_ratio)
-    split_idx = int(n_train_seq * (1 - val_ratio))
+    if train_seq_gt.empty:
+        raise ValueError(
+            f"No GT-labeled frames found in held-in training sequence {train_seq}."
+        )
 
+    candidate_keys_by_mode, preferred_mode = _select_validation_gt_key_candidates(
+        train_seq_gt, val_ratio
+    )
+    best_result: pd.DataFrame | None = None
+    best_audit: dict[str, Any] | None = None
+
+    for selection_mode in [
+        preferred_mode,
+        "subset_sum_fallback",
+        "contiguous_gt_block",
+    ]:
+        candidate_result, candidate_audit = _apply_fold_candidate(
+            result,
+            train_seq=train_seq,
+            test_seq=test_seq,
+            validation_gt_keys=candidate_keys_by_mode[selection_mode],
+            selection_mode=selection_mode,
+            held_in_gt_cells=held_in_gt_cells,
+        )
+        candidate_score = _score_candidate(
+            candidate_audit,
+            target_val_fraction=val_ratio,
+            fallback_preference=0 if selection_mode == preferred_mode else 1,
+        )
+        if best_audit is None or candidate_score < _score_candidate(
+            best_audit,
+            target_val_fraction=val_ratio,
+            fallback_preference=0
+            if best_audit["selection_mode"] == preferred_mode
+            else 1,
+        ):
+            best_result = candidate_result
+            best_audit = candidate_audit
+
+    assert best_result is not None and best_audit is not None
+    split_counts = best_audit["split_summary"]
     print(
-        f"Splitting Train Sequence {train_seq}: Total {n_train_seq}, Split Index {split_idx}"
+        "Split Stats: Train=%d, Val=%d, Test=%d | Val GT cells frac=%.3f"
+        % (
+            split_counts["train"]["raw_frames"],
+            split_counts["validation"]["raw_frames"],
+            split_counts["test"]["raw_frames"],
+            best_audit["constraints"]["actual_val_fraction_by_gt_cells"],
+        )
     )
 
-    # Get the composite_keys for train and val
-    train_keys = set(train_seq_df.iloc[:split_idx]["composite_key"])
-    val_keys = set(train_seq_df.iloc[split_idx:]["composite_key"])
-
-    # Update main dataframe
-    df.loc[df["composite_key"].isin(train_keys), "split"] = "train"
-    df.loc[df["composite_key"].isin(val_keys), "split"] = "validation"
-
-    # Stats
-    n_train = len(train_keys)
-    n_val = len(val_keys)
-    n_test = len(df[df["split"] == "test"])
-    print(f"Split Stats: Train={n_train}, Val={n_val}, Test={n_test}")
-
-    return df
+    audit = {
+        "dataset": None,
+        "fold": mode,
+        "train_sequence": train_seq,
+        "test_sequence": test_seq,
+        "split_strategy": "supervised_gt_frame_cells",
+        "split_unit": "gt_cells",
+        "target_val_fraction": float(val_ratio),
+        "actual_val_fraction_by_gt_cells": float(
+            best_audit["constraints"]["actual_val_fraction_by_gt_cells"]
+        ),
+        "actual_val_fraction_by_qa_rows": None,
+        "train_gt_images": split_counts["train"]["gt_images"],
+        "validation_gt_images": split_counts["validation"]["gt_images"],
+        "test_gt_images": split_counts["test"]["gt_images"],
+        "train_gt_cells": split_counts["train"]["gt_cells"],
+        "validation_gt_cells": split_counts["validation"]["gt_cells"],
+        "test_gt_cells": split_counts["test"]["gt_cells"],
+        "train_qa_rows": None,
+        "validation_qa_rows": None,
+        "test_qa_rows": None,
+        "selected_validation_gt_images": best_audit["selected_validation_gt_images"],
+        "selected_validation_gt_keys": best_audit["selected_validation_gt_keys"],
+        "validation_selection_mode": best_audit["selection_mode"],
+        "whole_image_hard_constraints_passed": bool(
+            best_audit["constraints"]["passed"]
+        ),
+        "whole_image_constraints": best_audit["constraints"]["checks"],
+        "split_counts": split_counts,
+        "git_sha": _safe_git_sha(),
+        "dvc_stage": f"create_{mode.replace('-', '')}",
+        "created_at": datetime.now(timezone.utc).isoformat(),
+    }
+    best_result.attrs = dict(df.attrs)
+    best_result.attrs[SPLIT_AUDIT_ATTR] = json.dumps(audit)
+    return best_result
 
 
 def create_dataset_dataframe_logic(
@@ -550,10 +924,13 @@ def create_dataset_dataframe_logic(
     if output_path is None:
         output_path = f"{synchronized_dataset_dir.name}_dataset_dataframe.parquet"
 
+    output_path = Path(output_path)
+
     dataset_info, competitor_columns = process_dataset_directory(
         synchronized_dataset_dir
     )
     dataset_dataframe = convert_to_dataframe(dataset_info)
+    dataset_dataframe = _ensure_supervised_columns(dataset_dataframe)
 
     # Apply split based on mode
     print(f"Applying split mode: {split_mode}")
@@ -584,4 +961,35 @@ def create_dataset_dataframe_logic(
     dataset_dataframe.attrs[REFERENCE_COLUMNS_ATTR] = reference_columns
     dataset_dataframe.attrs["created_by"] = "David-Ciz"  #
     dataset_dataframe.attrs["creation_time"] = pd.Timestamp.now()
+
+    split_audit_json = dataset_dataframe.attrs.pop(SPLIT_AUDIT_ATTR, None)
+    if split_audit_json:
+        split_audit = json.loads(split_audit_json)
+        split_audit["dataset"] = synchronized_dataset_dir.name
+        dataset_dataframe.attrs.update(
+            {
+                "split_strategy": split_audit["split_strategy"],
+                "split_unit": split_audit["split_unit"],
+                "target_val_fraction": split_audit["target_val_fraction"],
+                "actual_val_fraction_by_gt_cells": split_audit[
+                    "actual_val_fraction_by_gt_cells"
+                ],
+                "validation_selection_mode": split_audit["validation_selection_mode"],
+                "selected_validation_gt_keys": split_audit[
+                    "selected_validation_gt_keys"
+                ],
+                "whole_image_hard_constraints_passed": split_audit[
+                    "whole_image_hard_constraints_passed"
+                ],
+                "git_sha": split_audit["git_sha"],
+                "dvc_stage": split_audit["dvc_stage"],
+                "created_at": split_audit["created_at"],
+            }
+        )
+
     save_dataframe_to_parquet_with_metadata(dataset_dataframe, str(output_path))
+
+    if split_audit_json:
+        split_audit = json.loads(split_audit_json)
+        split_audit["dataset"] = synchronized_dataset_dir.name
+        _write_split_audit_files(split_audit, output_path)

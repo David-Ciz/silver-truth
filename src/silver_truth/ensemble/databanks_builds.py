@@ -137,12 +137,11 @@ def build_analysis_databank(qa_dataset_path: str, output_path: str) -> None:
 
 
 def build_databank(build_opt: dict, qa_dataset_path: str, output_path: str) -> str:
-    if build_opt["databank"] in (Version.C1, Version.C2):
+    databank_version = build_opt.get("databank", build_opt.get("version"))
+    if databank_version in (Version.C1, Version.C2):
         return build_databank_Norm(build_opt, qa_dataset_path, output_path)
 
-    raise Exception(
-        f"Error: Dataset version '{build_opt['databank']}' not yet supported."
-    )
+    raise Exception(f"Error: Dataset version '{databank_version}' not yet supported.")
 
 
 def build_databank_Single(

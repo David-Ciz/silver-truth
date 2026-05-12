@@ -108,7 +108,9 @@ Interpretation:
 - `wide_bbox_rate` and `tall_bbox_rate` show whether the dataset is systematically wider or taller
 - `mean_bbox_elongation_ratio` shows how stretched boxes are regardless of direction
 
-For MuSC specifically, this is already the documented crop-size decision path in [Ensemble Transfer Plan](ensemble_transfer_plan.md).
+For MuSC specifically, use the current crop-size rerun path in
+[Clean Slate Experiment Rerun Plan](clean_slate_experiment_rerun_plan_2026-05-05.md)
+and [Rerun Hypotheses Backlog](rerun_hypotheses_backlog_2026-05-05.md).
 
 ### Audit Cells That Would Be Clipped By a Chosen Square Crop
 
@@ -186,8 +188,8 @@ Use:
 
 ```bash
 PYTHONPATH=src .venv/bin/python scripts/analyze_qa_prediction_bundle.py \
-  --input-root hela_results/hela_ablation_2026-04-14/paper_runs/qa_results/DIC-C2DH-HeLa/sz256 \
-  --output-dir hela_results/hela_ablation_2026-04-14/analysis/qa_follow_up
+  --input-root data/paper_runs/qa_results/<DATASET>/<CROP_TAG>/<VARIANT> \
+  --output-dir data/analysis/qa_prediction_bundle/<DATASET>/<CROP_TAG>/<VARIANT>
 ```
 
 This script:
@@ -197,7 +199,10 @@ This script:
 - reports per-timepoint true/predicted quality and residual bias
 - bins residuals by true Jaccard range so calibration failures are easy to spot
 
-Current reference notes:
+Current reference note:
 
-- [HeLa Ablation Results 2026-04-14](hela_ablation_results_2026-04-14.md)
-- [HeLa QA Follow-Up 2026-04-17](hela_qa_follow_up_2026-04-17.md)
+- [Rerun Hypotheses Backlog](rerun_hypotheses_backlog_2026-05-05.md)
+
+The old HeLa result notes were archived under
+`archive/docs_pre_split_fix_2026-05-05/` and should not be used as result
+sources.

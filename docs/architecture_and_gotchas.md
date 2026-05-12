@@ -77,31 +77,40 @@ The docstring for `silver-qa attach-split` says DEPRECATED, but it is actively u
 
 The `mixed` split mode distributes GT images across train/val/test by cell count balancing **within a sequence**. Since microscopy sequences are temporally correlated (cells in frame T look similar to frame T+1), models trained on mixed splits see near-duplicates of their test data. **Do not use mixed-split results for paper claims.**
 
-### Fold-2 has asymmetrically tiny training data
+### Fold train/validation size must be audited at the supervised unit
 
-| | fold-1 | fold-2 | mixed |
-|---|---:|---:|---:|
-| Train cells | 139 | **48** | 394 |
-| Train images | 36 | **6** | 16 |
+Sparse GT means raw frame counts are not enough. A fold can look balanced by raw
+frames while being badly imbalanced by GT cells, QA crop rows, or ensemble
+databank rows.
 
-Fold-2 trains on only 6 labeled images / 48 cells. This is why most learned models (QA, ensemble) perform dramatically worse on fold-2.
+Use the current preflight audit before training:
+
+- [Experiment Preflight Methodology](experiment_preflight_methodology_2026-05-05.md)
+- [Dataset Split Fix Plan](dataset_split_fix_plan_2026-05-05.md)
 
 ### Ensemble encoder is untrained (fix available)
 
-Models in `models.py` defaulted to `encoder_weights=None`. The ResNet34 backbone was trained from scratch on tiny fold datasets. **Fix**: `--encoder-weights imagenet` is now available via CLI but testing showed it's roughly neutral (ImageNet features don't transfer well to binary mask inputs).
+Models in `models.py` defaulted to `encoder_weights=None`. The ResNet34
+backbone was trained from scratch on tiny fold datasets. `--encoder-weights
+imagenet` is available via CLI, but its effect must be re-evaluated under the
+current split/crop protocol before making a result claim.
 
 ### Ensemble input channels (C1 vs C2)
 
 | Version | Input | Channels | Notes |
 |---|---|---:|---|
 | `C1` (default) | Normalized competitor overlap | 1 | Pixel = fraction of competitors that agree |
-| `C2` | Overlap + raw microscopy image | 2 | Implemented and tested; underperforms the current `C1` baseline |
+| `C2` | Overlap + raw microscopy image | 2 | Implemented; old result claims were archived |
 
-`C2` gives the ensemble access to what the cell actually looks like, but the current experiments show it is not helping enough to justify using it in the main paper path.
+`C2` gives the ensemble access to what the cell actually looks like. Whether it
+helps should be retested as an ensemble variant after the corrected split/crop
+preflight passes.
 
-### QA best threshold is 0.50, not 0.75
+### QA threshold is a validation-selected operating point
 
-The filtering validity reports from both folds show that the best-F1 threshold is 0.50. The `t=0.75` currently used in the ablation removes too many crops, especially on fold-2 where 249/255 test cells are left with only 1 crop after filtering.
+Archived runs suggested the hard QA threshold was brittle. Do not carry any old
+threshold value forward as a result. Sweep thresholds, select the operating
+point from validation only, and then evaluate the frozen choice on test.
 
 ### Java fusion can crash with `return code -6`
 
@@ -122,72 +131,16 @@ Known issue logged in `WORK_TRACKER.md`. The chunking/fallback mechanism in `run
 
 ---
 
-## Latest Results (2026-03-13)
+## Archived Result Tables
 
-### Fold Comparison: Ensemble vs CALT-US (test split, full-image IoU)
+Older result tables were removed from this active architecture note because the
+underlying split/crop inputs were invalidated by the May 2026 audit. Treat their
+ideas as rerun hypotheses, not as evidence.
 
-| Method | Fold-1 | Fold-2 | Average |
-|---|---:|---:|---:|
-| **CALT-US** | 0.8526 | 0.8953 | 0.8739 |
-| **ENSEMBLE (ours)** | **0.8912** | 0.8787 | **0.8850** |
-| Δ | **+0.0386** | −0.0166 | **+0.0110** |
+See:
 
-### Key Observations
-- Ensemble beats CALT-US on fold-1 by +0.0386 and on cross-fold average by +0.0110
-- Fold-2 underperforms (only 48 training cells / 6 images)
-- Pretrained encoder (ImageNet) ≈ scratch encoder (neutral result)
-- QA filtering at t=0.50 is neutral; t=0.75 hurts slightly
-
-> **Note**: Competitor IoU is computed on whole images; ensemble IoU goes through crop reconstruction. Use `run_fair_comparison.sh` for a direct apples-to-apples comparison.
-
-### Ensemble Battery: C1 vs C2, basic vs strong augmentation
-
-Results from `scripts/run_experiment_battery.sh` after fixing the C2/evaluation path:
-
-| Experiment | Fold | IoU | F1 | N |
-|---|---|---:|---:|---:|
-| `baseline` | fold-1 | 0.8912 | 0.9423 | 8 |
-| `baseline` | fold-2 | 0.8787 | 0.9350 | 49 |
-| `c2_raw` | fold-1 | 0.8696 | 0.9301 | 8 |
-| `c2_raw` | fold-2 | 0.8618 | 0.9252 | 49 |
-| `c2_strong` | fold-1 | 0.8794 | 0.9357 | 8 |
-| `c2_strong` | fold-2 | 0.8528 | 0.9199 | 49 |
-| `strong_aug` | fold-1 | 0.8866 | 0.9398 | 8 |
-| `strong_aug` | fold-2 | 0.8502 | 0.9183 | 49 |
-
-Weighted summary (`N=57` total):
-
-| Experiment | weighted IoU | weighted F1 |
-|---|---:|---:|
-| `baseline` | **0.8805** | **0.9360** |
-| `c2_raw` | 0.8629 | 0.9259 |
-| `c2_strong` | 0.8565 | 0.9221 |
-| `strong_aug` | 0.8553 | 0.9213 |
-
-Takeaway:
-- keep `C1 + basic` as the default ensemble setup
-- do not move `C2` into the main paper path without a separate rescue experiment
-- the current `strong` augmentation preset is too aggressive for this data regime
-
-### Focused ensemble sweep after the battery
-
-Using `scripts/run_ablation.py` with `experiments/variants/ensemble_*.yaml`:
-
-| Variant | Split | IoU | F1 | N |
-|---|---|---:|---:|---:|
-| `ensemble_ref` | mixed | 0.9054 | 0.9500 | 29 |
-| `ensemble_aug_vflip_brightness` | fold-2 | 0.8785 | 0.9349 | 49 |
-| `ensemble_aug_brightness` | fold-2 | 0.8784 | 0.9348 | 49 |
-| `ensemble_imagenet` | fold-2 | 0.8783 | 0.9349 | 49 |
-| `ensemble_unet` | fold-2 | 0.8708 | 0.9305 | 49 |
-| `ensemble_aug_vflip` | fold-2 | 0.8684 | 0.9291 | 49 |
-| `ensemble_aug_noise` | fold-2 | 0.8271 | 0.9042 | 49 |
-
-Takeaway:
-- no fold-2 sweep variant clearly beats the current baseline (`0.8787`)
-- `ImageNet` encoder init remains roughly neutral
-- `GaussianNoise` is harmful and should be dropped
-- the next meaningful step is dataset transfer, not more local augmentation search
+- [Clean Slate Experiment Rerun Plan](clean_slate_experiment_rerun_plan_2026-05-05.md)
+- [Rerun Hypotheses Backlog](rerun_hypotheses_backlog_2026-05-05.md)
 
 ### Ensemble transfer path
 

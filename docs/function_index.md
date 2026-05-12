@@ -6,10 +6,14 @@ For a broader "what can I run?" view, including maintained scripts and agent-ori
 
 ## Protocol First
 
-- [Paper Protocol (Fold-Locked)](paper_protocol.md)
-  - purpose: authoritative order for fold-specific DVC prep and runner-driven Phase A/B/C execution.
-- [Ablation Experiment Plan](ablation_experiment_plan.md)
-  - purpose: per-experiment breakdown of CLI commands, inputs/outputs, and the maintained manual equivalents behind the runner.
+- [Paper Protocol](paper_protocol.md)
+  - purpose: current post-audit pointer to the active rerun protocol.
+- [Clean Slate Experiment Rerun Plan](clean_slate_experiment_rerun_plan_2026-05-05.md)
+  - purpose: current experiment battery, no-test-tuning rules, and rerun order.
+- [Experiment Preflight Methodology](experiment_preflight_methodology_2026-05-05.md)
+  - purpose: split/crop/target gates that must pass before paper runs.
+- [Rerun Hypotheses Backlog](rerun_hypotheses_backlog_2026-05-05.md)
+  - purpose: archived ideas rewritten as current rerun hypotheses.
 
 ## Paper Experiments
 
@@ -18,10 +22,10 @@ The runner calls the underlying CLI commands, so each step is still independentl
 
 Key steps in order:
 1. DVC prep (whole-image + QA crop parquets + job files)
-2. `python scripts/run_ablation.py --phase A` — competitor, fusion, and ensemble baselines
-3. `python scripts/run_ablation.py --phase B` — QA training, QA evaluation, and prediction merge
-4. `python scripts/run_ablation.py --phase C` — QA-filtered ablation and threshold sweep
-5. Optional manual postprocessing scripts/tables after the fold runs complete
+2. preflight split/crop audit
+3. `python scripts/run_ablation.py --config <variant.yaml> --fold <1|2>` — runner-driven baselines, QA diagnostics, and downstream ablations
+4. optional manual postprocessing scripts/tables after the fold runs complete
+5. manuscript artifact registry update from current rerun outputs only
 
 ## QA Training + Evaluation
 

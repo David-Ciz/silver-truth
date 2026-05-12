@@ -57,12 +57,15 @@ def get_databank_name(build_opt: dict) -> str:
     """
     Returns the databank name according to a build options dictionary.
     """
+    databank_version = build_opt.get("databank", build_opt.get("version"))
+    if databank_version is None:
+        raise KeyError("build_opt must contain either 'databank' or 'version'")
     qa_name = (
         f'{build_opt["qa"]}_t{int(build_opt["qa_threshold"]*100)}'
         if build_opt["qa"]
         else "QA--"
     )
-    return f'{build_opt["databank"].name}_{ORIGINAL_DATASETS[build_opt["name"]]}-{get_splits_name(build_opt)}_{qa_name}'
+    return f'{databank_version.name}_{ORIGINAL_DATASETS[build_opt["name"]]}-{get_splits_name(build_opt)}_{qa_name}'
 
 
 def get_splits_name(build_opt: dict) -> str:

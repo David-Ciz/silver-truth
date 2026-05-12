@@ -45,6 +45,8 @@ stages:
         - src/silver_truth/data_processing/utils/dataset_dataframe_creation.py
       outs:
         - data/dataframes/${item}/whole_image/${item}_split_fold-1.parquet
+        - data/dataframes/${item}/split_audits/${item}_fold-1_split_audit.json
+        - data/dataframes/${item}/split_audits/${item}_fold-1_split_audit.md
 
   # 2. Thesis Fold 2 (Train 02 / Test 01)
   # Generates dataset dataframe with 'split' column configured for Fold 2.
@@ -61,6 +63,8 @@ stages:
         - src/silver_truth/data_processing/utils/dataset_dataframe_creation.py
       outs:
         - data/dataframes/${item}/whole_image/${item}_split_fold-2.parquet
+        - data/dataframes/${item}/split_audits/${item}_fold-2_split_audit.json
+        - data/dataframes/${item}/split_audits/${item}_fold-2_split_audit.md
 
   # 3. Mixed Split (For Silver Truth Provider)
   # Generates dataset dataframe with 'split' column configured for Mixed Stratified Split.
