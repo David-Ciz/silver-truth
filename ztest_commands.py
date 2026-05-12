@@ -348,16 +348,17 @@ MODEL_ENCODER_WEIGHTS = {
     "timm-tf_efficientnet_lite3": ["imagenet"],     # 6M
     "timm-tf_efficientnet_lite4": ["imagenet"],     # 11M
 
-    "timm-skresnet18": ["imagenet"],        # 11M
-    "timm-skresnet34": ["imagenet"],        # 21M
-    "timm-skresnext50_32x4d": ["imagenet"], # 23M
+    "timm-skresnet18": [], #["imagenet"],        # 11M  -> imagenet weights not working with UnetPlusPlus
+    "timm-skresnet34": [], #["imagenet"],        # 21M  -> imagenet weights not working with UnetPlusPlus
+    "timm-skresnext50_32x4d": [], #["imagenet"], # 23M  -> imagenet weights not working with UnetPlusPlus
 
-    "mit_b0": ["imagenet"],     # 3M
-    "mit_b1": ["imagenet"],     # 13M
-    "mit_b2": ["imagenet"],     # 24M
-    "mit_b3": ["imagenet"],     # 44M
-    "mit_b4": ["imagenet"],     # 60M
-    "mit_b5": ["imagenet"],     # 81M
+    # not available for UnetPlusPlus
+    #"mit_b0": ["imagenet"],     # 3M
+    #"mit_b1": ["imagenet"],     # 13M
+    #"mit_b2": ["imagenet"],     # 24M
+    #"mit_b3": ["imagenet"],     # 44M
+    #"mit_b4": ["imagenet"],     # 60M
+    #"mit_b5": ["imagenet"],     # 81M
 
     "mobileone_s0": ["imagenet"],   # 4M
     "mobileone_s1": ["imagenet"],   # 3M
@@ -378,8 +379,8 @@ run_encs = [
     ]
 
 # all models, overrides selection above
-run_encs = MODEL_ENCODER_WEIGHTS.keys()
-    
+run_encs = list(MODEL_ENCODER_WEIGHTS.keys())
+
 # create run sequence dictionary
 for run_model in run_models:
     for model_enc in run_encs:
