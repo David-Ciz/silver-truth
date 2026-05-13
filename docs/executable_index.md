@@ -36,10 +36,14 @@ These are the repository-level scripts that currently have clear documentation s
 
 - `scripts/run_ablation.py`
   - maintained paper runner; orchestrates Phase A/B/C from YAML configs in `experiments/variants/`
+  - supports `--workflow reduced` for a smaller first pass and `--workflow full` to expand later without `--reset`
 - `scripts/run_ablation_hpc.sh`
   - maintained Slurm wrapper for the ablation runner; stages data to scratch and isolates outputs under a durable campaign root
+  - forwards `--workflow {config|reduced|full}` and records the workflow in durable logs / job index
 - `scripts/submit_hela_ablation_hpc.sh`
-  - convenience submitter for the first `DIC-C2DH-HeLa` `sz256` ablation jobs; defaults logs to `/home/davidciz/silver-truth/logs`
+  - convenience submitter for the first `DIC-C2DH-HeLa` `sz256` ablation jobs; runs dataset readiness checks before Slurm submission and defaults logs to `/home/davidciz/silver-truth/logs`
+- `scripts/check_dataset_readiness.py`
+  - pre-HPC gate for dataset preprocessing, DVC artifact presence, crop-size fit, split sanity, and QA crop TIFF dimensions
 - `scripts/run_qa_transfer.py`
   - maintained zero-shot QA transfer runner; evaluates a source QA checkpoint on a different dataset/split and writes transfer-specific artifacts under `paper_runs/qa_transfer/`
 - `scripts/run_qa_transfer_hpc.sh`
@@ -111,6 +115,21 @@ Interpretation:
 For MuSC specifically, use the current crop-size rerun path in
 [Clean Slate Experiment Rerun Plan](clean_slate_experiment_rerun_plan_2026-05-05.md)
 and [Rerun Hypotheses Backlog](rerun_hypotheses_backlog_2026-05-05.md).
+
+### Check Dataset Readiness Before HPC
+
+Use the readiness gate before launching reduced or full ablations:
+
+```bash
+PYTHONPATH=src .venv/bin/python scripts/check_dataset_readiness.py \
+  --config experiments/variants/hela_crop256.yaml \
+  --fold 1 \
+  --fold 2
+```
+
+This writes JSON/Markdown reports under `data/audits/dataset_readiness/` and
+prints the exact `dvc repro ...` command if split-aware parquets or QA crop
+artifacts are missing. See [Dataset Readiness Checks](dataset_readiness_checks.md).
 
 ### Audit Cells That Would Be Clipped By a Chosen Square Crop
 

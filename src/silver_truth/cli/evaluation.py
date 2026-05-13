@@ -24,6 +24,8 @@ from silver_truth.evaluation.reporting import (
     write_hsc_reporting_bundle,
 )
 from silver_truth.evaluation.qa_reporting import (
+    _summarize_ablation_outputs,
+    _validation_selected_full_pipeline,
     generate_ablation_diagnostics_report,
     write_ablation_diagnostics_report,
 )
@@ -873,6 +875,120 @@ def filter_parquet(
     click.echo(f"Filtered parquet written to: {output}  ({len(filtered)} rows)")
 
 
+@click.command("score-parquet")
+@click.argument(
+    "parquet_path",
+    type=click.Path(exists=True, path_type=Path),
+)
+@click.option(
+    "--mode",
+    type=click.Choice(["oracle", "competitor_prior"]),
+    required=True,
+    help=(
+        "'oracle': copy true per-candidate quality into the score column. "
+        "'competitor_prior': score candidates by train-split mean quality per competitor."
+    ),
+)
+@click.option(
+    "--source-column",
+    default="jaccard_score",
+    show_default=True,
+    help="Column containing true per-candidate quality scores.",
+)
+@click.option(
+    "--score-column",
+    default="predicted_jaccard_index",
+    show_default=True,
+    help="Output score column used by downstream QA filtering.",
+)
+@click.option(
+    "--split-column",
+    default="split",
+    show_default=True,
+    help="Split column used by competitor_prior mode.",
+)
+@click.option(
+    "--train-split",
+    default="train",
+    show_default=True,
+    help="Split value used to estimate competitor priors.",
+)
+@click.option(
+    "--competitor-column",
+    default="competitor",
+    show_default=True,
+    help="Competitor/rater identifier column used by competitor_prior mode.",
+)
+@click.option(
+    "--output",
+    "-o",
+    required=True,
+    type=click.Path(path_type=Path),
+    help="Path for the scored output parquet.",
+)
+def score_parquet(
+    parquet_path: Path,
+    mode: str,
+    source_column: str,
+    score_column: str,
+    split_column: str,
+    train_split: str,
+    competitor_column: str,
+    output: Path,
+) -> None:
+    """Write diagnostic QA scores into a paper-ready parquet."""
+    df = pd.read_parquet(parquet_path)
+    if source_column not in df.columns:
+        raise click.ClickException(
+            f"Column '{source_column}' not found in {parquet_path}."
+        )
+
+    scored = df.copy()
+    if mode == "oracle":
+        scored[score_column] = pd.to_numeric(scored[source_column], errors="coerce")
+    else:
+        missing_columns = [
+            column
+            for column in (split_column, competitor_column)
+            if column not in scored.columns
+        ]
+        if missing_columns:
+            raise click.ClickException(
+                "Missing required column(s) for competitor_prior mode: "
+                + ", ".join(missing_columns)
+            )
+
+        train_rows = scored[scored[split_column].astype(str) == str(train_split)]
+        if train_rows.empty:
+            raise click.ClickException(
+                f"No rows found where {split_column} == '{train_split}'."
+            )
+
+        train_scores = pd.to_numeric(train_rows[source_column], errors="coerce")
+        priors = (
+            train_rows.assign(_score_for_prior=train_scores)
+            .groupby(competitor_column)["_score_for_prior"]
+            .mean()
+            .dropna()
+        )
+        if priors.empty:
+            raise click.ClickException(
+                "Could not estimate any competitor priors from the training split."
+            )
+
+        fallback = float(train_scores.mean())
+        scored[score_column] = (
+            scored[competitor_column].map(priors).fillna(fallback).astype(float)
+        )
+
+    output.parent.mkdir(parents=True, exist_ok=True)
+    scored.to_parquet(output, index=False)
+    click.echo(
+        f"Scored parquet written to: {output} "
+        f"({len(scored)} rows, mode={mode}, score_column={score_column})"
+    )
+
+
 @click.command("report-hsc-results")
 @click.option(
     "--paper-runs-root",
@@ -1111,6 +1227,14 @@ def report_overflow_impact(
     help="Default QA threshold to highlight in the diagnostics.",
 )
 @click.option(
+    "--validation-selection-fusion-model",
+    default=None,
+    help=(
+        "Restrict validation-selected full-pipeline reporting to this fusion model. "
+        "Use the same value as threshold selection, e.g. simple."
+    ),
+)
+@click.option(
     "--output-dir",
     required=True,
     type=click.Path(path_type=Path),
@@ -1125,6 +1249,7 @@ def report_ablation(
     variant: str,
     split_name: str,
     default_threshold: float,
+    validation_selection_fusion_model: Optional[str],
     output_dir: Path,
 ) -> None:
     """
@@ -1143,6 +1268,7 @@ def report_ablation(
         variant=variant,
         split_name=split_name,
         default_threshold=default_threshold,
+        validation_selection_fusion_model=validation_selection_fusion_model,
     )
     written = write_ablation_diagnostics_report(output_dir, bundle)
 
@@ -1162,6 +1288,399 @@ def report_ablation(
     click.echo(f"Method summary: {written['ablation_method_summary']}")
 
 
+@click.command("select-ablation-threshold")
+@click.option(
+    "--ablation-dir",
+    required=True,
+    type=click.Path(exists=True, file_okay=False, path_type=Path),
+    help="Ablation output directory for one dataset/crop/variant/fold.",
+)
+@click.option(
+    "--fusion-model",
+    default="simple",
+    show_default=True,
+    help="Full-pipeline fusion model used for validation threshold selection.",
+)
+@click.option(
+    "--thresholds",
+    default=None,
+    help=(
+        "Optional comma-separated threshold whitelist. When set, selection only "
+        "considers full-pipeline rows whose threshold is in this grid."
+    ),
+)
+@click.option(
+    "--output-json",
+    required=True,
+    type=click.Path(path_type=Path),
+    help="Path to write the selected threshold record as JSON.",
+)
+@click.option(
+    "--output-threshold",
+    required=True,
+    type=click.Path(path_type=Path),
+    help="Path to write only the selected numeric threshold.",
+)
+@click.option(
+    "--output-label",
+    required=True,
+    type=click.Path(path_type=Path),
+    help="Path to write the selected threshold label, e.g. 0.40.",
+)
+def select_ablation_threshold(
+    ablation_dir: Path,
+    fusion_model: str,
+    thresholds: Optional[str],
+    output_json: Path,
+    output_threshold: Path,
+    output_label: Path,
+) -> None:
+    """Select a QA threshold from full-pipeline validation performance only."""
+    summary = _summarize_ablation_outputs(ablation_dir)
+    if summary.empty:
+        raise click.ClickException(f"No ablation outputs found in {ablation_dir}.")
+
+    model_key = str(fusion_model).lower()
+    candidates = summary[
+        (summary["family"] == "full_pipeline")
+        & (summary["fusion_model"].astype(str) == model_key)
+    ].copy()
+    if candidates.empty:
+        raise click.ClickException(
+            f"No full_pipeline rows found for fusion model '{model_key}'."
+        )
+
+    if thresholds:
+        allowed_thresholds = {
+            round(float(value.strip()), 6)
+            for value in thresholds.split(",")
+            if value.strip()
+        }
+        candidate_thresholds = pd.to_numeric(
+            candidates["threshold"], errors="coerce"
+        ).round(6)
+        candidates = candidates[candidate_thresholds.isin(allowed_thresholds)].copy()
+        if candidates.empty:
+            raise click.ClickException(
+                "No full_pipeline rows remained after applying threshold whitelist "
+                f"'{thresholds}'."
+            )
+
+    selected = _validation_selected_full_pipeline(candidates)
+    if selected is None or pd.isna(selected.get("threshold")):
+        raise click.ClickException(
+            "Could not select a threshold from validation metrics."
+        )
+
+    threshold = float(selected["threshold"])
+    label = f"{threshold:.2f}"
+    record = {
+        "method_key": str(selected["method_key"]),
+        "threshold": threshold,
+        "threshold_label": label,
+        "fusion_model": model_key,
+        "selection_metric": "validation_mean_iou",
+        "validation_mean_iou": float(selected["validation_mean_iou"]),
+        "validation_mean_f1": float(selected["validation_mean_f1"]),
+        "test_mean_iou": float(selected["test_mean_iou"]),
+        "test_mean_f1": float(selected["test_mean_f1"]),
+        "source_path": str(selected["source_path"]),
+    }
+
+    output_json.parent.mkdir(parents=True, exist_ok=True)
+    output_threshold.parent.mkdir(parents=True, exist_ok=True)
+    output_label.parent.mkdir(parents=True, exist_ok=True)
+    output_json.write_text(json.dumps(record, indent=2) + "\n")
+    output_threshold.write_text(f"{threshold:.6f}\n")
+    output_label.write_text(f"{label}\n")
+    click.echo(json.dumps(record, indent=2))
+
+
+@click.command("summarize-paper-results")
+@click.option(
+    "--paper-runs-root",
+    default=Path("data/paper_runs"),
+    show_default=True,
+    type=click.Path(exists=True, file_okay=False, path_type=Path),
+    help="Root paper-runs directory containing reports/ and baselines/.",
+)
+@click.option(
+    "--output",
+    "-o",
+    default=None,
+    type=click.Path(path_type=Path),
+    help=(
+        "Output CSV path. Defaults to "
+        "<paper-runs-root>/reports/paper_result_summary.csv."
+    ),
+)
+def summarize_paper_results(paper_runs_root: Path, output: Optional[Path]) -> None:
+    """Write the final paper table summary from generated report artifacts."""
+    output_path = (
+        output
+        if output is not None
+        else paper_runs_root / "reports" / "paper_result_summary.csv"
+    )
+    rows = _build_paper_result_summary(paper_runs_root)
+    if rows.empty:
+        raise click.ClickException(
+            f"No ablation method summaries found under {paper_runs_root / 'reports'}."
+        )
+
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    rows.to_csv(output_path, index=False)
+    click.echo(f"Paper result summary written to: {output_path} ({len(rows)} rows)")
+
+
+def _build_paper_result_summary(paper_runs_root: Path) -> pd.DataFrame:
+    report_root = paper_runs_root / "reports"
+    records: list[dict[str, object]] = []
+    for summary_path in sorted(report_root.rglob("ablation_method_summary.csv")):
+        metadata = _parse_ablation_summary_path(report_root, summary_path)
+        if metadata is None:
+            continue
+
+        method_summary = pd.read_csv(summary_path)
+        if method_summary.empty:
+            continue
+
+        baseline_stats = _load_baseline_stats(paper_runs_root, metadata)
+        record = {
+            **metadata,
+            "row_type": "fold",
+            **baseline_stats,
+            **_summarize_methods_for_paper_table(method_summary),
+            "ablation_method_summary_path": str(summary_path),
+        }
+        records.append(record)
+
+    if not records:
+        return pd.DataFrame()
+
+    fold_df = pd.DataFrame.from_records(records)
+    mean_rows = [
+        _build_mean_summary_row(group)
+        for _, group in fold_df.groupby(["dataset", "crop_tag", "variant"], sort=True)
+    ]
+    result = pd.concat([fold_df, pd.DataFrame(mean_rows)], ignore_index=True)
+    return result[_paper_result_columns()].sort_values(
+        ["dataset", "crop_tag", "variant", "row_type", "fold"],
+        ascending=[True, True, True, True, True],
+    )
+
+
+def _parse_ablation_summary_path(
+    report_root: Path, summary_path: Path
+) -> dict[str, str] | None:
+    try:
+        rel = summary_path.relative_to(report_root)
+    except ValueError:
+        return None
+    parts = rel.parts
+    if len(parts) < 5 or parts[-2:] != (
+        "ablation_diagnostics",
+        "ablation_method_summary.csv",
+    ):
+        return None
+    return {
+        "dataset": parts[0],
+        "crop_tag": parts[1],
+        "variant": parts[2],
+        "fold": parts[3],
+    }
+
+
+def _load_baseline_stats(
+    paper_runs_root: Path, metadata: dict[str, str]
+) -> dict[str, object]:
+    stem = (
+        f"{metadata['dataset']}_{metadata['crop_tag']}_"
+        f"{metadata['variant']}_{metadata['fold']}"
+    )
+    competitor_path = paper_runs_root / "baselines" / f"{stem}_competitors.csv"
+    silver_path = paper_runs_root / "baselines" / f"{stem}_silver_truth.csv"
+
+    stats: dict[str, object] = {
+        "best_competitor_iou": float("nan"),
+        "best_competitor_name": "",
+        "median_competitor_iou": float("nan"),
+        "median_competitor_name": "",
+        "worst_competitor_iou": float("nan"),
+        "worst_competitor_name": "",
+        "silver_truth_iou": float("nan"),
+    }
+
+    if competitor_path.exists():
+        competitors = pd.read_csv(competitor_path)
+        if {"competitor", "split_test_average"}.issubset(competitors.columns):
+            per_competitor = (
+                competitors.groupby("competitor")["split_test_average"]
+                .first()
+                .dropna()
+                .astype(float)
+                .sort_values(ascending=False)
+            )
+            if not per_competitor.empty:
+                stats["best_competitor_iou"] = float(per_competitor.iloc[0])
+                stats["best_competitor_name"] = str(per_competitor.index[0])
+                stats["worst_competitor_iou"] = float(per_competitor.iloc[-1])
+                stats["worst_competitor_name"] = str(per_competitor.index[-1])
+                stats["median_competitor_iou"] = float(per_competitor.median())
+                stats["median_competitor_name"] = _median_competitor_name(
+                    per_competitor
+                )
+
+    if silver_path.exists():
+        silver = pd.read_csv(silver_path)
+        if "split_test_average" in silver.columns and not silver.empty:
+            stats["silver_truth_iou"] = float(
+                pd.to_numeric(silver["split_test_average"], errors="coerce")
+                .dropna()
+                .iloc[0]
+            )
+
+    return stats
+
+
+def _median_competitor_name(per_competitor: pd.Series) -> str:
+    ordered = per_competitor.sort_values(ascending=True)
+    n = len(ordered)
+    if n == 0:
+        return ""
+    if n % 2 == 1:
+        return str(ordered.index[n // 2])
+    return f"{ordered.index[n // 2 - 1]} / {ordered.index[n // 2]}"
+
+
+def _summarize_methods_for_paper_table(summary: pd.DataFrame) -> dict[str, object]:
+    diagnostics = {"oracle_qa_only", "competitor_prior_qa_only"}
+    deployable = summary[~summary["family"].isin(diagnostics)].copy()
+    deployable = deployable.dropna(subset=["test_mean_iou"])
+
+    best_fusion = _best_row(
+        summary[summary["family"] == "fusion_only"], "test_mean_iou"
+    )
+    best_ours = _best_row(deployable, "test_mean_iou")
+    validation_selected = _best_row(
+        deployable.dropna(subset=["validation_mean_iou", "test_mean_iou"]),
+        "validation_mean_iou",
+    )
+    oracle = _best_row(summary[summary["family"] == "oracle_qa_only"], "test_mean_iou")
+    competitor_prior = _best_row(
+        summary[summary["family"] == "competitor_prior_qa_only"], "test_mean_iou"
+    )
+
+    return {
+        "best_fusion_iou": _row_float(best_fusion, "test_mean_iou"),
+        "best_fusion_method": _row_str(best_fusion, "method_key"),
+        "best_ours_iou": _row_float(best_ours, "test_mean_iou"),
+        "best_ours_method": _row_str(best_ours, "method_key"),
+        "validation_selected_ours_iou": _row_float(
+            validation_selected, "test_mean_iou"
+        ),
+        "validation_selected_ours_method": _row_str(validation_selected, "method_key"),
+        "validation_selected_validation_iou": _row_float(
+            validation_selected, "validation_mean_iou"
+        ),
+        "oracle_bound_iou": _row_float(oracle, "test_mean_iou"),
+        "competitor_prior_iou": _row_float(competitor_prior, "test_mean_iou"),
+    }
+
+
+def _best_row(df: pd.DataFrame, metric: str) -> Optional[pd.Series]:
+    if df.empty or metric not in df.columns:
+        return None
+    candidates = df.dropna(subset=[metric]).copy()
+    if candidates.empty:
+        return None
+    sort_columns = [metric]
+    f1_metric = metric.replace("_iou", "_f1")
+    if f1_metric in candidates.columns:
+        sort_columns.append(f1_metric)
+    return candidates.sort_values(sort_columns, ascending=False).iloc[0]
+
+
+def _row_float(row: Optional[pd.Series], column: str) -> float:
+    if row is None or column not in row or pd.isna(row[column]):
+        return float("nan")
+    return float(row[column])
+
+
+def _row_str(row: Optional[pd.Series], column: str) -> str:
+    if row is None or column not in row or pd.isna(row[column]):
+        return ""
+    return str(row[column])
+
+
+def _build_mean_summary_row(group: pd.DataFrame) -> dict[str, object]:
+    row: dict[str, object] = {
+        "dataset": str(group["dataset"].iloc[0]),
+        "crop_tag": str(group["crop_tag"].iloc[0]),
+        "variant": str(group["variant"].iloc[0]),
+        "fold": "mean",
+        "row_type": "mean",
+        "best_fusion_method": "foldwise best",
+        "best_competitor_name": _mean_name(group["best_competitor_name"]),
+        "median_competitor_name": "",
+        "worst_competitor_name": _mean_name(group["worst_competitor_name"]),
+        "best_ours_method": "foldwise best",
+        "validation_selected_ours_method": "validation-selected per fold",
+        "ablation_method_summary_path": "",
+    }
+    for column in _paper_result_numeric_columns():
+        row[column] = float(pd.to_numeric(group[column], errors="coerce").mean())
+    return row
+
+
+def _mean_name(values: pd.Series) -> str:
+    unique = [str(value) for value in values.dropna().unique() if str(value)]
+    if len(unique) == 1:
+        return unique[0]
+    return "foldwise"
+
+
+def _paper_result_numeric_columns() -> list[str]:
+    return [
+        "best_fusion_iou",
+        "best_competitor_iou",
+        "median_competitor_iou",
+        "worst_competitor_iou",
+        "silver_truth_iou",
+        "best_ours_iou",
+        "validation_selected_ours_iou",
+        "validation_selected_validation_iou",
+        "oracle_bound_iou",
+        "competitor_prior_iou",
+    ]
+
+
+def _paper_result_columns() -> list[str]:
+    return [
+        "dataset",
+        "crop_tag",
+        "variant",
+        "fold",
+        "row_type",
+        "best_fusion_iou",
+        "best_fusion_method",
+        "best_competitor_iou",
+        "best_competitor_name",
+        "median_competitor_iou",
+        "median_competitor_name",
+        "worst_competitor_iou",
+        "worst_competitor_name",
+        "silver_truth_iou",
+        "best_ours_iou",
+        "best_ours_method",
+        "validation_selected_ours_iou",
+        "validation_selected_ours_method",
+        "validation_selected_validation_iou",
+        "oracle_bound_iou",
+        "competitor_prior_iou",
+        "ablation_method_summary_path",
+    ]
+
+
 cli.add_command(evaluate_competitor)
 cli.add_command(calculate_evaluation_metrics_cli)
 cli.add_command(evaluate_qa_model)
@@ -1170,10 +1689,13 @@ cli.add_command(merge_qa_predictions)
 cli.add_command(audit_experiment_inputs)
 cli.add_command(evaluate_fusion_crops)
 cli.add_command(filter_parquet)
+cli.add_command(score_parquet)
 cli.add_command(report_hsc_results)
 cli.add_command(report_hsc_main_comparison)
 cli.add_command(report_overflow_impact)
 cli.add_command(report_ablation)
+cli.add_command(select_ablation_threshold)
+cli.add_command(summarize_paper_results)
 
 
 if __name__ == "__main__":

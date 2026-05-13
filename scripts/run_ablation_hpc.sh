@@ -15,6 +15,7 @@ set -euo pipefail
 CONFIG=""
 FOLD=""
 PHASE="all"
+WORKFLOW="config"
 KEEP_SCRATCH=0
 MLFLOW_BACKEND="file"
 LOG_ROOT="${HOME}/logs/ablation_hpc"
@@ -43,11 +44,13 @@ usage() {
     cat <<'EOF'
 Usage:
   sbatch scripts/run_ablation_hpc.sh --config experiments/variants/baseline.yaml --fold 2
+  sbatch scripts/run_ablation_hpc.sh --config experiments/variants/baseline.yaml --fold 2 --workflow reduced
 
 Options:
   --config PATH         Variant YAML to run.
   --fold {1|2|mixed}    Fold/split selector.
   --phase {A|B|C|all}   Optional phase filter. Default: all
+  --workflow MODE       config, full, or reduced. Default: config
   --reset               Pass --reset to scripts/run_ablation.py.
   --dry-run             Pass --dry-run to scripts/run_ablation.py.
   --durable-root PATH   Durable storage for paper_runs and MLflow.
@@ -89,6 +92,10 @@ while [[ $# -gt 0 ]]; do
             ;;
         --phase)
             PHASE="${2:-}"
+            shift 2
+            ;;
+        --workflow)
+            WORKFLOW="${2:-}"
             shift 2
             ;;
         --durable-root)
@@ -156,6 +163,14 @@ case "${PHASE}" in
         ;;
 esac
 
+case "${WORKFLOW}" in
+    config|full|reduced) ;;
+    *)
+        echo "ERROR: --workflow must be one of: config, full, reduced" >&2
+        exit 2
+        ;;
+esac
+
 case "${MLFLOW_BACKEND}" in
     file|sqlite) ;;
     *)
@@ -188,7 +203,7 @@ CONFIG_STEM="$(basename "${CONFIG}")"
 CONFIG_STEM="${CONFIG_STEM%.yaml}"
 JOB_NAME_SAFE="${SLURM_JOB_NAME:-ablation}"
 JOB_NAME_SAFE="${JOB_NAME_SAFE//[^A-Za-z0-9._-]/_}"
-JOB_TAG="${JOB_NAME_SAFE}__${CONFIG_STEM}__fold-${FOLD}__job-${SLURM_JOB_ID:-manual}"
+JOB_TAG="${JOB_NAME_SAFE}__${CONFIG_STEM}__fold-${FOLD}__${WORKFLOW}__job-${SLURM_JOB_ID:-manual}"
 JOB_LOG_DIR="${LOG_ROOT}/jobs/${JOB_TAG}"
 JOB_RUN_LOG="${JOB_LOG_DIR}/run.log"
 JOB_META_FILE="${JOB_LOG_DIR}/metadata.env"
@@ -212,6 +227,7 @@ job_name=${SLURM_JOB_NAME:-ablation}
 config=${CONFIG}
 fold=${FOLD}
 phase=${PHASE}
+workflow=${WORKFLOW}
 durable_root=${DURABLE_ROOT}
 log_root=${LOG_ROOT}
 job_log_dir=${JOB_LOG_DIR}
@@ -224,14 +240,15 @@ EOF
     if [[ -n "${JOB_INDEX_FILE:-}" ]]; then
         mkdir -p "$(dirname "${JOB_INDEX_FILE}")"
         if [[ ! -f "${JOB_INDEX_FILE}" ]]; then
-            printf 'job_id\tjob_name\tconfig\tfold\tphase\tstatus\tdurable_root\tjob_log_dir\trun_log\n' > "${JOB_INDEX_FILE}"
+            printf 'job_id\tjob_name\tconfig\tfold\tphase\tworkflow\tstatus\tdurable_root\tjob_log_dir\trun_log\n' > "${JOB_INDEX_FILE}"
         fi
-        printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' \
+        printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' \
             "${SLURM_JOB_ID:-manual}" \
             "${SLURM_JOB_NAME:-ablation}" \
             "${CONFIG}" \
             "${FOLD}" \
             "${PHASE}" \
+            "${WORKFLOW}" \
             "${final_status}" \
             "${DURABLE_ROOT}" \
             "${JOB_LOG_DIR}" \
@@ -251,6 +268,7 @@ job_name=${SLURM_JOB_NAME:-ablation}
 config=${CONFIG}
 fold=${FOLD}
 phase=${PHASE}
+workflow=${WORKFLOW}
 durable_root=${DURABLE_ROOT}
 log_root=${LOG_ROOT}
 job_log_dir=${JOB_LOG_DIR}
@@ -266,6 +284,7 @@ echo "Repo root: ${REPO_ROOT}"
 echo "Config: ${CONFIG}"
 echo "Fold: ${FOLD}"
 echo "Phase: ${PHASE}"
+echo "Workflow: ${WORKFLOW}"
 echo "Scratch root: ${SCRATCH_ROOT}"
 echo "Durable root: ${DURABLE_ROOT}"
 echo "Log root: ${LOG_ROOT}"
@@ -356,6 +375,7 @@ python "${REPO_ROOT}/scripts/run_ablation.py" \
     --config "${CONFIG}" \
     --fold "${FOLD}" \
     --phase "${PHASE}" \
+    --workflow "${WORKFLOW}" \
     "${EXTRA_ARGS[@]}"
 
 echo "=== Ablation HPC job completed at $(date) ==="

@@ -247,9 +247,40 @@ def build_steps(cfg: dict[str, Any]) -> list[dict[str, Any]]:
     dataset = cfg["dataset"]
     crop_tag = cfg["crop_tag"]
     threshold = cfg["qa_threshold"]
-    threshold_sweep = [float(t) for t in cfg.get("qa_threshold_sweep", [threshold])]
+    workflow = str(cfg.get("ablation_workflow", "full")).lower()
+    if workflow not in {"full", "reduced"}:
+        raise ValueError(
+            f"Unsupported ablation_workflow={workflow!r}; use 'full' or 'reduced'."
+        )
+
+    if workflow == "reduced":
+        threshold_sweep = [
+            float(t) for t in cfg.get("reduced_qa_threshold_sweep", [threshold])
+        ]
+        ablation_modes = list(
+            cfg.get("reduced_ablation_modes", cfg.get("ablation_modes", []))
+        )
+        phasec_fusion_models = list(
+            cfg.get("reduced_fusion_models", cfg["fusion_models"])
+        )
+    else:
+        threshold_sweep = [float(t) for t in cfg.get("qa_threshold_sweep", [threshold])]
+        ablation_modes = list(cfg.get("ablation_modes", []))
+        phasec_fusion_models = list(cfg["fusion_models"])
+
+    configured_fusion_models = list(cfg["fusion_models"])
+    threshold_selection_mode = str(
+        cfg.get("qa_threshold_selection", "validation")
+    ).lower()
+    threshold_selection_model = str(
+        cfg.get("qa_threshold_selection_fusion_model", cfg["fusion_models"][0])
+    ).lower()
+    use_validation_selected_threshold = (
+        threshold_selection_mode in {"validation", "validation_iou"}
+        and cfg.get("run_phaseC_ablation", True)
+        and "full_pipeline" in ablation_modes
+    )
     mlflow_uri = cfg["mlflow_tracking_uri"]
-    fusion_models = " ".join(f"--models {m}" for m in cfg["fusion_models"])
     ensemble_version = cfg.get("ensemble_version", "C1")
     ensemble_augmentation = cfg.get("ensemble_augmentation", "basic")
     ensemble_encoder_name = cfg.get("ensemble_encoder_name", "resnet34")
@@ -313,6 +344,16 @@ def build_steps(cfg: dict[str, Any]) -> list[dict[str, Any]]:
 
     fusion_out = cfg["fusion_output_template"]
     ablation_out = cfg["ablation_output_template"]
+    ablation_dir = f"{paper_runs}/ablation/{dataset}/{crop_tag}/{variant}/{split_name}"
+    threshold_selection_dir = (
+        f"{paper_runs}/threshold_selection/{dataset}/{crop_tag}/{variant}/"
+        f"{split_name}/{workflow}"
+    )
+    selected_threshold_json = f"{threshold_selection_dir}/selected_threshold.json"
+    selected_threshold_txt = f"{threshold_selection_dir}/selected_threshold.txt"
+    selected_threshold_label_txt = (
+        f"{threshold_selection_dir}/selected_threshold_label.txt"
+    )
     experiment_suffix = f"{dataset}-{crop_tag}-{variant}-{split_name}"
     competitor_csv = f"{paper_runs}/baselines/{dataset}_{crop_tag}_{variant}_{split_name}_competitors.csv"
     compare_experiment = f"paper-compare-{experiment_suffix}"
@@ -369,7 +410,7 @@ def build_steps(cfg: dict[str, Any]) -> list[dict[str, Any]]:
                     f"python {PROJECT_ROOT}/scripts/run_fusion_experiment.py "
                     f"  --dataset {dataset} "
                     f"  --parquet-file {whole_image_parquet} "
-                    f"  {'  '.join(f'--models {m}' for m in cfg['fusion_models'])} "
+                    f"  {'  '.join(f'--models {m}' for m in configured_fusion_models)} "
                     f"  --output-dir {fusion_out} "
                     f"  --mlflow-experiment {phasea_fusion_experiment} "
                     f"  --mlflow-run-name fusion_baseline "
@@ -562,30 +603,68 @@ def build_steps(cfg: dict[str, Any]) -> list[dict[str, Any]]:
 
     # ── Phase C ──────────────────────────────────────────────────────────────
 
-    ablation_modes: list[str] = cfg.get("ablation_modes", [])
+    shared_filter_thresholds: list[float] = []
+    if cfg.get("run_phaseC_ablation", True):
+        if "full_pipeline" in ablation_modes or "ensemble_qa" in ablation_modes:
+            shared_filter_thresholds.extend(threshold_sweep)
+        if (
+            "ensemble_qa_retrained" in ablation_modes
+            and not use_validation_selected_threshold
+        ):
+            shared_filter_thresholds.append(float(threshold))
+
+    seen_threshold_labels: set[str] = set()
+    for filter_threshold in shared_filter_thresholds:
+        threshold_label = _threshold_label(filter_threshold)
+        if threshold_label in seen_threshold_labels:
+            continue
+        seen_threshold_labels.add(threshold_label)
+        filtered_pq = (
+            f"{paper_runs}/paper_inputs/{dataset}/{crop_tag}/{variant}/"
+            f"{split_name}_full_pipeline_t{threshold_label}.parquet"
+        )
+        steps.append(
+            {
+                "id": f"phaseC_full_pipeline_shared_filter_t{threshold_label}",
+                "phase": "C",
+                "name": (
+                    "Phase C — shared full_pipeline QA filter " f"(t={threshold_label})"
+                ),
+                "cmd": (
+                    f"mkdir -p {Path(filtered_pq).parent} && "
+                    f"silver-evaluation filter-parquet "
+                    f"  {paper_ready} "
+                    f"  --mode full_pipeline "
+                    f"  --threshold {filter_threshold} "
+                    f"  --output {filtered_pq}"
+                ),
+                "output_hint": filtered_pq,
+            }
+        )
 
     if cfg.get("run_phaseC_ablation", True) and "fusion_only" in ablation_modes:
         mode_out = ablation_out.format_map({**cfg, "mode": "fusion_only"})
-        steps.append(
-            {
-                "id": "phaseC_fusion_only_run",
-                "phase": "C",
-                "name": "Phase C — fusion_only: run fusion",
-                "cmd": (
-                    f"mkdir -p {mode_out} && "
-                    f"silver-fusion run-fusion-crops "
-                    f"  --qa-parquet {paper_ready} "
-                    f"  {fusion_models} "
-                    f"  --output-dir {mode_out} "
-                    f"  --mlflow-experiment phaseC-fusion-only-crop-eval-{experiment_suffix} "
-                    f"  --mlflow-run-name fusion_only "
-                    f"  --mlflow-tracking-path {mlflow_uri.replace('file:', '')}"
-                ),
-            }
-        )
-        for model in cfg["fusion_models"]:
+        for model in phasec_fusion_models:
             model_lower = model.lower()
             fused_pq = _fused_parquet_path(paper_ready, mode_out, model_lower)
+            steps.append(
+                {
+                    "id": f"phaseC_fusion_only_run_{model_lower}",
+                    "phase": "C",
+                    "name": f"Phase C — fusion_only: run fusion ({model})",
+                    "cmd": (
+                        f"mkdir -p {mode_out} && "
+                        f"silver-fusion run-fusion-crops "
+                        f"  --qa-parquet {paper_ready} "
+                        f"  --models {model} "
+                        f"  --output-dir {mode_out} "
+                        f"  --mlflow-experiment phaseC-fusion-only-crop-eval-{experiment_suffix} "
+                        f"  --mlflow-run-name fusion_only__{model_lower} "
+                        f"  --mlflow-tracking-path {mlflow_uri.replace('file:', '')}"
+                    ),
+                    "output_hint": fused_pq,
+                }
+            )
             steps.append(
                 {
                     "id": f"phaseC_fusion_only_eval_{model_lower}",
@@ -644,29 +723,86 @@ def build_steps(cfg: dict[str, Any]) -> list[dict[str, Any]]:
             }
         )
 
+    for diagnostic_mode, scoring_mode, label in (
+        (
+            "oracle_qa_only",
+            "oracle",
+            "oracle top-1 per cell (uses true Jaccard; diagnostic only)",
+        ),
+        (
+            "competitor_prior_qa_only",
+            "competitor_prior",
+            "competitor-prior top-1 per cell",
+        ),
+    ):
+        if cfg.get("run_phaseC_ablation", True) and diagnostic_mode in ablation_modes:
+            mode_out = ablation_out.format_map({**cfg, "mode": diagnostic_mode})
+            scored_pq = f"{mode_out}/scored.parquet"
+            filtered_pq = f"{mode_out}/filtered.parquet"
+            steps.append(
+                {
+                    "id": f"phaseC_{diagnostic_mode}_score",
+                    "phase": "C",
+                    "name": f"Phase C — {diagnostic_mode}: score parquet ({label})",
+                    "cmd": (
+                        f"mkdir -p {mode_out} && "
+                        f"silver-evaluation score-parquet "
+                        f"  {paper_ready} "
+                        f"  --mode {scoring_mode} "
+                        f"  --source-column jaccard_score "
+                        f"  --score-column predicted_jaccard_index "
+                        f"  --output {scored_pq}"
+                    ),
+                    "output_hint": scored_pq,
+                }
+            )
+            steps.append(
+                {
+                    "id": f"phaseC_{diagnostic_mode}_filter",
+                    "phase": "C",
+                    "name": f"Phase C — {diagnostic_mode}: filter parquet",
+                    "cmd": (
+                        f"silver-evaluation filter-parquet "
+                        f"  {scored_pq} "
+                        f"  --mode qa_only "
+                        f"  --output {filtered_pq}"
+                    ),
+                    "output_hint": filtered_pq,
+                }
+            )
+            steps.append(
+                {
+                    "id": f"phaseC_{diagnostic_mode}_eval",
+                    "phase": "C",
+                    "name": f"Phase C — {diagnostic_mode}: full-image eval",
+                    "cmd": (
+                        f"silver-evaluation evaluate-fusion-crops "
+                        f"  {filtered_pq} "
+                        f"  --fused-path-column stacked_path "
+                        f"  --output-dir {mode_out}/fullimage "
+                        f"  --output {mode_out}/fullimage_eval.csv "
+                        f"  --priority-column predicted_jaccard_index "
+                        f"  --mlflow-experiment {compare_experiment} "
+                        f"  --mlflow-run-name {diagnostic_mode} "
+                        f"  --setup-name {diagnostic_mode} "
+                        f"  --pipeline-family qa_selector "
+                        f"  --qa-mode {diagnostic_mode}"
+                    ),
+                    "output_hint": f"{mode_out}/fullimage_eval.csv",
+                }
+            )
+
     if cfg.get("run_phaseC_ablation", True) and "full_pipeline" in ablation_modes:
         for sweep_threshold in threshold_sweep:
             threshold_label = _threshold_label(sweep_threshold)
             mode_out = ablation_out.format_map(
                 {**cfg, "mode": f"full_pipeline_t{threshold_label}"}
             )
-            filtered_pq = f"{mode_out}/filtered.parquet"
-            steps.append(
-                {
-                    "id": f"phaseC_full_pipeline_filter_t{threshold_label}",
-                    "phase": "C",
-                    "name": f"Phase C — full_pipeline: filter parquet (t={threshold_label})",
-                    "cmd": (
-                        f"mkdir -p {mode_out} && "
-                        f"silver-evaluation filter-parquet "
-                        f"  {paper_ready} "
-                        f"  --mode full_pipeline "
-                        f"  --threshold {sweep_threshold} "
-                        f"  --output {filtered_pq}"
-                    ),
-                }
+            filtered_pq = (
+                f"{paper_runs}/paper_inputs/{dataset}/{crop_tag}/{variant}/"
+                f"{split_name}_full_pipeline_t{threshold_label}.parquet"
             )
-            for model in cfg["fusion_models"]:
+            for model in phasec_fusion_models:
                 model_lower = model.lower()
                 fused_pq = _fused_parquet_path(filtered_pq, mode_out, model_lower)
                 steps.append(
@@ -707,6 +843,31 @@ def build_steps(cfg: dict[str, Any]) -> list[dict[str, Any]]:
                     }
                 )
 
+    if use_validation_selected_threshold:
+        selection_grid = _thresholds_csv(threshold_sweep)
+        steps.append(
+            {
+                "id": f"phaseC_select_validation_qa_threshold_{workflow}",
+                "phase": "C",
+                "name": (
+                    "Phase C — select QA threshold from validation full-pipeline "
+                    f"({threshold_selection_model})"
+                ),
+                "cmd": (
+                    f"mkdir -p {threshold_selection_dir} && "
+                    f"echo threshold_grid={selection_grid} workflow={workflow} && "
+                    f"silver-evaluation select-ablation-threshold "
+                    f"  --ablation-dir {ablation_dir} "
+                    f"  --fusion-model {threshold_selection_model} "
+                    f"  --thresholds {selection_grid} "
+                    f"  --output-json {selected_threshold_json} "
+                    f"  --output-threshold {selected_threshold_txt} "
+                    f"  --output-label {selected_threshold_label_txt}"
+                ),
+                "output_hint": selected_threshold_json,
+            }
+        )
+
     if cfg.get("run_phaseC_ablation", True) and "ensemble_only" in ablation_modes:
         mode_out = ablation_out.format_map({**cfg, "mode": "ensemble_only"})
         steps.append(
@@ -725,6 +886,26 @@ def build_steps(cfg: dict[str, Any]) -> list[dict[str, Any]]:
                     f"  --output-dir {mode_out} "
                     f"  --mlflow-experiment {compare_experiment} "
                     f"  --mlflow-run-name ensemble_only "
+                    f"  --setup-name ensemble_only "
+                ),
+            }
+        )
+        steps.append(
+            {
+                "id": "phaseC_ensemble_only_eval_validation",
+                "phase": "C",
+                "name": "Phase C — ensemble_only: evaluate validation split",
+                "cmd": (
+                    f"mkdir -p {mode_out} && "
+                    f"silver-ensemble evaluate-best-checkpoint "
+                    f"  --checkpoints-dir {_baseline_ckpt_dir} "
+                    f"  --databank-path {_baseline_db_parquet} "
+                    f"  --split-type validation "
+                    f"  --dataset-version {ensemble_version} "
+                    f"  --batch-size {cfg['ensemble_batch_size']} "
+                    f"  --output-dir {mode_out} "
+                    f"  --mlflow-experiment {compare_experiment} "
+                    f"  --mlflow-run-name ensemble_only_validation "
                     f"  --setup-name ensemble_only "
                 ),
             }
@@ -750,20 +931,6 @@ def build_steps(cfg: dict[str, Any]) -> list[dict[str, Any]]:
             )
             _qa_db_parquet = _databank_parquet(
                 _qa_db_dir, dataset, cfg.get("ensemble_version", "C1")
-            )
-            steps.append(
-                {
-                    "id": f"phaseC_ensemble_qa_filter_t{threshold_label}",
-                    "phase": "C",
-                    "name": f"Phase C — ensemble_qa: filter parquet (t={threshold_label})",
-                    "cmd": (
-                        f"silver-evaluation filter-parquet "
-                        f"  {paper_ready} "
-                        f"  --mode full_pipeline "
-                        f"  --threshold {sweep_threshold} "
-                        f"  --output {filtered_pq}"
-                    ),
-                }
             )
             steps.append(
                 {
@@ -802,46 +969,126 @@ def build_steps(cfg: dict[str, Any]) -> list[dict[str, Any]]:
                     ),
                 }
             )
+            steps.append(
+                {
+                    "id": f"phaseC_ensemble_qa_eval_validation_t{threshold_label}",
+                    "phase": "C",
+                    "name": f"Phase C — ensemble_qa: evaluate validation split (t={threshold_label})",
+                    "cmd": (
+                        f"mkdir -p {mode_out} && "
+                        f"silver-ensemble evaluate-best-checkpoint "
+                        f"  --checkpoints-dir {_baseline_ckpt_dir} "
+                        f"  --databank-path {_qa_db_parquet} "
+                        f"  --split-type validation "
+                        f"  --dataset-version {ensemble_version} "
+                        f"  --batch-size {cfg['ensemble_batch_size']} "
+                        f"  --output-dir {mode_out} "
+                        f"  --mlflow-experiment {compare_experiment} "
+                        f"  --mlflow-run-name ensemble_qa_t{threshold_label}_validation "
+                        f"  --setup-name ensemble_qa_t{threshold_label} "
+                        f"  --qa-mode full_pipeline "
+                        f"  --qa-threshold {sweep_threshold}"
+                    ),
+                }
+            )
 
     if (
         cfg.get("run_phaseC_ablation", True)
         and "ensemble_qa_retrained" in ablation_modes
     ):
-        mode_out = ablation_out.format_map(
-            {**cfg, "mode": f"ensemble_qa_retrained_t{threshold}"}
-        )
-        filtered_pq = (
-            f"{paper_runs}/paper_inputs/{dataset}/{crop_tag}/{variant}/"
-            f"{split_name}_full_pipeline_t{threshold:.2f}.parquet"
-        )
-        _retrain_db_dir = _databank_dir(
-            paper_runs,
-            dataset,
-            crop_tag,
-            variant,
-            split_name,
-            tag=f"filtered_t{threshold:.2f}",
-        )
+        if use_validation_selected_threshold:
+            selected_filtered_pq = (
+                f"{paper_runs}/paper_inputs/{dataset}/{crop_tag}/{variant}/"
+                f"{split_name}_full_pipeline_t$(cat {selected_threshold_label_txt}).parquet"
+            )
+            _retrain_db_dir = _databank_dir(
+                paper_runs,
+                dataset,
+                crop_tag,
+                variant,
+                split_name,
+                tag=f"filtered_selected_{workflow}",
+            )
+            _retrain_ckpt_dir = _ckpt_dir(
+                paper_runs,
+                dataset,
+                crop_tag,
+                variant,
+                split_name,
+                tag=f"retrained_selected_{workflow}",
+            )
+            _retrain_step_suffix = f"selected_{workflow}"
+            _retrain_name_suffix = f"{workflow} validation-selected threshold"
+            _retrain_threshold_arg = f"$(cat {selected_threshold_txt})"
+            _retrain_output_dir_cmd = (
+                f'selected_label="$(cat {selected_threshold_label_txt})" && '
+                f'mode_out="{ablation_dir}/ensemble_qa_retrained_t${{selected_label}}"'
+            )
+            filtered_pq = selected_filtered_pq
+        else:
+            mode_out = ablation_out.format_map(
+                {**cfg, "mode": f"ensemble_qa_retrained_t{threshold}"}
+            )
+            filtered_pq = (
+                f"{paper_runs}/paper_inputs/{dataset}/{crop_tag}/{variant}/"
+                f"{split_name}_full_pipeline_t{threshold:.2f}.parquet"
+            )
+            _retrain_db_dir = _databank_dir(
+                paper_runs,
+                dataset,
+                crop_tag,
+                variant,
+                split_name,
+                tag=f"filtered_t{threshold:.2f}",
+            )
+            _retrain_ckpt_dir = _ckpt_dir(
+                paper_runs,
+                dataset,
+                crop_tag,
+                variant,
+                split_name,
+                tag=f"retrained_t{threshold:.2f}",
+            )
+            _retrain_step_suffix = f"t{threshold:.2f}"
+            _retrain_name_suffix = f"t={threshold:.2f}"
+            _retrain_threshold_arg = str(threshold)
+            _retrain_output_dir_cmd = (
+                f'mode_out="{mode_out}" && selected_label="{threshold:.2f}"'
+            )
+
         _retrain_db_parquet = _databank_parquet(
             _retrain_db_dir, dataset, cfg.get("ensemble_version", "C1")
-        )
-        _retrain_ckpt_dir = _ckpt_dir(
-            paper_runs,
-            dataset,
-            crop_tag,
-            variant,
-            split_name,
-            tag=f"retrained_t{threshold:.2f}",
         )
         _retrain_exp = f"phaseC-ensemble-qa-retrained-{experiment_suffix}"
         steps.append(
             {
-                "id": "phaseC_ensemble_qa_retrained_train",
+                "id": f"phaseC_ensemble_qa_retrained_build_databank_{_retrain_step_suffix}",
                 "phase": "C",
-                "name": "Phase C — ensemble_qa_retrained: retrain ensemble on filtered databank — TRAINING STEP",
+                "name": (
+                    "Phase C — ensemble_qa_retrained: build filtered databank "
+                    f"({_retrain_name_suffix})"
+                ),
+                "cmd": (
+                    f"silver-ensemble build-databank "
+                    f"  --dataset-name {dataset} "
+                    f"  --qa-parquet-path {filtered_pq} "
+                    f"  --version {ensemble_version} "
+                    f"  --output-dir {_retrain_db_dir}"
+                ),
+                "output_hint": _retrain_db_parquet,
+            }
+        )
+        steps.append(
+            {
+                "id": f"phaseC_ensemble_qa_retrained_train_{_retrain_step_suffix}",
+                "phase": "C",
+                "name": (
+                    "Phase C — ensemble_qa_retrained: retrain ensemble on "
+                    f"filtered databank ({_retrain_name_suffix}) — TRAINING STEP"
+                ),
                 "cmd": (
                     f"silver-ensemble ensemble-experiment "
-                    f"  --name {_retrain_exp} "
+                    f"  --name {_retrain_exp}-{_retrain_step_suffix} "
                     f"  --parquet-file {_retrain_db_parquet} "
                     f"  --model-type {cfg['ensemble_model_type']} "
                     f"  --max-epochs {cfg['ensemble_max_epochs']} "
@@ -858,35 +1105,43 @@ def build_steps(cfg: dict[str, Any]) -> list[dict[str, Any]]:
         )
         steps.append(
             {
-                "id": "phaseC_ensemble_qa_retrained_eval",
+                "id": f"phaseC_ensemble_qa_retrained_eval_{_retrain_step_suffix}",
                 "phase": "C",
-                "name": "Phase C — ensemble_qa_retrained: evaluate",
+                "name": (
+                    "Phase C — ensemble_qa_retrained: evaluate "
+                    f"({_retrain_name_suffix})"
+                ),
                 "cmd": (
-                    f"mkdir -p {mode_out} && "
+                    f"{_retrain_output_dir_cmd} && "
+                    f"mkdir -p \"$mode_out\" && "
                     f"silver-ensemble evaluate-best-checkpoint "
                     f"  --checkpoints-dir {_retrain_ckpt_dir} "
                     f"  --databank-path {_retrain_db_parquet} "
                     f"  --split-type test "
                     f"  --dataset-version {ensemble_version} "
                     f"  --batch-size {cfg['ensemble_batch_size']} "
-                    f"  --output-dir {mode_out} "
+                    f"  --output-dir \"$mode_out\" "
                     f"  --mlflow-experiment {compare_experiment} "
-                    f"  --mlflow-run-name ensemble_qa_retrained_t{threshold} "
-                    f"  --setup-name ensemble_qa_retrained_t{threshold} "
+                    f"  --mlflow-run-name \"ensemble_qa_retrained_t${{selected_label}}\" "
+                    f"  --setup-name \"ensemble_qa_retrained_t${{selected_label}}\" "
                     f"  --qa-mode full_pipeline "
-                    f"  --qa-threshold {threshold}"
+                    f"  --qa-threshold {_retrain_threshold_arg}"
                 ),
             }
         )
 
     if cfg.get("run_phaseB_qa", True) and cfg.get("run_phaseC_ablation", True):
         report_dir = f"{paper_runs}/reports/{dataset}/{crop_tag}/{variant}/{split_name}/ablation_diagnostics"
-        ablation_dir = (
-            f"{paper_runs}/ablation/{dataset}/{crop_tag}/{variant}/{split_name}"
+        report_threshold_arg = (
+            f"$(cat {selected_threshold_txt})"
+            if use_validation_selected_threshold
+            else str(threshold)
         )
         steps.append(
             {
-                "id": "phaseC_ablation_diagnostics_report",
+                "id": f"phaseC_ablation_diagnostics_report_selected_threshold_v2_{workflow}"
+                if use_validation_selected_threshold
+                else f"phaseC_ablation_diagnostics_report_v2_{workflow}",
                 "phase": "C",
                 "name": "Phase C — ablation diagnostics report",
                 "cmd": (
@@ -899,9 +1154,23 @@ def build_steps(cfg: dict[str, Any]) -> list[dict[str, Any]]:
                     f"  --crop-tag {crop_tag} "
                     f"  --variant {variant} "
                     f"  --split-name {split_name} "
-                    f"  --default-threshold {threshold} "
+                    f"  --default-threshold {report_threshold_arg} "
+                    f"  --validation-selection-fusion-model {threshold_selection_model} "
                     f"  --output-dir {report_dir}"
                 ),
+            }
+        )
+        steps.append(
+            {
+                "id": f"phaseC_paper_result_summary_v1_{workflow}",
+                "phase": "C",
+                "name": "Phase C — refresh paper result summary table",
+                "cmd": (
+                    f"silver-evaluation summarize-paper-results "
+                    f"  --paper-runs-root {paper_runs} "
+                    f"  --output {paper_runs}/reports/paper_result_summary.csv"
+                ),
+                "output_hint": f"{paper_runs}/reports/paper_result_summary.csv",
             }
         )
 
@@ -1207,21 +1476,27 @@ def run_step(
     Returns False → pipeline paused (wait step reached).
     """
     step_id: str = step["id"]
-    raw_cmd: str = step["cmd"]
-
-    # Already completed?
-    if state.get(step_id, {}).get("status") == "done":
-        logger.info("  ✓ SKIP (already completed)")
-        return True
-
-    # Previously paused here?
-    if state.get(step_id, {}).get("status") == "waiting":
-        logger.info("  … Resuming past wait step — marking done and continuing.")
-        mark_done(run_id, state, step_id, raw_cmd)
-        return True
 
     # Resolve any {placeholder} tokens before executing.
     cmd = _resolve_step_cmd(step)
+    state_record = state.get(step_id, {})
+
+    # Already completed?
+    if state_record.get("status") == "done":
+        previous_cmd = str(state_record.get("cmd", ""))
+        if previous_cmd == cmd:
+            logger.info("  ✓ SKIP (already completed)")
+            return True
+        logger.info("  ↻ Command changed since checkpoint — re-running step.")
+
+    # Previously paused here?
+    if state_record.get("status") == "waiting":
+        previous_cmd = str(state_record.get("cmd", ""))
+        if previous_cmd == cmd:
+            logger.info("  … Resuming past wait step — marking done and continuing.")
+            mark_done(run_id, state, step_id, cmd)
+            return True
+        logger.info("  ↻ Waited step command changed — running updated command.")
 
     if dry_run:
         logger.info("  DRY-RUN cmd:\n    %s", cmd.replace("  ", " ").strip())
@@ -1297,6 +1572,16 @@ def run_step(
     default=False,
     help="Print all steps that would be run (with IDs) and exit.",
 )
+@click.option(
+    "--workflow",
+    type=click.Choice(["config", "full", "reduced"]),
+    default="config",
+    show_default=True,
+    help=(
+        "Ablation workflow profile. 'config' uses ablation_workflow from YAML "
+        "(defaulting to full); 'reduced' runs the cheaper diagnostic subset."
+    ),
+)
 def main(
     config: Path,
     fold: str,
@@ -1304,6 +1589,7 @@ def main(
     phase: str,
     reset: bool,
     list_steps: bool,
+    workflow: str,
 ) -> None:
     """
     Run the ablation pipeline for one fold.
@@ -1312,6 +1598,10 @@ def main(
     resumes from the last completed step.
     """
     cfg = load_config(config, fold)
+    if workflow != "config":
+        cfg["ablation_workflow"] = workflow
+    else:
+        cfg["ablation_workflow"] = str(cfg.get("ablation_workflow", "full")).lower()
     variant = cfg["variant"]
     dataset = cfg["dataset"]
     run_id = f"{dataset}_{cfg['crop_tag']}_{variant}_{cfg['split_name']}"
@@ -1323,7 +1613,8 @@ def main(
         steps = [s for s in steps if s["phase"] == phase]
 
     if list_steps:
-        click.echo(f"\nRun ID: {run_id}\n")
+        click.echo(f"\nRun ID: {run_id}")
+        click.echo(f"Workflow: {cfg['ablation_workflow']}\n")
         for i, s in enumerate(steps):
             click.echo(
                 f"  [{s['phase']}] {i + 1:02d}. {s['id']}\n"
@@ -1369,10 +1660,11 @@ def main(
     logger.info(_BANNER)
     logger.info("Ablation pipeline — run ID: %s", run_id)
     logger.info(
-        "Config: %s   Split: %s   Phase filter: %s",
+        "Config: %s   Split: %s   Phase filter: %s   Workflow: %s",
         config,
         cfg["split_name"],
         phase,
+        cfg["ablation_workflow"],
     )
     logger.info("State file: %s", _state_path(run_id))
     if dry_run:

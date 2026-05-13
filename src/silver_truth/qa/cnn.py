@@ -213,8 +213,19 @@ class JaccardDataset(Dataset):
 
 
 class Jaccard(nn.Module):
-    def __init__(self, dropout_rate=0.3, model_type="resnet18"):
+    def __init__(
+        self,
+        dropout_rate=0.3,
+        model_type="resnet18",
+        output_activation: str = "sigmoid",
+    ):
         super(Jaccard, self).__init__()
+        if output_activation not in {"sigmoid", "linear"}:
+            raise ValueError(
+                f"Unsupported output_activation: {output_activation}. "
+                "Expected 'sigmoid' or 'linear'."
+            )
+        self.output_activation = output_activation
 
         if model_type == "resnet18":
             self.model = resnet18(weights=ResNet18_Weights.IMAGENET1K_V1)
@@ -264,6 +275,8 @@ class Jaccard(nn.Module):
         x = self.model(x)
         x = self.dropout(x)
         x = self.fc(x)
+        if self.output_activation == "sigmoid":
+            x = torch.sigmoid(x)
         return x
 
 
@@ -283,11 +296,16 @@ class JaccardLightningModule(pl.LightningModule):
         weight_decay: float = 1e-4,
         grad_clip: float = 1.0,
         augment_batches: bool = False,
+        output_activation: str = "sigmoid",
     ):
         super().__init__()
         self.save_hyperparameters()
 
-        self.model = Jaccard(dropout_rate=dropout_rate, model_type=model_type)
+        self.model = Jaccard(
+            dropout_rate=dropout_rate,
+            model_type=model_type,
+            output_activation=output_activation,
+        )
         self.criterion = nn.MSELoss()
 
         # torchmetrics — reset per epoch automatically
@@ -459,8 +477,13 @@ def load_model(path, device):
 
     dropout_rate = metadata.get("dropout_rate", 0.3)
     model_type = metadata.get("model_type", "resnet50")
+    output_activation = metadata.get("output_activation", "linear")
 
-    model = Jaccard(dropout_rate=dropout_rate, model_type=model_type).to(device)
+    model = Jaccard(
+        dropout_rate=dropout_rate,
+        model_type=model_type,
+        output_activation=output_activation,
+    ).to(device)
     model.load_state_dict(checkpoint["model_state_dict"])
     print(f"Model loaded from {path}")
     return model, metadata
@@ -524,8 +547,22 @@ def initialize_model_from_checkpoint(
                 f"expected '{expected_input_channels_str}', got '{source_input_channels}'."
             )
 
-    nn_model = model.model if isinstance(model, JaccardLightningModule) else model
-    nn_model.load_state_dict(checkpoint["model_state_dict"], strict=strict)
+    source_output_activation = metadata.get("output_activation")
+    target_nn_model = (
+        model.model if isinstance(model, JaccardLightningModule) else model
+    )
+    target_output_activation = getattr(target_nn_model, "output_activation", None)
+    if (
+        source_output_activation is not None
+        and target_output_activation is not None
+        and str(source_output_activation) != str(target_output_activation)
+    ):
+        raise ValueError(
+            "Checkpoint output_activation mismatch: "
+            f"expected '{target_output_activation}', got '{source_output_activation}'."
+        )
+
+    target_nn_model.load_state_dict(checkpoint["model_state_dict"], strict=strict)
     return metadata
 
 
@@ -575,6 +612,7 @@ def train(
     num_epochs=50,
     weight_decay=1e-4,
     dropout_rate=0.3,
+    output_activation="sigmoid",
     patience=10,
     augment=True,
     seed=42,
@@ -680,6 +718,7 @@ def train(
         weight_decay=weight_decay,
         grad_clip=grad_clip,
         augment_batches=augment,
+        output_activation=output_activation,
     )
     print(f"Using model: {model_type}")
     init_metadata: dict[str, object] = {}
@@ -717,6 +756,7 @@ def train(
             "num_epochs": num_epochs,
             "weight_decay": weight_decay,
             "dropout_rate": dropout_rate,
+            "output_activation": output_activation,
             "patience": patience,
             "augment": augment,
             "seed": seed,
@@ -791,6 +831,7 @@ def train(
         "num_epochs": num_epochs,
         "weight_decay": weight_decay,
         "dropout_rate": dropout_rate,
+        "output_activation": output_activation,
         "model_type": model_type,
         "augmentation": augment,
         "best_val_loss": best_val_loss,

@@ -23,9 +23,10 @@ The runner calls the underlying CLI commands, so each step is still independentl
 Key steps in order:
 1. DVC prep (whole-image + QA crop parquets + job files)
 2. preflight split/crop audit
-3. `python scripts/run_ablation.py --config <variant.yaml> --fold <1|2>` — runner-driven baselines, QA diagnostics, and downstream ablations
-4. optional manual postprocessing scripts/tables after the fold runs complete
-5. manuscript artifact registry update from current rerun outputs only
+3. `python scripts/run_ablation.py --config <variant.yaml> --fold <1|2> --workflow reduced` — smaller first pass for new datasets
+4. `python scripts/run_ablation.py --config <variant.yaml> --fold <1|2> --workflow full` — expand to the full sweep later without `--reset`
+5. optional manual postprocessing scripts/tables after the fold runs complete
+6. manuscript artifact registry update from current rerun outputs only
 
 ## QA Training + Evaluation
 

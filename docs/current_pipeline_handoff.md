@@ -89,6 +89,12 @@ Typical locations:
 - `data/dataframes/{dataset}/qa_crops/fold-1_sz{crop}_qa_dataset.parquet`
 - `data/dataframes/{dataset}/qa_crops/fold-2_sz{crop}_qa_dataset.parquet`
 
+Before launching HPC runs, use
+[`scripts/check_dataset_readiness.py`](../scripts/check_dataset_readiness.py) to
+verify that these split-aware artifacts exist, that QA crop TIFFs have the
+configured shape, that GT bbox crop-fit is acceptable, and that QA splits still
+match whole-image splits.
+
 ### 3. Stacked crop TIFF
 
 Each QA crop row points to a `stacked_path` TIFF with shape `(4, H, W)`.
@@ -277,12 +283,30 @@ Runs the actual methods being compared:
 
 - `fusion_only`
 - `qa_only`
+- `oracle_qa_only`
+- `competitor_prior_qa_only`
 - `full_pipeline`
 - `ensemble_only`
 - `ensemble_qa`
 - `ensemble_qa_retrained`
 
 Each branch produces final `full_image_label` evaluation outputs.
+
+`full_pipeline`, `ensemble_qa`, and `ensemble_qa_retrained` reuse shared
+per-threshold filtered parquets under `data/paper_runs/paper_inputs/...`; the
+runner no longer filters the same threshold separately for each method family.
+
+For new datasets, start with:
+
+```bash
+python scripts/run_ablation.py --config <variant.yaml> --fold <1|2> --workflow reduced
+```
+
+Then expand without `--reset` if the reduced diagnostics justify the full sweep:
+
+```bash
+python scripts/run_ablation.py --config <variant.yaml> --fold <1|2> --workflow full
+```
 
 ## Important Limits / Caveats
 
@@ -331,4 +355,3 @@ If someone wants more detail after reading this file, the best follow-ups are:
 - `src/silver_truth/cli/ensemble.py`
 - `src/silver_truth/ensemble/databanks_builds.py`
 - `src/silver_truth/ensemble/reconstruction.py`
-

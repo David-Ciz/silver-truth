@@ -272,6 +272,13 @@ def cnn() -> None:
 )
 @click.option("--dropout-rate", type=float, default=0.3, help="Dropout rate.")
 @click.option(
+    "--output-activation",
+    type=click.Choice(["sigmoid", "linear"]),
+    default="sigmoid",
+    show_default=True,
+    help="Activation applied to the QA regression head output.",
+)
+@click.option(
     "--model-type",
     type=click.Choice(
         [
@@ -328,6 +335,7 @@ def cnn_train(
     num_epochs: int,
     weight_decay: float,
     dropout_rate: float,
+    output_activation: str,
     model_type: str,
     patience: int,
     augment: bool,
@@ -354,6 +362,7 @@ def cnn_train(
         num_epochs=num_epochs,
         weight_decay=weight_decay,
         dropout_rate=dropout_rate,
+        output_activation=output_activation,
         patience=patience,
         augment=augment,
         seed=seed,

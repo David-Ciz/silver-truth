@@ -13,6 +13,7 @@ from silver_truth.data_processing.utils.dataset_dataframe_creation import (
     save_dataframe_to_parquet_with_metadata,
     SILVER_TRUTH_COLUMN,
 )
+from silver_truth.data_processing.compression import write_tiff_lossless
 
 # Basic Logging Setup
 logging.basicConfig(
@@ -451,7 +452,7 @@ def create_qa_dataset(
                         f"c{campaign_number}_{raw_image_path.stem}_{competitor}_{label}"
                     )
                     stacked_path = output_path / f"{cell_id}.tif"
-                    tifffile.imwrite(stacked_path, stacked_crop)
+                    write_tiff_lossless(stacked_path, stacked_crop)
 
                     data_list.append(
                         {
@@ -482,7 +483,7 @@ def create_qa_dataset(
                         f"c{campaign_number}_{raw_image_path.stem}_{competitor}_{label}"
                     )
                     stacked_path = output_path / f"{cell_id}.tif"
-                    tifffile.imwrite(stacked_path, stacked_image)
+                    write_tiff_lossless(stacked_path, stacked_image)
 
                     data_list.append(
                         {

@@ -12,6 +12,7 @@ import silver_truth.data_processing.utils.parquet_utils as p_utils
 from silver_truth.data_processing.utils.dataset_dataframe_creation import (
     SILVER_TRUTH_COLUMN,
 )
+from silver_truth.data_processing.compression import write_tiff_lossless
 
 # Kept for backwards compatibility with any code that still references Databank_type
 Databank_type = Version
@@ -64,10 +65,7 @@ def build_analysis_databank_full(qa_dataset_path: str, output_path: str) -> None
         # Save the image
         new_img_path = os.path.join(output_path, new_name)
         # output folder
-        tifffile.imwrite(new_img_path, stacked_crop)
-
-    # compress images
-    ext.compress_images(output_path)
+        write_tiff_lossless(new_img_path, stacked_crop)
 
 
 def build_analysis_databank(qa_dataset_path: str, output_path: str) -> None:
@@ -130,10 +128,7 @@ def build_analysis_databank(qa_dataset_path: str, output_path: str) -> None:
         stacked_crop = np.stack([seg_crop, gt_crop, blue_layer], axis=0)
 
         # save to output folder
-        tifffile.imwrite(new_img_path, stacked_crop)
-
-    # compress images
-    ext.compress_images(output_path)
+        write_tiff_lossless(new_img_path, stacked_crop)
 
 
 def build_databank(build_opt: dict, qa_dataset_path: str, output_path: str) -> str:
@@ -222,7 +217,7 @@ def build_databank_Single(
         stacked_crop = np.stack([seg_crop, gt_crop, empty_blue_layer], axis=0)
 
         # save to output folder
-        tifffile.imwrite(new_img_path, stacked_crop)
+        write_tiff_lossless(new_img_path, stacked_crop)
 
         # save details
         data_list.append(
@@ -251,9 +246,6 @@ def build_databank_Single(
     parquet_output_path = os.path.join(output_path, f"{databank_foldername}.parquet")
     # save to parquet file
     output_df.to_parquet(parquet_output_path)
-
-    # compress images
-    ext.compress_images(images_output_path)
 
     return parquet_output_path
 
@@ -447,7 +439,7 @@ def build_databank_Norm(build_opt: dict, qa_dataset_path: str, output_path: str)
             new_image_name = f"{campaign}_{img_id}_{label}.tif"
             new_image_path = os.path.join(images_output_path, new_image_name)
             # save image
-            tifffile.imwrite(new_image_path, stacked_crop)
+            write_tiff_lossless(new_image_path, stacked_crop)
 
             # save details
             data_list.append(
@@ -484,8 +476,5 @@ def build_databank_Norm(build_opt: dict, qa_dataset_path: str, output_path: str)
     parquet_output_path = os.path.join(output_path, f"{databank_foldername}.parquet")
     # save to parquet file
     output_df.to_parquet(parquet_output_path)
-
-    # compress images
-    ext.compress_images(images_output_path)
 
     return parquet_output_path

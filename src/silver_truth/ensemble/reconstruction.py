@@ -8,6 +8,7 @@ import numpy as np
 import pandas as pd
 import tifffile
 
+from silver_truth.data_processing.compression import write_tiff_lossless
 from silver_truth.metrics.metrics import calculate_labelwise_scores
 
 logger = logging.getLogger(__name__)
@@ -275,7 +276,7 @@ def reconstruct_full_images_from_arrays(
             )
         )
         output_path = output_dir / f"{campaign}_{image_key}_reconstructed.tif"
-        tifffile.imwrite(output_path, reconstructed)
+        write_tiff_lossless(output_path, reconstructed)
 
         iou, f1 = _compute_iou_f1(reconstructed, gt_full)
         result_rows.append(
@@ -499,7 +500,7 @@ def reconstruct_labeled_full_images_from_arrays(
             )
         )
         output_path = output_dir / f"{campaign}_{image_key}_reconstructed.tif"
-        tifffile.imwrite(output_path, reconstructed)
+        write_tiff_lossless(output_path, reconstructed)
 
         labelwise_scores = calculate_labelwise_scores(gt_full, reconstructed)
         if labelwise_scores:

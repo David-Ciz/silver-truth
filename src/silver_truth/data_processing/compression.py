@@ -1,7 +1,21 @@
 import os
+from typing import Any
+
 from PIL import Image
 import click
 import tifffile
+
+LOSSLESS_TIFF_COMPRESSION = "lzw"
+
+
+def write_tiff_lossless(
+    file_path: os.PathLike[str] | str, data: Any, **kwargs: Any
+) -> None:
+    """Write a TIFF with lossless compression while preserving array shape and dtype."""
+    write_kwargs = dict(kwargs)
+    write_kwargs.setdefault("compression", LOSSLESS_TIFF_COMPRESSION)
+    write_kwargs.setdefault("photometric", "minisblack")
+    tifffile.imwrite(file_path, data, **write_kwargs)
 
 
 def compress_tif_file(file_path, dryrun=False):
@@ -21,11 +35,11 @@ def compress_tif_file(file_path, dryrun=False):
         try:
             img = tifffile.imread(file_path)
 
-            # Create a temporary file
-            temp_file = file_path + ".temp"
+            # Create a temporary TIFF file so tifffile can infer the format.
+            temp_file = file_path + ".tmp.tif"
 
             # Save with LZW compression
-            tifffile.imwrite(temp_file, img, compression="lzw")
+            write_tiff_lossless(temp_file, img)
 
             # Check if operation was successful
             if os.path.exists(temp_file):
@@ -39,8 +53,8 @@ def compress_tif_file(file_path, dryrun=False):
             try:
                 img = Image.open(file_path)
 
-                # Create a temporary file
-                temp_file = file_path + ".temp"
+                # Create a temporary TIFF file so PIL can infer the format.
+                temp_file = file_path + ".tmp.tif"
 
                 # Save with LZW compression
                 img.save(temp_file, compression="tiff_lzw")

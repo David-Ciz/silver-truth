@@ -158,6 +158,8 @@ Important:
 - DVC currently covers data preparation and job-file generation.
 - DVC does not run the paper experiment runner or QA CNN training.
 - Fusion execution/evaluation is primarily handled as MLflow experiments outside DVC.
+- `scripts/check_dataset_readiness.py` now sits on top of these DVC stages and
+  reports which preprocessing stages are missing for a given experiment config.
 
 ## Paper Ablation Mechanics (Actual Implementation)
 
@@ -169,6 +171,7 @@ The maintained implementation path is `scripts/run_ablation.py`, which wires tog
 - `silver-evaluation evaluate-qa-filtering`
 - `silver-evaluation merge-qa-predictions`
 - `silver-evaluation filter-parquet`
+- `silver-evaluation score-parquet`
 - `silver-fusion run-fusion-crops`
 - `silver-evaluation evaluate-fusion-crops`
 - `silver-ensemble build-databank`
@@ -185,6 +188,8 @@ Modes:
 - `fusion_only`: no QA gate, all candidates fused with Java model.
 - `full_pipeline`: threshold gate on QA score, then Java fusion.
 - `qa_only`: threshold-filtered top-1 QA candidate per cell, no voting fusion.
+- `oracle_qa_only`: diagnostic top-1 selector using true crop-level Jaccard.
+- `competitor_prior_qa_only`: diagnostic top-1 selector using train-split competitor priors.
 - `ensemble_only`: evaluate the unfiltered trained ensemble.
 - `ensemble_qa`: evaluate the trained ensemble on a QA-filtered databank.
 - `ensemble_qa_retrained`: retrain the ensemble on QA-filtered input, then evaluate.
@@ -192,6 +197,12 @@ Modes:
 Selection safeguard:
 
 - If a cell has no candidate above threshold, deterministic top-1 fallback is used by `silver-evaluation filter-parquet`.
+- Thresholded `full_pipeline`, `ensemble_qa`, and `ensemble_qa_retrained` reuse shared filtered parquets under `data/paper_runs/paper_inputs/...`.
+
+Workflow profiles:
+
+- `--workflow reduced`: smaller first pass for new datasets; uses the reduced threshold grid and `SIMPLE` fusion for Phase C threshold-sensitive Java fusion.
+- `--workflow full`: exhaustive configured sweep; can be run after reduced without `--reset` to fill in missing thresholds/models.
 
 Metrics:
 
@@ -214,9 +225,11 @@ For fold-locked paper runs:
 
 1. Follow [Paper Protocol](paper_protocol.md) and the
    [Clean Slate Experiment Rerun Plan](clean_slate_experiment_rerun_plan_2026-05-05.md).
-2. Reproduce fold and QA split stages via DVC.
-3. Run preflight audits before training.
-4. Run `python scripts/run_ablation.py --config <variant.yaml> --fold <1|2>`.
+2. Run `scripts/check_dataset_readiness.py --config <variant.yaml> --fold 1 --fold 2`.
+3. Reproduce any missing DVC stages emitted by the readiness report, or rerun
+   the readiness command with `--repro`.
+4. Submit reduced ablations first; the ablation runner repeats split sanity as
+   a Phase A preflight before training.
 5. Record current artifacts in [Manuscript Artifact Registry](manuscript_artifact_registry.md).
 
 For fusion baseline comparison on QA crops:

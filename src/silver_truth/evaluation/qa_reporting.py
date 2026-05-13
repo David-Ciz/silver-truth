@@ -17,6 +17,7 @@ def generate_ablation_diagnostics_report(
     variant: str,
     split_name: str,
     default_threshold: float,
+    validation_selection_fusion_model: str | None = None,
 ) -> dict[str, pd.DataFrame]:
     qa_metrics = _load_qa_metrics(qa_metrics_csv)
     qa_filtering = _load_qa_filtering(qa_filtering_csv)
@@ -44,6 +45,7 @@ def generate_ablation_diagnostics_report(
         variant=variant,
         split_name=split_name,
         default_threshold=default_threshold,
+        validation_selection_fusion_model=validation_selection_fusion_model,
     )
     markdown = _render_markdown_report(
         overview=overview,
@@ -53,6 +55,7 @@ def generate_ablation_diagnostics_report(
         cross_fold_summary=cross_fold_summary,
         flags=flags,
         default_threshold=default_threshold,
+        validation_selection_fusion_model=validation_selection_fusion_model,
     )
     return {
         "overview": overview,
@@ -175,6 +178,12 @@ def _summarize_ablation_outputs(ablation_dir: Path) -> pd.DataFrame:
             continue
         records.append(record)
 
+    for parquet_path in sorted(ablation_dir.rglob("*_set-validation.parquet")):
+        record = _summarize_result_table(parquet_path)
+        if record is None:
+            continue
+        records.append(record)
+
     if not records:
         return pd.DataFrame(
             columns=[
@@ -187,6 +196,12 @@ def _summarize_ablation_outputs(ablation_dir: Path) -> pd.DataFrame:
                 "n_images",
                 "mean_iou",
                 "mean_f1",
+                "validation_n_images",
+                "validation_mean_iou",
+                "validation_mean_f1",
+                "test_n_images",
+                "test_mean_iou",
+                "test_mean_f1",
                 "p05_iou",
                 "min_iou",
                 "bad_image_count",
@@ -200,7 +215,7 @@ def _summarize_ablation_outputs(ablation_dir: Path) -> pd.DataFrame:
             ]
         )
 
-    df = pd.DataFrame.from_records(records)
+    df = _collapse_method_split_rows(pd.DataFrame.from_records(records))
     reference_keys: list[str | None] = []
     delta_ious: list[float] = []
     delta_f1s: list[float] = []
@@ -252,10 +267,96 @@ def _summarize_ablation_outputs(ablation_dir: Path) -> pd.DataFrame:
     ).reset_index(drop=True)
 
 
+def _collapse_method_split_rows(df: pd.DataFrame) -> pd.DataFrame:
+    """Merge separate ensemble validation/test parquet summaries into one row."""
+    if df.empty:
+        return df
+
+    key_columns = [
+        "method_key",
+        "fold",
+        "family",
+        "uses_qa",
+        "threshold",
+        "fusion_model",
+    ]
+    if df.duplicated(key_columns, keep=False).sum() == 0:
+        return df
+
+    collapsed: list[pd.Series] = []
+    for _, group in df.groupby(key_columns, dropna=False, sort=False):
+        if len(group) == 1:
+            collapsed.append(group.iloc[0].copy())
+            continue
+
+        test_rows = group[pd.to_numeric(group["test_n_images"], errors="coerce") > 0]
+        validation_rows = group[
+            pd.to_numeric(group["validation_n_images"], errors="coerce") > 0
+        ]
+        base = (test_rows if not test_rows.empty else group).iloc[0].copy()
+
+        if not validation_rows.empty:
+            validation_row = validation_rows.iloc[0]
+            for column in (
+                "validation_n_images",
+                "validation_mean_iou",
+                "validation_mean_f1",
+            ):
+                base[column] = validation_row[column]
+
+        if not test_rows.empty:
+            test_row = test_rows.iloc[0]
+            for column in ("test_n_images", "test_mean_iou", "test_mean_f1"):
+                base[column] = test_row[column]
+            for column in (
+                "p05_iou",
+                "min_iou",
+                "bad_image_count",
+                "bad_image_pct",
+                "mean_cells_placed",
+            ):
+                base[column] = test_row[column]
+
+        validation_count = pd.to_numeric(
+            pd.Series([base.get("validation_n_images")]), errors="coerce"
+        ).iloc[0]
+        test_count = pd.to_numeric(
+            pd.Series([base.get("test_n_images")]), errors="coerce"
+        ).iloc[0]
+        base["n_images"] = int(
+            (0 if pd.isna(validation_count) else validation_count)
+            + (0 if pd.isna(test_count) else test_count)
+        )
+        if pd.notna(base.get("test_mean_iou")):
+            base["mean_iou"] = base["test_mean_iou"]
+            base["mean_f1"] = base["test_mean_f1"]
+        elif pd.notna(base.get("validation_mean_iou")):
+            base["mean_iou"] = base["validation_mean_iou"]
+            base["mean_f1"] = base["validation_mean_f1"]
+        base["source_path"] = ";".join(
+            str(path) for path in group["source_path"].dropna().astype(str).unique()
+        )
+        collapsed.append(base)
+
+    return pd.DataFrame(collapsed).reset_index(drop=True)
+
+
 def _summarize_result_table(path: Path) -> dict[str, Any] | None:
     relative = path.parts
     fold = _parse_fold(relative)
-    if "qa_only" in relative:
+    if "oracle_qa_only" in relative:
+        method_key = "oracle_qa_only"
+        family = "oracle_qa_only"
+        threshold = None
+        fusion_model = None
+        uses_qa = True
+    elif "competitor_prior_qa_only" in relative:
+        method_key = "competitor_prior_qa_only"
+        family = "competitor_prior_qa_only"
+        threshold = None
+        fusion_model = None
+        uses_qa = True
+    elif "qa_only" in relative:
         method_key = "qa_only__top1"
         family = "qa_only"
         threshold = None
@@ -322,6 +423,16 @@ def _summarize_result_table(path: Path) -> dict[str, Any] | None:
     if "iou" not in df.columns or "f1" not in df.columns:
         return None
 
+    def _split_metric(split_name: str, column: str, *, count: bool = False) -> float:
+        if "split" not in df.columns:
+            return 0.0 if count else float("nan")
+        split_df = df[df["split"].astype(str) == split_name]
+        if count:
+            return float(len(split_df))
+        if split_df.empty:
+            return float("nan")
+        return float(pd.to_numeric(split_df[column], errors="coerce").mean())
+
     return {
         "method_key": method_key,
         "fold": fold,
@@ -332,6 +443,12 @@ def _summarize_result_table(path: Path) -> dict[str, Any] | None:
         "n_images": int(len(df)),
         "mean_iou": float(pd.to_numeric(df["iou"], errors="coerce").mean()),
         "mean_f1": float(pd.to_numeric(df["f1"], errors="coerce").mean()),
+        "validation_n_images": int(_split_metric("validation", "iou", count=True)),
+        "validation_mean_iou": _split_metric("validation", "iou"),
+        "validation_mean_f1": _split_metric("validation", "f1"),
+        "test_n_images": int(_split_metric("test", "iou", count=True)),
+        "test_mean_iou": _split_metric("test", "iou"),
+        "test_mean_f1": _split_metric("test", "f1"),
         "p05_iou": float(pd.to_numeric(df["iou"], errors="coerce").quantile(0.05)),
         "min_iou": float(pd.to_numeric(df["iou"], errors="coerce").min()),
         "bad_image_count": int(
@@ -559,9 +676,13 @@ def _build_flags(
         ),
     )
 
-    best_full_pipeline = _best_method(ablation_summary, family="full_pipeline")
-    best_qa_method = _best_method(ablation_summary, uses_qa=True)
-    best_non_qa = _best_method(ablation_summary, uses_qa=False)
+    best_full_pipeline = _best_method(
+        ablation_summary, family="full_pipeline", metric="test_mean_iou"
+    )
+    best_qa_method = _best_method(
+        ablation_summary, uses_qa=True, metric="test_mean_iou"
+    )
+    best_non_qa = _best_method(ablation_summary, uses_qa=False, metric="test_mean_iou")
     best_threshold_fragility = _threshold_fragility_row(ablation_summary)
     model_dependence = _model_dependence_row(ablation_summary)
     tail_risk_method = _tail_risk_row(ablation_summary)
@@ -577,7 +698,7 @@ def _build_flags(
         and float(best_full_pipeline["threshold"]) < default_threshold,
         detail=(
             f"best full_pipeline is {best_full_pipeline['method_key']} "
-            f"(IoU={float(best_full_pipeline['mean_iou']):.4f})"
+            f"(test IoU={float(best_full_pipeline['test_mean_iou']):.4f})"
             if best_full_pipeline is not None
             else "no full_pipeline results"
         ),
@@ -715,12 +836,16 @@ def _build_overview(
     variant: str,
     split_name: str,
     default_threshold: float,
+    validation_selection_fusion_model: str | None = None,
 ) -> pd.DataFrame:
     test_metrics = _first_split_row(qa_metrics, "test")
     default_filter = _closest_threshold_row(qa_filtering, default_threshold)
-    best_overall = _best_method(ablation_summary)
-    best_qa = _best_method(ablation_summary, uses_qa=True)
-    best_non_qa = _best_method(ablation_summary, uses_qa=False)
+    best_overall = _best_method(ablation_summary, metric="test_mean_iou")
+    best_qa = _best_method(ablation_summary, uses_qa=True, metric="test_mean_iou")
+    best_non_qa = _best_method(ablation_summary, uses_qa=False, metric="test_mean_iou")
+    validation_selected = _validation_selected_full_pipeline(
+        ablation_summary, fusion_model=validation_selection_fusion_model
+    )
     unstable_method = _fold_instability_row(cross_fold_summary)
 
     return pd.DataFrame(
@@ -748,11 +873,23 @@ def _build_overview(
                 "default_recall": _series_value(default_filter, "recall"),
                 "default_filtered_pct": _series_value(default_filter, "filtered_pct"),
                 "best_overall_method": _series_value(best_overall, "method_key"),
-                "best_overall_iou": _series_value(best_overall, "mean_iou"),
+                "best_overall_iou": _series_value(best_overall, "test_mean_iou"),
                 "best_qa_method": _series_value(best_qa, "method_key"),
-                "best_qa_iou": _series_value(best_qa, "mean_iou"),
+                "best_qa_iou": _series_value(best_qa, "test_mean_iou"),
                 "best_non_qa_method": _series_value(best_non_qa, "method_key"),
-                "best_non_qa_iou": _series_value(best_non_qa, "mean_iou"),
+                "best_non_qa_iou": _series_value(best_non_qa, "test_mean_iou"),
+                "validation_selected_method": _series_value(
+                    validation_selected, "method_key"
+                ),
+                "validation_selected_threshold": _series_value(
+                    validation_selected, "threshold"
+                ),
+                "validation_selected_validation_iou": _series_value(
+                    validation_selected, "validation_mean_iou"
+                ),
+                "validation_selected_test_iou": _series_value(
+                    validation_selected, "test_mean_iou"
+                ),
                 "largest_fold_gap_method": _series_value(unstable_method, "method_key"),
                 "largest_fold_gap_iou": _series_value(unstable_method, "fold_iou_gap"),
                 "n_triggered_flags": int(flags["triggered"].fillna(False).sum())
@@ -772,6 +909,7 @@ def _render_markdown_report(
     cross_fold_summary: pd.DataFrame,
     flags: pd.DataFrame,
     default_threshold: float,
+    validation_selection_fusion_model: str | None = None,
 ) -> str:
     lines = ["# Ablation Diagnostics", ""]
 
@@ -811,6 +949,8 @@ def _render_markdown_report(
             "threshold",
             "fusion_model",
             "mean_iou",
+            "validation_mean_iou",
+            "test_mean_iou",
             "p05_iou",
             "bad_image_pct",
             "mean_cells_placed",
@@ -862,7 +1002,12 @@ def _render_markdown_report(
     lines.append("")
 
     default_row = _closest_threshold_row(qa_filtering, default_threshold)
-    best_full_pipeline = _best_method(ablation_summary, family="full_pipeline")
+    best_full_pipeline = _best_method(
+        ablation_summary, family="full_pipeline", metric="test_mean_iou"
+    )
+    validation_selected = _validation_selected_full_pipeline(
+        ablation_summary, fusion_model=validation_selection_fusion_model
+    )
     if default_row is not None or best_full_pipeline is not None:
         lines.append("## Interpretation")
         lines.append("")
@@ -875,9 +1020,16 @@ def _render_markdown_report(
             )
         if best_full_pipeline is not None:
             lines.append(
-                "- Best full-pipeline result: "
-                f"`{best_full_pipeline['method_key']}` with mean IoU "
-                f"`{float(best_full_pipeline['mean_iou']):.4f}`."
+                "- Best test full-pipeline result: "
+                f"`{best_full_pipeline['method_key']}` with test IoU "
+                f"`{float(best_full_pipeline['test_mean_iou']):.4f}`."
+            )
+        if validation_selected is not None:
+            lines.append(
+                "- Validation-selected full-pipeline result: "
+                f"`{validation_selected['method_key']}` with validation IoU "
+                f"`{float(validation_selected['validation_mean_iou']):.4f}` "
+                f"and test IoU `{float(validation_selected['test_mean_iou']):.4f}`."
             )
         if not cross_fold_summary.empty:
             unstable_method = _fold_instability_row(cross_fold_summary)
@@ -901,18 +1053,52 @@ write_qa_ablation_report = write_ablation_diagnostics_report
 
 
 def _best_method(
-    df: pd.DataFrame, *, family: str | None = None, uses_qa: bool | None = None
+    df: pd.DataFrame,
+    *,
+    family: str | None = None,
+    uses_qa: bool | None = None,
+    metric: str = "mean_iou",
 ) -> pd.Series | None:
     if df.empty:
         return None
-    subset = df
+    subset = df[df["family"] != "oracle_qa_only"]
     if family is not None:
         subset = subset[subset["family"] == family]
     if uses_qa is not None:
         subset = subset[subset["uses_qa"] == uses_qa]
     if subset.empty:
         return None
-    return subset.sort_values(["mean_iou", "mean_f1"], ascending=[False, False]).iloc[0]
+
+    if metric not in subset.columns or subset[metric].dropna().empty:
+        metric = "mean_iou"
+    f1_metric = metric.replace("_iou", "_f1")
+    sort_columns = [metric]
+    if f1_metric in subset.columns:
+        sort_columns.append(f1_metric)
+    return subset.sort_values(sort_columns, ascending=False).iloc[0]
+
+
+def _validation_selected_full_pipeline(
+    df: pd.DataFrame, *, fusion_model: str | None = None
+) -> pd.Series | None:
+    """Select a full-pipeline threshold using validation split metrics only."""
+    if df.empty:
+        return None
+    required = {"family", "validation_mean_iou", "validation_mean_f1"}
+    if not required.issubset(df.columns):
+        return None
+
+    subset = df[df["family"] == "full_pipeline"].dropna(
+        subset=["validation_mean_iou", "validation_mean_f1"]
+    )
+    if fusion_model is not None and "fusion_model" in subset.columns:
+        model_key = str(fusion_model).lower()
+        subset = subset[subset["fusion_model"].astype(str).str.lower() == model_key]
+    if subset.empty:
+        return None
+
+    sort_columns = ["validation_mean_iou", "validation_mean_f1", "threshold"]
+    return subset.sort_values(sort_columns, ascending=[False, False, True]).iloc[0]
 
 
 def _threshold_fragility_row(df: pd.DataFrame) -> pd.Series | None:
