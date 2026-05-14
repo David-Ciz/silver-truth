@@ -9,3 +9,6 @@ datasets:
   DIC-C2DH-HeLa:
     default_crop_size: 256
     crop_sizes: [256]
+  Fluo-C2DL-MSC:
+    default_crop_size: 1024
+    crop_sizes: [1024]
