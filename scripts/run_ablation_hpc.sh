@@ -18,7 +18,7 @@ PHASE="all"
 WORKFLOW="config"
 KEEP_SCRATCH=0
 MLFLOW_BACKEND="file"
-LOG_ROOT="${HOME}/logs/ablation_hpc"
+CAMPAIGN_TAG=""
 EXTRA_ARGS=()
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -27,8 +27,15 @@ if [[ -n "${SLURM_SUBMIT_DIR:-}" ]]; then
 else
     REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 fi
-DURABLE_ROOT="/mnt/proj1/eu-25-40/innovaite/silver-truth-hpc"
-SCRATCH_ROOT="/scratch/project/eu-25-40/silver-truth/ablation/${SLURM_JOB_ID:-manual}"
+DURABLE_ROOT_BASE="/mnt/proj1/eu-25-40/innovaite/silver-truth-hpc/campaigns"
+SCRATCH_ROOT_BASE="/scratch/project/eu-25-40/silver-truth/campaigns"
+LOG_ROOT_BASE="${HOME}/logs/ablation_hpc/campaigns"
+DURABLE_ROOT=""
+SCRATCH_ROOT=""
+LOG_ROOT=""
+DURABLE_ROOT_EXPLICIT=0
+SCRATCH_ROOT_EXPLICIT=0
+LOG_ROOT_EXPLICIT=0
 VENV_DIR="${REPO_ROOT}/.venv"
 
 make_abs() {
@@ -51,11 +58,16 @@ Options:
   --fold {1|2|mixed}    Fold/split selector.
   --phase {A|B|C|all}   Optional phase filter. Default: all
   --workflow MODE       config, full, or reduced. Default: config
+  --campaign-tag NAME   Optional campaign tag used to derive isolated default
+                        durable/scratch/log roots.
   --reset               Pass --reset to scripts/run_ablation.py.
   --dry-run             Pass --dry-run to scripts/run_ablation.py.
-  --durable-root PATH   Durable storage for paper_runs and MLflow.
-  --scratch-root PATH   Scratch runtime root. Default uses SLURM_JOB_ID.
-  --log-root PATH       Durable log root. Default: $HOME/logs/ablation_hpc
+  --durable-root PATH   Durable storage for paper_runs and MLflow. Default:
+                        /mnt/proj1/.../silver-truth-hpc/campaigns/<campaign-tag>
+  --scratch-root PATH   Scratch runtime root. Default:
+                        /scratch/project/.../silver-truth/campaigns/<campaign-tag>/<job-id>
+  --log-root PATH       Durable log root. Default:
+                        $HOME/logs/ablation_hpc/campaigns/<campaign-tag>
   --venv-dir PATH       Virtualenv to activate. Default: <repo>/.venv
   --mlflow-backend MODE MLflow backend: file or sqlite. Default: file
   --keep-scratch        Do not delete the per-job scratch directory on exit.
@@ -98,16 +110,23 @@ while [[ $# -gt 0 ]]; do
             WORKFLOW="${2:-}"
             shift 2
             ;;
+        --campaign-tag)
+            CAMPAIGN_TAG="${2:-}"
+            shift 2
+            ;;
         --durable-root)
             DURABLE_ROOT="${2:-}"
+            DURABLE_ROOT_EXPLICIT=1
             shift 2
             ;;
         --scratch-root)
             SCRATCH_ROOT="${2:-}"
+            SCRATCH_ROOT_EXPLICIT=1
             shift 2
             ;;
         --log-root)
             LOG_ROOT="${2:-}"
+            LOG_ROOT_EXPLICIT=1
             shift 2
             ;;
         --venv-dir)
@@ -188,6 +207,26 @@ if [[ -f "${REPO_ROOT}/${CONFIG}" ]]; then
     CONFIG="$(cd "${REPO_ROOT}" && pwd)/${CONFIG}"
 fi
 
+CONFIG_STEM="$(basename "${CONFIG}")"
+CONFIG_STEM="${CONFIG_STEM%.yaml}"
+CONFIG_STEM_SAFE="${CONFIG_STEM//[^A-Za-z0-9._-]/_}"
+WORKFLOW_SAFE="${WORKFLOW//[^A-Za-z0-9._-]/_}"
+if [[ -z "${CAMPAIGN_TAG}" ]]; then
+    timestamp="$(date +%Y%m%d_%H%M%S)"
+    CAMPAIGN_TAG="ablation_${CONFIG_STEM_SAFE}__${WORKFLOW_SAFE}__${timestamp}"
+fi
+CAMPAIGN_TAG="${CAMPAIGN_TAG//[^A-Za-z0-9._-]/_}"
+
+if [[ "${DURABLE_ROOT_EXPLICIT}" -eq 0 ]]; then
+    DURABLE_ROOT="${DURABLE_ROOT_BASE}/${CAMPAIGN_TAG}"
+fi
+if [[ "${SCRATCH_ROOT_EXPLICIT}" -eq 0 ]]; then
+    SCRATCH_ROOT="${SCRATCH_ROOT_BASE}/${CAMPAIGN_TAG}/${SLURM_JOB_ID:-manual}"
+fi
+if [[ "${LOG_ROOT_EXPLICIT}" -eq 0 ]]; then
+    LOG_ROOT="${LOG_ROOT_BASE}/${CAMPAIGN_TAG}"
+fi
+
 if [[ ! -d "${VENV_DIR}" ]]; then
     echo "ERROR: Virtualenv directory not found: ${VENV_DIR}" >&2
     exit 1
@@ -199,8 +238,6 @@ VENV_DIR="$(make_abs "${VENV_DIR}")"
 CONFIG="$(make_abs "${CONFIG}")"
 LOG_ROOT="$(make_abs "${LOG_ROOT}")"
 
-CONFIG_STEM="$(basename "${CONFIG}")"
-CONFIG_STEM="${CONFIG_STEM%.yaml}"
 JOB_NAME_SAFE="${SLURM_JOB_NAME:-ablation}"
 JOB_NAME_SAFE="${JOB_NAME_SAFE//[^A-Za-z0-9._-]/_}"
 JOB_TAG="${JOB_NAME_SAFE}__${CONFIG_STEM}__fold-${FOLD}__${WORKFLOW}__job-${SLURM_JOB_ID:-manual}"
@@ -228,6 +265,7 @@ config=${CONFIG}
 fold=${FOLD}
 phase=${PHASE}
 workflow=${WORKFLOW}
+campaign_tag=${CAMPAIGN_TAG}
 durable_root=${DURABLE_ROOT}
 log_root=${LOG_ROOT}
 job_log_dir=${JOB_LOG_DIR}
@@ -240,15 +278,16 @@ EOF
     if [[ -n "${JOB_INDEX_FILE:-}" ]]; then
         mkdir -p "$(dirname "${JOB_INDEX_FILE}")"
         if [[ ! -f "${JOB_INDEX_FILE}" ]]; then
-            printf 'job_id\tjob_name\tconfig\tfold\tphase\tworkflow\tstatus\tdurable_root\tjob_log_dir\trun_log\n' > "${JOB_INDEX_FILE}"
+            printf 'job_id\tjob_name\tconfig\tfold\tphase\tworkflow\tcampaign_tag\tstatus\tdurable_root\tjob_log_dir\trun_log\n' > "${JOB_INDEX_FILE}"
         fi
-        printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' \
+        printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' \
             "${SLURM_JOB_ID:-manual}" \
             "${SLURM_JOB_NAME:-ablation}" \
             "${CONFIG}" \
             "${FOLD}" \
             "${PHASE}" \
             "${WORKFLOW}" \
+            "${CAMPAIGN_TAG}" \
             "${final_status}" \
             "${DURABLE_ROOT}" \
             "${JOB_LOG_DIR}" \
@@ -269,6 +308,7 @@ config=${CONFIG}
 fold=${FOLD}
 phase=${PHASE}
 workflow=${WORKFLOW}
+campaign_tag=${CAMPAIGN_TAG}
 durable_root=${DURABLE_ROOT}
 log_root=${LOG_ROOT}
 job_log_dir=${JOB_LOG_DIR}
@@ -285,6 +325,7 @@ echo "Config: ${CONFIG}"
 echo "Fold: ${FOLD}"
 echo "Phase: ${PHASE}"
 echo "Workflow: ${WORKFLOW}"
+echo "Campaign tag: ${CAMPAIGN_TAG}"
 echo "Scratch root: ${SCRATCH_ROOT}"
 echo "Durable root: ${DURABLE_ROOT}"
 echo "Log root: ${LOG_ROOT}"
