@@ -12,3 +12,7 @@ datasets:
   Fluo-C2DL-MSC:
     default_crop_size: 1024
     crop_sizes: [1024]
+
+  Fluo-N2DH-GOWT1:
+    default_crop_size: 160
+    crop_sizes: [160]

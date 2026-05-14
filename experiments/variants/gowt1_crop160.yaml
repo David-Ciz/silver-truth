@@ -1,0 +1,4 @@
+extends: base
+dataset: Fluo-N2DH-GOWT1
+crop_size: 160
+
