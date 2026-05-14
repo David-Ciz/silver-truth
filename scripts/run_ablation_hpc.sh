@@ -1,6 +1,6 @@
 #!/bin/bash -l
 #SBATCH --job-name=ablation
-#SBATCH --account=eu-25-40
+#SBATCH --account=FTA-26-18
 #SBATCH --partition=qgpu
 #SBATCH --nodes=1
 #SBATCH --gpus=1
