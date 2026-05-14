@@ -7,9 +7,9 @@ import silver_truth.ensemble.ensemble as ensemble
 import silver_truth.ensemble.utils as utils
 from silver_truth.ensemble.datasets import Version
 from silver_truth.ensemble.models import ModelType
+from silver_truth.dataset_registry import infer_dataset_name_from_text
 from silver_truth.experiment_tracking import (
     DEFAULT_MLFLOW_TRACKING_URI,
-    infer_dataset_name_from_text,
     log_standardized_single_split_metrics,
     start_managed_mlflow_run,
     set_common_mlflow_tags,

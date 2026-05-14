@@ -2,9 +2,9 @@ import click
 import mlflow
 from pathlib import Path
 
+from silver_truth.dataset_registry import infer_dataset_name_from_text
 from silver_truth.fusion.fusion import FusionModel, fuse_segmentations
 from silver_truth.experiment_tracking import (
-    infer_dataset_name_from_text,
     set_common_mlflow_tags,
 )
 from silver_truth.metrics.evaluation_logic import run_evaluation

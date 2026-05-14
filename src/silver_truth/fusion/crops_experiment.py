@@ -18,9 +18,9 @@ import tifffile
 from silver_truth.data_processing.utils.dataset_dataframe_creation import (
     SILVER_TRUTH_COLUMN,
 )
+from silver_truth.dataset_registry import infer_dataset_name_from_text
 from silver_truth.experiment_tracking import (
     DEFAULT_MLFLOW_TRACKING_URI,
-    infer_dataset_name_from_text,
     infer_split_from_dataframe,
     log_standardized_split_metrics,
     resolve_mlflow_tracking_uri,

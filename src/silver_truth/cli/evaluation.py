@@ -41,9 +41,9 @@ from silver_truth.qa.filtering_evaluation import run_qa_filtering_evaluation
 from silver_truth.data_processing.utils.dataset_dataframe_creation import (
     SILVER_TRUTH_COLUMN,
 )
+from silver_truth.dataset_registry import infer_dataset_name_from_text
 from silver_truth.experiment_tracking import (
     DEFAULT_MLFLOW_TRACKING_URI,
-    infer_dataset_name_from_text,
     log_standardized_split_metrics,
     start_managed_mlflow_run,
     set_common_mlflow_tags,

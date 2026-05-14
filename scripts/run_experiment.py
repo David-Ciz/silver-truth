@@ -3,8 +3,8 @@ import mlflow
 import subprocess
 from pathlib import Path
 
+from silver_truth.dataset_registry import infer_dataset_name_from_text
 from silver_truth.experiment_tracking import (
-    infer_dataset_name_from_text,
     set_common_mlflow_tags,
 )
 

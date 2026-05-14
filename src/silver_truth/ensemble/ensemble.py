@@ -9,9 +9,9 @@ import silver_truth.ensemble.reconstruction as reconstruction
 import silver_truth.ensemble.training as training
 from silver_truth.ensemble.models import SMP_Model
 import silver_truth.ensemble.utils as utils
+from silver_truth.dataset_registry import infer_dataset_name_from_text
 from silver_truth.experiment_tracking import (
     ensure_mlflow_experiment,
-    infer_dataset_name_from_text,
     infer_split_from_dataframe,
     resolve_mlflow_experiment_name,
     resolve_mlflow_tracking_uri,
@@ -288,7 +288,9 @@ def generate_evaluation(
             tn_parts.append(tn.detach().cpu())
 
     if not reconst_parts:
-        raise ValueError(f"No samples found for split '{split_type}' in {databank_path}.")
+        raise ValueError(
+            f"No samples found for split '{split_type}' in {databank_path}."
+        )
 
     reconst_imgs = torch.cat(reconst_parts, dim=0)
     tp = torch.cat(tp_parts, dim=0)
