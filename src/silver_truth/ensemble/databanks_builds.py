@@ -20,6 +20,38 @@ Databank_type = Version
 SPLIT_COL = p_utils.SPLITS_COLUMN
 
 
+def _crop_2d_with_zero_padding(
+    image: np.ndarray,
+    y_min: int,
+    y_max: int,
+    x_min: int,
+    x_max: int,
+) -> tuple[np.ndarray, tuple[int, int, int, int]]:
+    """Crop a 2D image, padding with zeros when the window crosses boundaries."""
+    if image.ndim != 2:
+        raise ValueError(f"Expected 2D image, got shape {image.shape}.")
+
+    pad_top = max(0, -y_min)
+    pad_left = max(0, -x_min)
+    pad_bottom = max(0, y_max - image.shape[0])
+    pad_right = max(0, x_max - image.shape[1])
+
+    padded = np.pad(
+        image,
+        ((pad_top, pad_bottom), (pad_left, pad_right)),
+        mode="constant",
+        constant_values=0,
+    )
+    adjusted = (
+        y_min + pad_top,
+        y_max + pad_top,
+        x_min + pad_left,
+        x_max + pad_left,
+    )
+    adj_y_min, adj_y_max, adj_x_min, adj_x_max = adjusted
+    return padded[adj_y_min:adj_y_max, adj_x_min:adj_x_max], adjusted
+
+
 def _load_training_qa_dataframe(qa_dataset_path: str) -> pd.DataFrame:
     df = ext.load_parquet(qa_dataset_path)
     if "competitor" in df.columns:
@@ -378,58 +410,23 @@ def build_databank_Norm(build_opt: dict, qa_dataset_path: str, output_path: str)
             gt_crop_min_x = qa_crop_original_center_x - canvas_half_size + obj_min_x
             gt_crop_max_x = gt_crop_min_x + crop_size
 
-            gt_temp = gt_image.copy()
-            raw_temp = raw_image.copy()
-
-            if gt_crop_min_y < 0:
-                y_inc = -gt_crop_min_y
-                gt_temp = np.vstack((np.zeros((y_inc, gt_temp.shape[1])), gt_temp))
-                raw_temp = np.vstack((np.zeros((y_inc, raw_temp.shape[1])), raw_temp))
-                gt_crop_max_y += y_inc
-                gt_crop_min_y = 0
-            if gt_crop_min_x < 0:
-                x_inc = -gt_crop_min_x
-                gt_temp = np.hstack((np.zeros((gt_temp.shape[0], x_inc)), gt_temp))
-                raw_temp = np.hstack((np.zeros((raw_temp.shape[0], x_inc)), raw_temp))
-                gt_crop_max_x += x_inc
-                gt_crop_min_x = 0
-            if gt_image.shape[0] < gt_crop_max_y:
-                gt_temp = np.vstack(
-                    (
-                        gt_temp,
-                        np.zeros((gt_crop_max_y - gt_temp.shape[0], gt_temp.shape[1])),
-                    )
-                )
-                raw_temp = np.vstack(
-                    (
-                        raw_temp,
-                        np.zeros(
-                            (gt_crop_max_y - raw_temp.shape[0], raw_temp.shape[1])
-                        ),
-                    )
-                )
-            if gt_image.shape[1] < gt_crop_max_x:
-                gt_temp = np.hstack(
-                    (
-                        gt_temp,
-                        np.zeros((gt_temp.shape[0], gt_crop_max_x - gt_temp.shape[1])),
-                    )
-                )
-                raw_temp = np.hstack(
-                    (
-                        raw_temp,
-                        np.zeros(
-                            (raw_temp.shape[0], gt_crop_max_x - raw_temp.shape[1])
-                        ),
-                    )
-                )
-
-            gt_crop = gt_temp[gt_crop_min_y:gt_crop_max_y, gt_crop_min_x:gt_crop_max_x]
+            requested_crop = (
+                int(gt_crop_min_y),
+                int(gt_crop_max_y),
+                int(gt_crop_min_x),
+                int(gt_crop_max_x),
+            )
+            gt_crop, adjusted_coords = _crop_2d_with_zero_padding(
+                gt_image,
+                *requested_crop,
+            )
+            gt_crop_min_y, gt_crop_max_y, gt_crop_min_x, gt_crop_max_x = adjusted_coords
             gt_crop = (gt_crop == label).astype(np.uint8) * 255
 
-            raw_crop = raw_temp[
-                gt_crop_min_y:gt_crop_max_y, gt_crop_min_x:gt_crop_max_x
-            ]
+            raw_crop, _ = _crop_2d_with_zero_padding(
+                raw_image,
+                *requested_crop,
+            )
 
             # stack layers
             stacked_crop = np.stack([canvas_crop, gt_crop, raw_crop], axis=0)

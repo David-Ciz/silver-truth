@@ -461,6 +461,7 @@ def build_steps(cfg: dict[str, Any]) -> list[dict[str, Any]]:
                     f"  --dataset-name {dataset} "
                     f"  --qa-parquet-path {qa_parquet} "
                     f"  --version {ensemble_version} "
+                    f"  --crop-size {cfg['crop_size']} "
                     f"  --output-dir {_baseline_db_dir}"
                 ),
                 "output_hint": _baseline_db_parquet,
@@ -937,6 +938,7 @@ def build_steps(cfg: dict[str, Any]) -> list[dict[str, Any]]:
                         f"  --dataset-name {dataset} "
                         f"  --qa-parquet-path {filtered_pq} "
                         f"  --version {ensemble_version} "
+                        f"  --crop-size {cfg['crop_size']} "
                         f"  --output-dir {_qa_db_dir}"
                     ),
                     "output_hint": _qa_db_parquet,
@@ -1068,6 +1070,7 @@ def build_steps(cfg: dict[str, Any]) -> list[dict[str, Any]]:
                     f"  --dataset-name {dataset} "
                     f"  --qa-parquet-path {filtered_pq} "
                     f"  --version {ensemble_version} "
+                    f"  --crop-size {cfg['crop_size']} "
                     f"  --output-dir {_retrain_db_dir}"
                 ),
                 "output_hint": _retrain_db_parquet,

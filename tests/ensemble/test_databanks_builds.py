@@ -36,6 +36,24 @@ def _base_build_opt() -> dict:
     }
 
 
+def test_crop_2d_with_zero_padding_handles_cross_boundary_window() -> None:
+    image = np.ones((8, 8), dtype=np.uint8)
+
+    crop, adjusted = db_builds._crop_2d_with_zero_padding(
+        image,
+        -4,
+        6,
+        -3,
+        7,
+    )
+
+    assert crop.shape == (10, 10)
+    assert adjusted == (0, 10, 0, 10)
+    assert np.all(crop[:4, :] == 0)
+    assert np.all(crop[:, :3] == 0)
+    assert np.all(crop[4:, 3:] == 1)
+
+
 def test_build_databank_image_level_combines_all_cell_masks(
     tmp_path: Path, monkeypatch
 ) -> None:
