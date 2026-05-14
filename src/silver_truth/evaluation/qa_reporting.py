@@ -423,6 +423,24 @@ def _summarize_result_table(path: Path) -> dict[str, Any] | None:
     if "iou" not in df.columns or "f1" not in df.columns:
         return None
 
+    def _metric_mean(table: pd.DataFrame, column: str) -> float:
+        values = pd.to_numeric(table[column], errors="coerce")
+        valid = values.notna()
+        if not valid.any():
+            return float("nan")
+
+        if "labels_scored" not in table.columns:
+            return float(values[valid].mean())
+
+        weights = pd.to_numeric(table["labels_scored"], errors="coerce")
+        weight_valid = valid & weights.notna() & (weights > 0)
+        if not weight_valid.any():
+            return float(values[valid].mean())
+        return float(
+            (values[weight_valid] * weights[weight_valid]).sum()
+            / weights[weight_valid].sum()
+        )
+
     def _split_metric(split_name: str, column: str, *, count: bool = False) -> float:
         if "split" not in df.columns:
             return 0.0 if count else float("nan")
@@ -431,7 +449,7 @@ def _summarize_result_table(path: Path) -> dict[str, Any] | None:
             return float(len(split_df))
         if split_df.empty:
             return float("nan")
-        return float(pd.to_numeric(split_df[column], errors="coerce").mean())
+        return _metric_mean(split_df, column)
 
     return {
         "method_key": method_key,
@@ -441,8 +459,8 @@ def _summarize_result_table(path: Path) -> dict[str, Any] | None:
         "threshold": threshold,
         "fusion_model": fusion_model,
         "n_images": int(len(df)),
-        "mean_iou": float(pd.to_numeric(df["iou"], errors="coerce").mean()),
-        "mean_f1": float(pd.to_numeric(df["f1"], errors="coerce").mean()),
+        "mean_iou": _metric_mean(df, "iou"),
+        "mean_f1": _metric_mean(df, "f1"),
         "validation_n_images": int(_split_metric("validation", "iou", count=True)),
         "validation_mean_iou": _split_metric("validation", "iou"),
         "validation_mean_f1": _split_metric("validation", "f1"),

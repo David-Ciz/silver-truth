@@ -1432,6 +1432,34 @@ def summarize_paper_results(paper_runs_root: Path, output: Optional[Path]) -> No
     click.echo(f"Paper result summary written to: {output_path} ({len(rows)} rows)")
 
 
+@click.command("combine-paper-result-summaries")
+@click.argument(
+    "summary_csvs",
+    nargs=-1,
+    required=True,
+    type=click.Path(exists=True, dir_okay=False, path_type=Path),
+)
+@click.option(
+    "--output",
+    "-o",
+    required=True,
+    type=click.Path(path_type=Path),
+    help="Output CSV path for the combined all-dataset paper result summary.",
+)
+def combine_paper_result_summaries(
+    summary_csvs: tuple[Path, ...], output: Path
+) -> None:
+    """Combine canonical paper_result_summary.csv files across run roots."""
+    try:
+        rows = _combine_paper_result_summaries(list(summary_csvs))
+    except ValueError as exc:
+        raise click.ClickException(str(exc)) from exc
+
+    output.parent.mkdir(parents=True, exist_ok=True)
+    rows.to_csv(output, index=False)
+    click.echo(f"Combined paper result summary written to: {output} ({len(rows)} rows)")
+
+
 def _build_paper_result_summary(paper_runs_root: Path) -> pd.DataFrame:
     report_root = paper_runs_root / "reports"
     records: list[dict[str, object]] = []
@@ -1464,6 +1492,30 @@ def _build_paper_result_summary(paper_runs_root: Path) -> pd.DataFrame:
     ]
     result = pd.concat([fold_df, pd.DataFrame(mean_rows)], ignore_index=True)
     return result[_paper_result_columns()].sort_values(
+        ["dataset", "crop_tag", "variant", "row_type", "fold"],
+        ascending=[True, True, True, True, True],
+    )
+
+
+def _combine_paper_result_summaries(summary_paths: list[Path]) -> pd.DataFrame:
+    frames: list[pd.DataFrame] = []
+    columns = _paper_result_columns()
+    for summary_path in summary_paths:
+        summary = pd.read_csv(summary_path)
+        missing = [column for column in columns if column not in summary.columns]
+        if missing:
+            raise ValueError(
+                f"{summary_path} is missing required columns: {', '.join(missing)}"
+            )
+        frames.append(summary[columns])
+
+    if not frames:
+        return pd.DataFrame(columns=columns)
+
+    combined = pd.concat(frames, ignore_index=True)
+    key_columns = ["dataset", "crop_tag", "variant", "fold", "row_type"]
+    combined = combined.drop_duplicates(subset=key_columns, keep="last")
+    return combined[columns].sort_values(
         ["dataset", "crop_tag", "variant", "row_type", "fold"],
         ascending=[True, True, True, True, True],
     )
@@ -1696,6 +1748,7 @@ cli.add_command(report_overflow_impact)
 cli.add_command(report_ablation)
 cli.add_command(select_ablation_threshold)
 cli.add_command(summarize_paper_results)
+cli.add_command(combine_paper_result_summaries)
 
 
 if __name__ == "__main__":

@@ -1,10 +1,9 @@
 from __future__ import annotations
 
 import os
-import re
 import subprocess
 from pathlib import Path
-from typing import Any, Iterable, Mapping, Optional
+from typing import Any, Iterable, Mapping, Optional, SupportsFloat, SupportsIndex, cast
 import math
 
 import mlflow
@@ -27,6 +26,8 @@ ABLATION_RUN_KEY_ENV = "SILVER_TRUTH_ABLATION_STATE_RUN_ID"
 ABLATION_CONFIG_ENV = "SILVER_TRUTH_ABLATION_CONFIG_PATH"
 
 MLFLOW_PARENT_RUN_TAG = "mlflow.parentRunId"
+
+FloatLike = str | bytes | bytearray | SupportsFloat | SupportsIndex
 
 
 def _run_command(command: list[str], cwd: Optional[Path] = None) -> Optional[str]:
@@ -221,18 +222,6 @@ def get_dvc_commit(repo_root: Optional[Path] = None) -> str:
     return commit
 
 
-def infer_dataset_name_from_text(values: Iterable[object]) -> str:
-    pattern = re.compile(r"(BF-C2DL-HSC|BF-C2DL-MuSC|DIC-C2DH-HeLa)")
-    for value in values:
-        if value is None:
-            continue
-        text = str(value)
-        match = pattern.search(text)
-        if match:
-            return match.group(1)
-    return "unknown"
-
-
 def infer_split_label(values: Iterable[object]) -> str:
     cleaned = sorted(
         {str(value) for value in values if value is not None and str(value)}
@@ -325,17 +314,12 @@ def metric_split_alias(split: str) -> str:
 
 
 def _is_finite_number(value: object) -> bool:
-    if value is None:
-        return False
-    try:
-        return math.isfinite(float(value))
-    except (TypeError, ValueError):
-        return False
+    return _to_finite_float(value) is not None
 
 
 def _to_finite_float(value: object) -> Optional[float]:
     try:
-        numeric = float(value)
+        numeric = float(cast(FloatLike, value))
     except (TypeError, ValueError):
         return None
     if not math.isfinite(numeric):

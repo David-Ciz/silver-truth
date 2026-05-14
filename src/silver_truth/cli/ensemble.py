@@ -220,7 +220,7 @@ def ensemble_experiment(
 @click.option(
     "--dataset-name",
     required=True,
-    type=click.Choice(sorted(utils.ORIGINAL_DATASETS.keys()), case_sensitive=False),
+    type=str,
     help="Dataset name used in the QA parquet.",
 )
 @click.option(

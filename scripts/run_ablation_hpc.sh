@@ -308,21 +308,65 @@ if [[ -z "${DATASET_NAME}" ]]; then
     exit 1
 fi
 
+mapfile -t STAGING_VALUES < <(python - <<PY
+from pathlib import Path
+import sys
+
+sys.path.insert(0, "${REPO_ROOT}")
+from scripts.run_ablation import load_config
+
+cfg = load_config(Path("${CONFIG}"), "${FOLD}")
+print(cfg["whole_image_parquet_template"])
+print(cfg["qa_parquet_template"])
+print(cfg["crop_size"])
+PY
+)
+SOURCE_WHOLE_IMAGE_PARQUET="${STAGING_VALUES[0]}"
+SOURCE_QA_PARQUET="${STAGING_VALUES[1]}"
+CROP_SIZE="${STAGING_VALUES[2]}"
+
+stage_file_to_scratch() {
+    local source_path="$1"
+    local relative_path=""
+
+    if [[ "${source_path}" = /* ]]; then
+        relative_path="${source_path#${REPO_ROOT}/}"
+    else
+        relative_path="${source_path}"
+        source_path="${REPO_ROOT}/${source_path}"
+    fi
+
+    if [[ ! -e "${source_path}" ]]; then
+        echo "ERROR: Required staging source not found: ${source_path}" >&2
+        exit 1
+    fi
+
+    mkdir -p "${SCRATCH_ROOT}/$(dirname "${relative_path}")"
+    rsync -aL "${source_path}" "${SCRATCH_ROOT}/${relative_path}"
+}
+
 echo "Staging data to scratch..."
 mkdir -p \
     "${SCRATCH_ROOT}/data/synchronized_data" \
     "${SCRATCH_ROOT}/data/dataframes/${DATASET_NAME}" \
-    "${SCRATCH_ROOT}/data/qa_crops"
+    "${SCRATCH_ROOT}/data/qa_crops/${DATASET_NAME}"
 rsync -aL --delete \
     "${REPO_ROOT}/data/synchronized_data/${DATASET_NAME}/" \
     "${SCRATCH_ROOT}/data/synchronized_data/${DATASET_NAME}/"
-rsync -aL --delete \
-    "${REPO_ROOT}/data/dataframes/${DATASET_NAME}/" \
-    "${SCRATCH_ROOT}/data/dataframes/${DATASET_NAME}/"
-if [[ -d "${REPO_ROOT}/data/qa_crops/${DATASET_NAME}" ]]; then
+
+echo "Staging resolved dataframe inputs only..."
+stage_file_to_scratch "${SOURCE_WHOLE_IMAGE_PARQUET}"
+stage_file_to_scratch "${SOURCE_QA_PARQUET}"
+
+SOURCE_QA_CROP_DIR="${REPO_ROOT}/data/qa_crops/${DATASET_NAME}/sz${CROP_SIZE}"
+if [[ -d "${SOURCE_QA_CROP_DIR}" ]]; then
+    echo "Staging QA crop directory: ${SOURCE_QA_CROP_DIR}"
+    mkdir -p "${SCRATCH_ROOT}/data/qa_crops/${DATASET_NAME}"
     rsync -aL --delete \
-        "${REPO_ROOT}/data/qa_crops/${DATASET_NAME}/" \
-        "${SCRATCH_ROOT}/data/qa_crops/${DATASET_NAME}/"
+        "${SOURCE_QA_CROP_DIR}/" \
+        "${SCRATCH_ROOT}/data/qa_crops/${DATASET_NAME}/sz${CROP_SIZE}/"
+else
+    echo "WARNING: QA crop directory not found, continuing because not all phases require it: ${SOURCE_QA_CROP_DIR}"
 fi
 
 if [[ "${MLFLOW_BACKEND}" == "sqlite" ]]; then

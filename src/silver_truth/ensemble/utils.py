@@ -3,12 +3,10 @@ import tifffile
 from scipy.ndimage import find_objects
 import silver_truth.ensemble.external as ext
 import torch
+from silver_truth.dataset_registry import LEGACY_DATABANK_DATASET_IDS, dataset_id
 
-ORIGINAL_DATASETS = {
-    "BF-C2DL-HSC": "ds1",
-    "BF-C2DL-MuSC": "ds2",
-    "DIC-C2DH-HeLa": "ds3",
-}
+# Backwards-compatible public name used by older code.
+ORIGINAL_DATASETS = LEGACY_DATABANK_DATASET_IDS
 
 DATABANKS_DIR = "data/ensemble_data/databanks"
 
@@ -65,7 +63,7 @@ def get_databank_name(build_opt: dict) -> str:
         if build_opt["qa"]
         else "QA--"
     )
-    return f'{databank_version.name}_{ORIGINAL_DATASETS[build_opt["name"]]}-{get_splits_name(build_opt)}_{qa_name}'
+    return f'{databank_version.name}_{dataset_id(build_opt["name"])}-{get_splits_name(build_opt)}_{qa_name}'
 
 
 def get_splits_name(build_opt: dict) -> str:

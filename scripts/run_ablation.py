@@ -44,6 +44,7 @@ import mlflow
 import yaml  # type: ignore[import-untyped]
 from mlflow.tracking import MlflowClient
 
+from silver_truth.dataset_registry import dataset_id
 from silver_truth.experiment_tracking import (
     ABLATION_CONFIG_ENV,
     ABLATION_EXPERIMENT_ENV,
@@ -113,15 +114,9 @@ def _databank_dir(
 def _databank_parquet(databank_dir: str, dataset: str, version: str = "C1") -> str:
     """
     Reproduce the parquet filename written by build-databank inside the given dir.
-    Pattern: {version}_{ds_code}-42-7015_QA--.parquet
+    Pattern: {version}_{dataset_id}-42-7015_QA--.parquet
     """
-    _DS_CODES = {
-        "BF-C2DL-HSC": "ds1",
-        "BF-C2DL-MuSC": "ds2",
-        "DIC-C2DH-HeLa": "ds3",
-    }
-    ds_code = _DS_CODES.get(dataset, dataset)
-    name = f"{version}_{ds_code}-42-7015_QA--"
+    name = f"{version}_{dataset_id(dataset)}-42-7015_QA--"
     return f"{databank_dir}/{name}.parquet"
 
 
