@@ -56,7 +56,7 @@ class SMP_Model(pl.LightningModule):
                 )
             case ModelType.UnetPlusPlus:
                 return smp.UnetPlusPlus(
-                    encoder_name=enc_name, encoder_weights=pretrain, in_channels=num_inputs
+                    encoder_name=enc_name, encoder_weights=pretrain, in_channels=num_inputs, decoder_attention_type="scse"
                 )
             case ModelType.FPN:
                 return smp.FPN(
