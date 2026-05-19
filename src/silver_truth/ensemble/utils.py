@@ -93,12 +93,18 @@ def get_databank_name(build_opt: dict) -> str:
     """
     Returns the databank name according to a build options dictionary.
     """
-    qa_name = (
-        f'{build_opt["qa"]}_t{int(build_opt["qa_threshold"]*100)}'
-        if build_opt["qa"]
-        else "QA--"
-    )
-    return f'{build_opt["databank"].name}_{ORIGINAL_DATASETS[build_opt["name"]]}-{get_splits_name(build_opt)}_{qa_name}'
+    qa_name = (f'{build_opt["qa"]}_t{int(build_opt["qa_threshold"]*100)}' if build_opt["qa"] else "QA--")
+    f1vn = get_fold1_version_name(build_opt)
+    return f'{build_opt["databank"].name}_{ORIGINAL_DATASETS[build_opt["name"]]}{f1vn}-{get_splits_name(build_opt)}_{qa_name}'
+
+
+def get_fold1_version_name(build_opt: dict) -> str:
+    if "fold1_version" in build_opt:
+        f1v = build_opt["fold1_version"]
+        assert(f1v == 0 or f1v == 1 or f1v == 2)
+        return f"-f1v{f1v}"
+    else:
+        return ""
 
 
 def get_splits_name(build_opt: dict) -> str:
