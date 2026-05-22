@@ -1,6 +1,7 @@
 import os
 
 import matplotlib.pyplot as plt
+import random
 # from src.data_processing.label_synchronizer import verify_dataset_synchronization_logic
 from silver_truth.ensemble.databanks_builds import Databank_type
 from silver_truth.ensemble.datasets import Version
@@ -128,6 +129,51 @@ def evaluate_models(models_paths, build_opt_list):
             ensemble.generate_evaluation(model_path, databanks_path, "all")
 
 
+def change_fold1_splits_distribution(databank_opt: dict) -> str:
+    """
+    Creates a new parquet with split distribution changed, from original (Mode 0), according to the selected split_mode.
+    Mode 1: all the train data on "c01", 33/67% on "c02" for val/test.
+    Mode 2: split "c01" train/val in 80/20% and the "c02" in 20/80% val/test.
+    """
+    fold1_version = databank_opt["fold1_version"]
+    assert(fold1_version == 1 or fold1_version == 2)
+    
+    new_parquet_path = os.path.join(utils.DATABANKS_DIR, utils.get_databank_name(databank_opt) + ".parquet")
+    ori_opt = databank_opt.copy()
+    ori_opt["fold1_version"] = 0
+    original_parquet_path = os.path.join(utils.DATABANKS_DIR, utils.get_databank_name(ori_opt) + ".parquet")
+
+    def set_dataframe_splits(df, campaign, split_seed, split1, split1_percent, split2):
+        c0n_count = (df["campaign"] == campaign).sum()
+        # create splits array
+        split1_count = round(c0n_count * split1_percent)
+        split2_count = c0n_count - split1_count
+        new_splits = (([split1] * split1_count) + ([split2] * split2_count))
+        # suffle
+        random.Random(split_seed).shuffle(new_splits)
+        # set splits
+        df.loc[df["campaign"] == campaign, "split"] = new_splits
+
+    df = ext.load_parquet(original_parquet_path)
+
+    if fold1_version == 1:
+        # set train splits for all campaign 1
+        df.loc[df["campaign"] == "c01", "split"] = "train"
+        # set validation splits to 33% of campaign 2 and test splits for the rest
+        set_dataframe_splits(df, "c02", databank_opt["split_seed"], "validation", 0.33, "test")
+    elif fold1_version == 2:
+        # set train splits to 80% of campaign 1 and validation splits for the rest
+        # NOTE: no need to set this as it comes already splitted 80/20
+        #set_dataframe_splits(df, "c01", databank_opt["split_seed"], "train", 0.8, "validation")
+        # set validation splits to 20% of campaign 2 and test splits for the rest
+        set_dataframe_splits(df, "c02", databank_opt["split_seed"], "validation", 0.2, "test")
+    else:
+        raise Exception(f"Error: unknown fold1_version option: \"{fold1_version}\".")
+    
+    df.to_parquet(new_parquet_path)
+    return new_parquet_path
+
+
 build_opt_list = [
     {
         "name": "BF-C2DL-HSC",
@@ -237,10 +283,11 @@ build_opt_list = [
         "name": "BF-C2DL-HSC",
         "databank": Databank_type.Norm,
         "dataset": Version.C1,
+        "fold1_version": 1,
         "crop_size": 64,
         "split_seed": 42,
-        "split_sets": [0.7, 0.15, 0.15],
-        #"split_sets": [0.8, 0.2, 0.0],
+        #"split_sets": [0.7, 0.15, 0.15],
+        "split_sets": [0.8, 0.2, 0.0],
         "qa": None,
     },]
 
@@ -259,6 +306,9 @@ build_opt_list = [
 #show_cell_size_hist(build_opt_list[0])
 
 #ensemble_databanks = build_ensemble_databanks(build_opt_list)
+
+#NOTE: create new parquet when receiving new fold1 parquet
+#change_fold1_splits_distribution(build_opt_list[0])
 
 databank_opt = build_opt_list[0]
 run_sequence = [
