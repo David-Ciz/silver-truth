@@ -1606,15 +1606,17 @@ def _median_competitor_name(per_competitor: pd.Series) -> str:
 
 def _summarize_methods_for_paper_table(summary: pd.DataFrame) -> dict[str, object]:
     diagnostics = {"oracle_qa_only", "competitor_prior_qa_only"}
-    deployable = summary[~summary["family"].isin(diagnostics)].copy()
-    deployable = deployable.dropna(subset=["test_mean_iou"])
+    ours_deployable = summary[
+        ~summary["family"].isin(diagnostics | {"fusion_only"})
+    ].copy()
+    ours_deployable = ours_deployable.dropna(subset=["test_mean_iou"])
 
     best_fusion = _best_row(
         summary[summary["family"] == "fusion_only"], "test_mean_iou"
     )
-    best_ours = _best_row(deployable, "test_mean_iou")
+    best_ours = _best_row(ours_deployable, "test_mean_iou")
     validation_selected = _best_row(
-        deployable.dropna(subset=["validation_mean_iou", "test_mean_iou"]),
+        ours_deployable.dropna(subset=["validation_mean_iou", "test_mean_iou"]),
         "validation_mean_iou",
     )
     oracle = _best_row(summary[summary["family"] == "oracle_qa_only"], "test_mean_iou")

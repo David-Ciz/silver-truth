@@ -305,11 +305,13 @@ def build_databank_Norm(build_opt: dict, qa_dataset_path: str, output_path: str)
 
     # loads the QA dataset
     df = _load_training_qa_dataframe(qa_dataset_path)
+    if build_opt.get("aggregation_level") == "image":
+        return _build_databank_norm_image_level(build_opt, df, output_path)
 
     # get the gt images
     unique_gt_images = df["gt_image"].unique()
     # get crop size
-    crop_size = df.iloc[0]["crop_size"]
+    crop_size = _resolve_crop_size(df, build_opt)
     qa_crop_half_size = crop_size // 2
     # sets the size of the array that will contain the summed images
     canvas_size = crop_size * 4 if crop_size <= 64 else crop_size * 2
@@ -327,7 +329,7 @@ def build_databank_Norm(build_opt: dict, qa_dataset_path: str, output_path: str)
         # load gt image
         gt_image = tifffile.imread(gt_image_path)
         # load raw image
-        raw_image = tifffile.imread(df_shared_gt["original_image_path"].values[0])
+        raw_image = _load_raw_image_or_zeros(df_shared_gt, gt_image)
         # find the different labels in a gt
         labels = np.unique(gt_image)[1:]
 
@@ -416,11 +418,10 @@ def build_databank_Norm(build_opt: dict, qa_dataset_path: str, output_path: str)
                 int(gt_crop_min_x),
                 int(gt_crop_max_x),
             )
-            gt_crop, adjusted_coords = _crop_2d_with_zero_padding(
+            gt_crop, _ = _crop_2d_with_zero_padding(
                 gt_image,
                 *requested_crop,
             )
-            gt_crop_min_y, gt_crop_max_y, gt_crop_min_x, gt_crop_max_x = adjusted_coords
             gt_crop = (gt_crop == label).astype(np.uint8) * 255
 
             raw_crop, _ = _crop_2d_with_zero_padding(
@@ -442,17 +443,20 @@ def build_databank_Norm(build_opt: dict, qa_dataset_path: str, output_path: str)
             data_list.append(
                 {
                     "campaign": campaign,
-                    "campaign_number": campaign,
+                    "campaign_number": first_row.get("campaign_number", campaign),
                     "image_id": img_id,
-                    "original_image_key": img_id,
+                    "original_image_key": first_row.get("original_image_key", img_id),
                     "label": label,
                     "crop_size": crop_size,
                     "image_path": new_image_path,
                     "gt_image": gt_image_path,
-                    "recon_crop_y_start": gt_crop_min_y,
-                    "recon_crop_y_end": gt_crop_max_y,
-                    "recon_crop_x_start": gt_crop_min_x,
-                    "recon_crop_x_end": gt_crop_max_x,
+                    # Store the requested image-space window, not the padded
+                    # array indices returned by _crop_2d_with_zero_padding.
+                    # Reconstruction clips negative/out-of-bounds starts.
+                    "recon_crop_y_start": requested_crop[0],
+                    "recon_crop_y_end": requested_crop[1],
+                    "recon_crop_x_start": requested_crop[2],
+                    "recon_crop_x_end": requested_crop[3],
                     SPLIT_COL: first_row[SPLIT_COL],
                     "qa_jaccard_avg": df_same_cell[build_opt["qa"]].mean()
                     if build_opt["qa"]
@@ -460,6 +464,10 @@ def build_databank_Norm(build_opt: dict, qa_dataset_path: str, output_path: str)
                     "qa_jaccard_min": df_same_cell[build_opt["qa"]].min()
                     if build_opt["qa"]
                     else 0,
+                    "qa_centering": first_row.get("centering"),
+                    "qa_center_agreement_count": first_row.get(
+                        "center_agreement_count"
+                    ),
                 }
             )
 
@@ -475,3 +483,129 @@ def build_databank_Norm(build_opt: dict, qa_dataset_path: str, output_path: str)
     output_df.to_parquet(parquet_output_path)
 
     return parquet_output_path
+
+
+def _build_databank_norm_image_level(
+    build_opt: dict, df: pd.DataFrame, output_path: str
+) -> str:
+    databank_foldername = utils.get_databank_name(build_opt)
+    images_output_path = os.path.join(output_path, databank_foldername)
+    Path(images_output_path).mkdir(parents=True, exist_ok=True)
+
+    data_list = []
+    unique_gt_images = df["gt_image"].unique()
+    num_removed_segs = 0
+
+    print(f"\n{build_opt}")
+    for gt_image_path in tqdm(
+        unique_gt_images, total=len(unique_gt_images), desc="Iterating over gt"
+    ):
+        df_shared_gt = df[df["gt_image"] == gt_image_path]
+        first_row = df_shared_gt.iloc[0]
+        gt_image = tifffile.imread(gt_image_path)
+        raw_image = _load_raw_image_or_zeros(df_shared_gt, gt_image)
+        vote_image = np.zeros(gt_image.shape, dtype=np.int32)
+
+        labels = np.unique(gt_image)[1:]
+        for label in labels:
+            df_same_cell = df_shared_gt[df_shared_gt["label"] == label]
+            if df_same_cell.empty:
+                continue
+            num_segs = len(df_same_cell)
+            if build_opt["qa"] is not None:
+                df_same_cell_thresh = df_same_cell[
+                    df_same_cell[build_opt["qa"]] > build_opt["qa_threshold"]
+                ]
+                if len(df_same_cell_thresh) > 0:
+                    df_same_cell = df_same_cell_thresh
+                else:
+                    max_ite = df_same_cell[build_opt["qa"]].values.argmax()
+                    df_same_cell = df_same_cell.iloc[max_ite : max_ite + 1]
+            num_removed_segs += num_segs - len(df_same_cell)
+
+            label_votes = np.zeros(gt_image.shape, dtype=np.int32)
+            for row in df_same_cell.itertuples():
+                label_votes += _read_candidate_mask(row.stacked_path).astype(np.int32)
+            vote_image += label_votes // len(df_same_cell)
+
+        vote_image = np.clip(vote_image, 0, 255).astype(np.uint8)
+        gt_binary = (gt_image > 0).astype(np.uint8) * 255
+        stacked_image = np.stack([vote_image, gt_binary, raw_image], axis=0)
+
+        campaign = _first_present(first_row, "campaign_number", default="")
+        img_id = _first_present(
+            first_row, "original_image_key", default=Path(gt_image_path).stem
+        )
+        new_image_name = f"{campaign}_{img_id}.tif" if campaign else f"{img_id}.tif"
+        new_image_path = os.path.join(images_output_path, new_image_name)
+        write_tiff_lossless(new_image_path, stacked_image)
+
+        data_list.append(
+            {
+                "campaign": campaign,
+                "campaign_number": campaign,
+                "image_id": img_id,
+                "original_image_key": img_id,
+                "crop_size": first_row.get("crop_size"),
+                "image_path": new_image_path,
+                "gt_image": gt_image_path,
+                "recon_crop_y_start": 0,
+                "recon_crop_y_end": gt_image.shape[0],
+                "recon_crop_x_start": 0,
+                "recon_crop_x_end": gt_image.shape[1],
+                SPLIT_COL: first_row[SPLIT_COL],
+                "qa_jaccard_avg": df_shared_gt[build_opt["qa"]].mean()
+                if build_opt["qa"]
+                else 0,
+                "qa_jaccard_min": df_shared_gt[build_opt["qa"]].min()
+                if build_opt["qa"]
+                else 0,
+            }
+        )
+
+    print(
+        f"Number of removed segmentations: {num_removed_segs} ({((num_removed_segs/len(df))*100):.2f}%)"
+    )
+    output_df = pd.DataFrame(data_list)
+    parquet_output_path = os.path.join(output_path, f"{databank_foldername}.parquet")
+    output_df.to_parquet(parquet_output_path)
+    return parquet_output_path
+
+
+def _resolve_crop_size(df: pd.DataFrame, build_opt: dict) -> int:
+    crop_size = df.iloc[0].get("crop_size")
+    if pd.isna(crop_size):
+        crop_size = build_opt.get("crop_size")
+    if pd.isna(crop_size):
+        raise ValueError("crop_size is required for cell-level normalized databanks.")
+    return int(crop_size)
+
+
+def _load_raw_image_or_zeros(
+    df_shared_gt: pd.DataFrame, gt_image: np.ndarray
+) -> np.ndarray:
+    if "original_image_path" in df_shared_gt.columns:
+        path = df_shared_gt["original_image_path"].dropna()
+        if not path.empty:
+            raw_image = tifffile.imread(path.values[0])
+            raw_image = np.asarray(raw_image)
+            raw_image = np.squeeze(raw_image)
+            if raw_image.ndim > 2:
+                raw_image = raw_image[0]
+            if raw_image.shape == gt_image.shape:
+                return raw_image
+    return np.zeros(gt_image.shape, dtype=gt_image.dtype)
+
+
+def _read_candidate_mask(path: str) -> np.ndarray:
+    image = tifffile.imread(path)
+    if image.ndim == 3:
+        return image[1]
+    if image.ndim == 2:
+        return image
+    raise ValueError(f"Unsupported candidate mask shape for {path}: {image.shape}")
+
+
+def _first_present(row: pd.Series, column: str, *, default: object) -> object:
+    value = row.get(column, default)
+    return default if pd.isna(value) else value

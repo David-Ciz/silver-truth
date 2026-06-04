@@ -345,3 +345,74 @@ def test_build_databank_cell_level_includes_reconstruction_metadata(
     assert row["qa_center_agreement_count"] == 2
     assert row["recon_crop_y_end"] - row["recon_crop_y_start"] == row["crop_size"]
     assert row["recon_crop_x_end"] - row["recon_crop_x_start"] == row["crop_size"]
+
+
+def test_build_databank_cell_level_keeps_requested_reconstruction_window(
+    tmp_path: Path, monkeypatch
+) -> None:
+    gt = np.zeros((4, 4), dtype=np.uint8)
+    gt[0:2, 0:2] = 1
+    gt_path = tmp_path / "gt_edge.tif"
+    tifffile.imwrite(gt_path, gt)
+    raw_path = tmp_path / "raw_edge.tif"
+    tifffile.imwrite(raw_path, np.zeros_like(gt, dtype=np.uint8))
+
+    mask = np.zeros((4, 4), dtype=np.uint8)
+    mask[1:3, 1:3] = 255
+    stack_path = tmp_path / "cell_edge.tif"
+    _write_crop_stack(stack_path, mask)
+
+    qa_df = pd.DataFrame(
+        [
+            {
+                "cell_id": "c01_t0001_compA_1",
+                "campaign_number": "01",
+                "original_image_key": "t0001",
+                "label": 1,
+                "competitor": "compA",
+                "stacked_path": str(stack_path),
+                "gt_image": str(gt_path),
+                "original_image_path": str(raw_path),
+                "split": "train",
+                "crop_size": 4,
+                "crop_y_start": -1,
+                "crop_y_end": 3,
+                "crop_x_start": -1,
+                "crop_x_end": 3,
+                "original_center_y": 1,
+                "original_center_x": 1,
+            },
+        ]
+    )
+    qa_parquet = tmp_path / "qa_cell_edge.parquet"
+    qa_df.to_parquet(qa_parquet)
+
+    monkeypatch.setattr(db_builds.ext, "compress_images", lambda *args, **kwargs: None)
+
+    build_opt = {
+        "name": "BF-C2DL-HSC",
+        "databank": Version.C1,
+        "crop_size": 4,
+        "split_seed": 42,
+        "split_sets": [0.7, 0.15, 0.15],
+        "qa": None,
+        "qa_threshold": None,
+        "aggregation_level": "cell",
+    }
+
+    output_parquet = db_builds.build_databank(
+        build_opt,
+        str(qa_parquet),
+        str(tmp_path / "out_cell_edge"),
+    )
+
+    out_df = pd.read_parquet(output_parquet)
+    row = out_df.iloc[0]
+    assert row["recon_crop_y_start"] == -1
+    assert row["recon_crop_y_end"] == 3
+    assert row["recon_crop_x_start"] == -1
+    assert row["recon_crop_x_end"] == 3
+
+    stacked = tifffile.imread(row["image_path"])
+    assert stacked.shape == (3, 4, 4)
+    assert np.array_equal(stacked[1] > 0, mask > 0)

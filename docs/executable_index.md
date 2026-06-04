@@ -130,6 +130,8 @@ PYTHONPATH=src .venv/bin/python scripts/check_dataset_readiness.py \
 This writes JSON/Markdown reports under `data/audits/dataset_readiness/` and
 prints the exact `dvc repro ...` command if split-aware parquets or QA crop
 artifacts are missing. See [Dataset Readiness Checks](dataset_readiness_checks.md).
+For the complete add-dataset workflow, use
+[New Dataset DVC + HPC Runbook](new_dataset_dvc_hpc_runbook.md).
 
 ### Audit Cells That Would Be Clipped By a Chosen Square Crop
 

@@ -343,30 +343,31 @@ def _collapse_method_split_rows(df: pd.DataFrame) -> pd.DataFrame:
 
 def _summarize_result_table(path: Path) -> dict[str, Any] | None:
     relative = path.parts
+    method_parts = _method_parts_after_fold(relative)
     fold = _parse_fold(relative)
-    if "oracle_qa_only" in relative:
+    if "oracle_qa_only" in method_parts:
         method_key = "oracle_qa_only"
         family = "oracle_qa_only"
         threshold = None
         fusion_model = None
         uses_qa = True
-    elif "competitor_prior_qa_only" in relative:
+    elif "competitor_prior_qa_only" in method_parts:
         method_key = "competitor_prior_qa_only"
         family = "competitor_prior_qa_only"
         threshold = None
         fusion_model = None
         uses_qa = True
-    elif "qa_only" in relative:
+    elif "qa_only" in method_parts:
         method_key = "qa_only__top1"
         family = "qa_only"
         threshold = None
         fusion_model = None
         uses_qa = True
-    elif "fusion_only" in relative:
-        idx = relative.index("fusion_only")
-        if len(relative) <= idx + 2:
+    elif "fusion_only" in method_parts:
+        idx = method_parts.index("fusion_only")
+        if len(method_parts) <= idx + 2:
             return None
-        fusion_model = relative[idx + 1]
+        fusion_model = method_parts[idx + 1]
         method_key = f"fusion_only__{fusion_model}"
         family = "fusion_only"
         threshold = None
@@ -375,10 +376,11 @@ def _summarize_result_table(path: Path) -> dict[str, Any] | None:
         threshold_dir = next(
             (
                 part
-                for part in relative
+                for part in method_parts
                 if part.startswith("full_pipeline_t")
                 or part.startswith("ensemble_qa_t")
                 or part.startswith("ensemble_qa_retrained_t")
+                or part.startswith("soft_hybrid")
                 or part == "ensemble_only"
             ),
             None,
@@ -392,10 +394,10 @@ def _summarize_result_table(path: Path) -> dict[str, Any] | None:
             fusion_model = None
             uses_qa = False
         elif threshold_dir.startswith("full_pipeline_t"):
-            idx = relative.index(threshold_dir)
-            if len(relative) <= idx + 2:
+            idx = method_parts.index(threshold_dir)
+            if len(method_parts) <= idx + 2:
                 return None
-            fusion_model = relative[idx + 1]
+            fusion_model = method_parts[idx + 1]
             method_key = f"{threshold_dir}__{fusion_model}"
             family = "full_pipeline"
             threshold = _parse_threshold(threshold_dir)
@@ -410,6 +412,12 @@ def _summarize_result_table(path: Path) -> dict[str, Any] | None:
             method_key = threshold_dir
             family = "ensemble_qa"
             threshold = _parse_threshold(threshold_dir)
+            fusion_model = None
+            uses_qa = True
+        elif threshold_dir.startswith("soft_hybrid"):
+            method_key = threshold_dir
+            family = "soft_hybrid"
+            threshold = None
             fusion_model = None
             uses_qa = True
         else:
@@ -496,6 +504,13 @@ def _parse_fold(path_parts: tuple[str, ...]) -> str:
         if re.fullmatch(r"fold-\d+", part) or part == "mixed":
             return part
     return "unknown"
+
+
+def _method_parts_after_fold(path_parts: tuple[str, ...]) -> tuple[str, ...]:
+    for idx, part in enumerate(path_parts):
+        if re.fullmatch(r"fold-\d+", part) or part == "mixed":
+            return path_parts[idx + 1 :]
+    return path_parts
 
 
 def _discover_ablation_scan_root(ablation_dir: Path) -> Path:

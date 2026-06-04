@@ -38,6 +38,7 @@ For detailed installation instructions and basic usage examples, please refer to
 *   [Repository Workflow Map](repository_workflow_map.md): Canonical map of what currently runs, what each CLI does, and where ablations are orchestrated.
 *   [Executable Index](executable_index.md): Task-oriented list of what agents should try first, including maintained CLI entrypoints, scripts, and reusable functions.
 *   [DVC Guide](dvc_guide.md): Complete guide to setting up DVC and downloading datasets.
+*   [New Dataset DVC + HPC Runbook](new_dataset_dvc_hpc_runbook.md): Direct checklist for adding a synchronized dataset, choosing a crop size, generating DVC artifacts, pushing them, and launching HPC runs.
 *   [Paper Protocol](paper_protocol.md): Current post-audit paper protocol pointer. The old fold-locked protocol was archived.
 *   [Clean Slate Experiment Rerun Plan](clean_slate_experiment_rerun_plan_2026-05-05.md): Current experiment battery and no-test-tuning rules for reruns.
 *   [Experiment Preflight Methodology](experiment_preflight_methodology_2026-05-05.md): Required split, crop, target, and artifact gates before paper runs.
