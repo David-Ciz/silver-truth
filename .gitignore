@@ -2,6 +2,8 @@
 # Data, Models and Results folders
 results/
 models/
+hpc_results/
+archive/
 data/**
 !data/
 !data/**/
