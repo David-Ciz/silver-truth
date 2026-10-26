@@ -1,0 +1,530 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+    <meta charset="utf-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><link rel="canonical" href="https://silver-truth-3-0.readthedocs.io/ranker_pruned_fusion_phase1_results_2026-05-21/" />
+      <link rel="shortcut icon" href="../img/favicon.ico" />
+    <title>Ranker-Pruned Fusion Phase 1 Results - Silver-truth 3.0 Documentation</title>
+    <link rel="stylesheet" href="../css/theme.css" />
+    <link rel="stylesheet" href="../css/theme_extra.css" />
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/styles/github.min.css" />
+    
+      <script>
+        // Current page data
+        var mkdocs_page_name = "Ranker-Pruned Fusion Phase 1 Results";
+        var mkdocs_page_input_path = "ranker_pruned_fusion_phase1_results_2026-05-21.md";
+        var mkdocs_page_url = "/ranker_pruned_fusion_phase1_results_2026-05-21/";
+      </script>
+    
+    <!--[if lt IE 9]>
+      <script src="../js/html5shiv.min.js"></script>
+    <![endif]-->
+      <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/highlight.min.js"></script>
+      <script>hljs.highlightAll();</script> 
+</head>
+
+<body class="wy-body-for-nav" role="document">
+
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side stickynav">
+    <div class="wy-side-scroll">
+      <div class="wy-side-nav-search">
+          <a href=".." class="icon icon-home"> Silver-truth 3.0 Documentation
+        </a><div role="search">
+  <form id ="rtd-search-form" class="wy-form" action="../search.html" method="get">
+      <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" title="Type search term here" />
+  </form>
+</div>
+      </div>
+
+      <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="..">Home</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../executable_index/">Executable Index</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../repository_workflow_map/">Repository Workflow Map</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../dvc_guide/">DVC Guide</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../Silver-truth-generation/">Silver-truth Generation</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../quality_assurance/">Quality Assurance</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../experiment_tracking/">Experiment Tracking</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../paper_protocol/">Paper Protocol</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="" href="../qa_sweep_results.md">QA Sweep Results</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="" href="../ensemble_c3_experiment_log.md">Ensemble C3 Experiment Log</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../function_index/">Function Index</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../api_reference_generated/">API Reference (Generated)</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../qa_data_preparation/">QA Data Preparation</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../Evaluations/">Evaluations</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../label_synchronizer/">Label Synchronizer</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="" href="../notebooks.md">Notebooks</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../Roadmap/">Roadmap</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../References/">References</a>
+                </li>
+              </ul>
+      </div>
+    </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+      <nav class="wy-nav-top" role="navigation" aria-label="Mobile navigation menu">
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="..">Silver-truth 3.0 Documentation</a>
+        
+      </nav>
+      <div class="wy-nav-content">
+        <div class="rst-content"><div role="navigation" aria-label="breadcrumbs navigation">
+  <ul class="wy-breadcrumbs">
+    <li><a href=".." class="icon icon-home" aria-label="Docs"></a></li>
+      <li class="breadcrumb-item active">Ranker-Pruned Fusion Phase 1 Results</li>
+    <li class="wy-breadcrumbs-aside">
+    </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+            <div class="section" itemprop="articleBody">
+              
+                <h1 id="ranker-pruned-fusion-phase-1-results">Ranker-Pruned Fusion Phase 1 Results</h1>
+<p>Date: 2026-05-21</p>
+<h2 id="scope">Scope</h2>
+<p>This note summarizes the first all-available run of QA/ranker-pruned fusion.
+The tested deployable pipeline rows use:</p>
+<pre><code class="language-text">full_pipeline__qa_pruned_simple__{policy}
+</code></pre>
+<p>These are not ENSEMBLE rows. They are full-pipeline rows that apply QA/ranker
+pruning to the fusion proposal set and then run SIMPLE fusion.</p>
+<h2 id="inputs">Inputs</h2>
+<p>Ranked candidate tables:</p>
+<pre><code class="language-text">hpc_results/soft_hybrid_probe/all_available_square_rect_full_image_local_support_pairwise_source_trainonly/features/
+</code></pre>
+<p>Paper-ready candidate inputs were resolved from each feature table's
+<code>source_path</code>, which points to the original fusion-ready parquet.</p>
+<h2 id="outputs">Outputs</h2>
+<p>Main aggregate artifacts:</p>
+<pre><code class="language-text">hpc_results/soft_hybrid_probe/ranker_pruned_fusion_probe/all_available_simple_policy_comparison_rows.csv
+hpc_results/soft_hybrid_probe/ranker_pruned_fusion_probe/all_available_simple_policy_dataset_summary.csv
+hpc_results/soft_hybrid_probe/ranker_pruned_fusion_probe/all_available_simple_policy_overall_summary.csv
+hpc_results/soft_hybrid_probe/ranker_pruned_fusion_probe/all_available_simple_policy_best_by_dataset.csv
+hpc_results/soft_hybrid_probe/ranker_pruned_fusion_probe/all_available_simple_policy_context_table.csv
+hpc_results/soft_hybrid_probe/ranker_pruned_fusion_probe/all_available_simple_policy_context_dataset_selected.csv
+hpc_results/soft_hybrid_probe/ranker_pruned_fusion_probe/all_available_simple_policy_overall_context_summary.csv
+</code></pre>
+<p>Top2-only aggregate artifacts from the first pass:</p>
+<pre><code class="language-text">hpc_results/soft_hybrid_probe/ranker_pruned_fusion_probe/all_available_top2_simple_comparison_rows.csv
+hpc_results/soft_hybrid_probe/ranker_pruned_fusion_probe/all_available_top2_simple_dataset_summary.csv
+hpc_results/soft_hybrid_probe/ranker_pruned_fusion_probe/all_available_top2_simple_pruning_summary.csv
+hpc_results/soft_hybrid_probe/ranker_pruned_fusion_probe/all_available_top2_simple_pruning_dataset_summary.csv
+hpc_results/soft_hybrid_probe/ranker_pruned_fusion_probe/all_available_top2_simple_context_table.csv
+hpc_results/soft_hybrid_probe/ranker_pruned_fusion_probe/all_available_top2_simple_context_dataset_selected.csv
+hpc_results/soft_hybrid_probe/ranker_pruned_fusion_probe/all_available_top2_simple_overall_context_summary.csv
+</code></pre>
+<h2 id="fixed-policy-means">Fixed-Policy Means</h2>
+<p>Mean across dataset means:</p>
+<table>
+<thead>
+<tr>
+<th>Policy</th>
+<th>Backend</th>
+<th style="text-align: right;">Mean IoU</th>
+<th style="text-align: right;">Mean F1</th>
+<th style="text-align: right;">Mean retained candidates</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>source_balanced_topk</code></td>
+<td>SIMPLE</td>
+<td style="text-align: right;">0.8654</td>
+<td style="text-align: right;">0.9232</td>
+<td style="text-align: right;">42.05%</td>
+</tr>
+<tr>
+<td><code>top1_per_cluster</code></td>
+<td>SIMPLE</td>
+<td style="text-align: right;">0.8582</td>
+<td style="text-align: right;">0.9160</td>
+<td style="text-align: right;">14.02%</td>
+</tr>
+<tr>
+<td><code>margin_pruned</code></td>
+<td>SIMPLE</td>
+<td style="text-align: right;">0.8561</td>
+<td style="text-align: right;">0.9148</td>
+<td style="text-align: right;">17.17%</td>
+</tr>
+<tr>
+<td><code>fusion_safe_pruning</code></td>
+<td>SIMPLE</td>
+<td style="text-align: right;">0.8556</td>
+<td style="text-align: right;">0.9152</td>
+<td style="text-align: right;">24.29%</td>
+</tr>
+<tr>
+<td><code>top2_per_cluster</code></td>
+<td>SIMPLE</td>
+<td style="text-align: right;">0.8542</td>
+<td style="text-align: right;">0.9159</td>
+<td style="text-align: right;">28.04%</td>
+</tr>
+</tbody>
+</table>
+<h2 id="best-policy-by-dataset">Best Policy By Dataset</h2>
+<table>
+<thead>
+<tr>
+<th>Dataset</th>
+<th>Best policy</th>
+<th style="text-align: right;">IoU</th>
+<th style="text-align: right;">F1</th>
+<th style="text-align: right;">Retained candidates</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>BF-C2DL-HSC</td>
+<td><code>source_balanced_topk</code></td>
+<td style="text-align: right;">0.8712</td>
+<td style="text-align: right;">0.9301</td>
+<td style="text-align: right;">61.44%</td>
+</tr>
+<tr>
+<td>BF-C2DL-MuSC</td>
+<td><code>source_balanced_topk</code></td>
+<td style="text-align: right;">0.8066</td>
+<td style="text-align: right;">0.8891</td>
+<td style="text-align: right;">75.56%</td>
+</tr>
+<tr>
+<td>DIC-C2DH-HeLa</td>
+<td><code>top1_per_cluster</code></td>
+<td style="text-align: right;">0.9598</td>
+<td style="text-align: right;">0.9793</td>
+<td style="text-align: right;">9.16%</td>
+</tr>
+<tr>
+<td>Fluo-C2DL-MSC</td>
+<td><code>top2_per_cluster</code></td>
+<td style="text-align: right;">0.7503</td>
+<td style="text-align: right;">0.8480</td>
+<td style="text-align: right;">17.57%</td>
+</tr>
+<tr>
+<td>Fluo-N2DH-GOWT1</td>
+<td><code>top1_per_cluster</code></td>
+<td style="text-align: right;">0.9498</td>
+<td style="text-align: right;">0.9731</td>
+<td style="text-align: right;">6.46%</td>
+</tr>
+</tbody>
+</table>
+<h2 id="top2-dataset-means">Top2 Dataset Means</h2>
+<table>
+<thead>
+<tr>
+<th>Dataset</th>
+<th style="text-align: right;">QA-pruned SIMPLE IoU</th>
+<th style="text-align: right;">QA-pruned SIMPLE F1</th>
+<th style="text-align: right;">Retained candidates</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>BF-C2DL-HSC</td>
+<td style="text-align: right;">0.8460</td>
+<td style="text-align: right;">0.9151</td>
+<td style="text-align: right;">40.96%</td>
+</tr>
+<tr>
+<td>BF-C2DL-MuSC</td>
+<td style="text-align: right;">0.7813</td>
+<td style="text-align: right;">0.8720</td>
+<td style="text-align: right;">50.44%</td>
+</tr>
+<tr>
+<td>DIC-C2DH-HeLa</td>
+<td style="text-align: right;">0.9511</td>
+<td style="text-align: right;">0.9746</td>
+<td style="text-align: right;">18.32%</td>
+</tr>
+<tr>
+<td>Fluo-C2DL-MSC</td>
+<td style="text-align: right;">0.7503</td>
+<td style="text-align: right;">0.8480</td>
+<td style="text-align: right;">17.57%</td>
+</tr>
+<tr>
+<td>Fluo-N2DH-GOWT1</td>
+<td style="text-align: right;">0.9425</td>
+<td style="text-align: right;">0.9696</td>
+<td style="text-align: right;">12.93%</td>
+</tr>
+</tbody>
+</table>
+<h2 id="context-mean">Context Mean</h2>
+<p>Mean across dataset means using the best QA-pruned SIMPLE policy per dataset:</p>
+<table>
+<thead>
+<tr>
+<th>Row family</th>
+<th>Label</th>
+<th style="text-align: right;">Mean IoU</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>silver_truth</code></td>
+<td>Silver truth</td>
+<td style="text-align: right;">0.8819</td>
+</tr>
+<tr>
+<td><code>competitor</code></td>
+<td>Best competitor</td>
+<td style="text-align: right;">0.8712</td>
+</tr>
+<tr>
+<td><code>full_pipeline_best_policy</code></td>
+<td>Best QA-pruned SIMPLE policy</td>
+<td style="text-align: right;">0.8675</td>
+</tr>
+<tr>
+<td><code>reporting_mode_selected</code></td>
+<td>Validation-selected reporting mode</td>
+<td style="text-align: right;">0.8496</td>
+</tr>
+<tr>
+<td><code>fusion_only_best</code></td>
+<td>Best fusion-only baseline</td>
+<td style="text-align: right;">0.8434</td>
+</tr>
+</tbody>
+</table>
+<p>For a single fixed pruning policy, <code>source_balanced_topk</code> is the strongest
+setting with mean IoU 0.8654.</p>
+<h2 id="interpretation">Interpretation</h2>
+<p>The first full pass supports the Phase 1 hypothesis: object-level QA/ranker
+pruning before SIMPLE fusion improves over the best <code>fusion_only_*</code> baseline on
+average. A single fixed policy, <code>source_balanced_topk</code>, improves the mean IoU
+from 0.8434 to 0.8654. Selecting the best QA-pruned SIMPLE policy per dataset
+reaches 0.8675, close to but still below the best external competitor average
+of 0.8712 and official silver truth average of 0.8819.</p>
+<p>Dataset-level behavior is policy-dependent. <code>source_balanced_topk</code> is best for
+HSC and MuSC, <code>top1_per_cluster</code> is best for HeLa and GOWT1, and
+<code>top2_per_cluster</code> remains best for MSC.</p>
+<h2 id="implementation-notes">Implementation Notes</h2>
+<p>Java/ImageJ fusion must be run outside the sandbox in this environment. The job
+file format and rank-slot input layout are supported by <code>label-fusion-ng</code>; the
+in-sandbox failure occurs while the Java TIFF reader opens staged images.</p>
+<h2 id="phase-2b-non-simple-backend-sweep">Phase 2B Non-SIMPLE Backend Sweep</h2>
+<p>Date: 2026-05-22</p>
+<p>The best SIMPLE pruning policy for each dataset was re-run with the currently
+supported non-SIMPLE backends:</p>
+<pre><code class="language-text">MAJORITY_FLAT
+THRESHOLD_FLAT
+BIC_FLAT_VOTING
+THRESHOLD_USER
+BIC_WEIGHTED_VOTING
+</code></pre>
+<p>Weighted backends used <code>pairwise_cluster_score</code> as the candidate weight column.</p>
+<p>New artifacts:</p>
+<pre><code class="language-text">hpc_results/soft_hybrid_probe/ranker_pruned_fusion_probe/non_simple_best_policy_backend_sweep/non_simple_best_policy_comparison_rows.csv
+hpc_results/soft_hybrid_probe/ranker_pruned_fusion_probe/non_simple_best_policy_backend_sweep/non_simple_best_policy_dataset_summary.csv
+hpc_results/soft_hybrid_probe/ranker_pruned_fusion_probe/non_simple_best_policy_backend_sweep/non_simple_best_policy_best_by_dataset.csv
+hpc_results/soft_hybrid_probe/ranker_pruned_fusion_probe/non_simple_best_policy_backend_sweep/non_simple_best_policy_overall_summary.csv
+hpc_results/soft_hybrid_probe/ranker_pruned_fusion_probe/non_simple_best_policy_backend_sweep/non_simple_best_policy_context_table.csv
+</code></pre>
+<p>Mean across dataset means:</p>
+<table>
+<thead>
+<tr>
+<th>Selection</th>
+<th style="text-align: right;">Mean IoU</th>
+<th style="text-align: right;">Mean F1</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Best non-SIMPLE backend by dataset</td>
+<td style="text-align: right;">0.8668</td>
+<td style="text-align: right;">0.9237</td>
+</tr>
+<tr>
+<td>Fixed <code>BIC_WEIGHTED_VOTING</code></td>
+<td style="text-align: right;">0.8668</td>
+<td style="text-align: right;">0.9237</td>
+</tr>
+<tr>
+<td>Fixed <code>MAJORITY_FLAT</code></td>
+<td style="text-align: right;">0.8668</td>
+<td style="text-align: right;">0.9237</td>
+</tr>
+<tr>
+<td>Fixed <code>BIC_FLAT_VOTING</code></td>
+<td style="text-align: right;">0.8423</td>
+<td style="text-align: right;">0.9062</td>
+</tr>
+<tr>
+<td>Fixed <code>THRESHOLD_FLAT</code></td>
+<td style="text-align: right;">0.8423</td>
+<td style="text-align: right;">0.9062</td>
+</tr>
+<tr>
+<td>Fixed <code>THRESHOLD_USER</code></td>
+<td style="text-align: right;">0.4849</td>
+<td style="text-align: right;">0.5332</td>
+</tr>
+<tr>
+<td>Best QA-pruned SIMPLE policy</td>
+<td style="text-align: right;">0.8675</td>
+<td style="text-align: right;">0.9239</td>
+</tr>
+</tbody>
+</table>
+<p>Best non-SIMPLE backend by dataset:</p>
+<table>
+<thead>
+<tr>
+<th>Dataset</th>
+<th>Policy</th>
+<th>Backend</th>
+<th style="text-align: right;">IoU</th>
+<th style="text-align: right;">Delta vs best SIMPLE policy</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>BF-C2DL-HSC</td>
+<td><code>source_balanced_topk</code></td>
+<td><code>BIC_WEIGHTED_VOTING</code></td>
+<td style="text-align: right;">0.8712</td>
+<td style="text-align: right;">+0.0000</td>
+</tr>
+<tr>
+<td>BF-C2DL-MuSC</td>
+<td><code>source_balanced_topk</code></td>
+<td><code>BIC_WEIGHTED_VOTING</code></td>
+<td style="text-align: right;">0.8095</td>
+<td style="text-align: right;">+0.0029</td>
+</tr>
+<tr>
+<td>DIC-C2DH-HeLa</td>
+<td><code>top1_per_cluster</code></td>
+<td><code>BIC_FLAT_VOTING</code></td>
+<td style="text-align: right;">0.9598</td>
+<td style="text-align: right;">+0.0000</td>
+</tr>
+<tr>
+<td>Fluo-C2DL-MSC</td>
+<td><code>top2_per_cluster</code></td>
+<td><code>BIC_WEIGHTED_VOTING</code></td>
+<td style="text-align: right;">0.7438</td>
+<td style="text-align: right;">-0.0065</td>
+</tr>
+<tr>
+<td>Fluo-N2DH-GOWT1</td>
+<td><code>top1_per_cluster</code></td>
+<td><code>BIC_FLAT_VOTING</code></td>
+<td style="text-align: right;">0.9498</td>
+<td style="text-align: right;">+0.0000</td>
+</tr>
+</tbody>
+</table>
+<p>Interpretation:</p>
+<ul>
+<li>Non-SIMPLE backends do not improve the best QA-pruned SIMPLE result overall.</li>
+<li><code>BIC_WEIGHTED_VOTING</code> and <code>MAJORITY_FLAT</code> tie in this sweep and are slightly
+  below best-policy SIMPLE on average.</li>
+<li>MuSC gains slightly from weighted/BIC or majority voting, but MSC regresses.</li>
+<li><code>THRESHOLD_USER</code> produced zero IoU on the single-slot <code>top1_per_cluster</code>
+  datasets, so do not use it as evidence against QA pruning until that backend
+  behavior is diagnosed.</li>
+</ul>
+              
+            </div>
+          </div><footer>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <!-- Copyright etc -->
+  </div>
+
+  Built with <a href="https://www.mkdocs.org/">MkDocs</a> using a <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>.
+</footer>
+          
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+
+  <div class="rst-versions" role="note" aria-label="Versions">
+  <span class="rst-current-version" data-toggle="rst-current-version">
+    
+    
+    
+  </span>
+</div>
+    <script src="../js/jquery-3.6.0.min.js"></script>
+    <script>var base_url = "..";</script>
+    <script src="../js/theme_extra.js"></script>
+    <script src="../js/theme.js"></script>
+      <script src="../search/main.js"></script>
+    <script>
+        jQuery(function () {
+            SphinxRtdTheme.Navigation.enable(true);
+        });
+    </script>
+
+</body>
+</html>

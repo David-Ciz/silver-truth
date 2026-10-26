@@ -1,0 +1,558 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+    <meta charset="utf-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><link rel="canonical" href="https://silver-truth-3-0.readthedocs.io/dvc_guide/" />
+      <link rel="shortcut icon" href="../img/favicon.ico" />
+    <title>DVC Guide - Silver-truth 3.0 Documentation</title>
+    <link rel="stylesheet" href="../css/theme.css" />
+    <link rel="stylesheet" href="../css/theme_extra.css" />
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/styles/github.min.css" />
+    
+      <script>
+        // Current page data
+        var mkdocs_page_name = "DVC Guide";
+        var mkdocs_page_input_path = "dvc_guide.md";
+        var mkdocs_page_url = "/dvc_guide/";
+      </script>
+    
+    <!--[if lt IE 9]>
+      <script src="../js/html5shiv.min.js"></script>
+    <![endif]-->
+      <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/highlight.min.js"></script>
+      <script>hljs.highlightAll();</script> 
+</head>
+
+<body class="wy-body-for-nav" role="document">
+
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side stickynav">
+    <div class="wy-side-scroll">
+      <div class="wy-side-nav-search">
+          <a href=".." class="icon icon-home"> Silver-truth 3.0 Documentation
+        </a><div role="search">
+  <form id ="rtd-search-form" class="wy-form" action="../search.html" method="get">
+      <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" title="Type search term here" />
+  </form>
+</div>
+      </div>
+
+      <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="..">Home</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../executable_index/">Executable Index</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../repository_workflow_map/">Repository Workflow Map</a>
+                </li>
+              </ul>
+              <ul class="current">
+                <li class="toctree-l1 current"><a class="reference internal current" href="#">DVC Guide</a>
+    <ul class="current">
+    <li class="toctree-l2"><a class="reference internal" href="#prerequisites">Prerequisites</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#initial-setup">Initial Setup</a>
+        <ul>
+    <li class="toctree-l3"><a class="reference internal" href="#1-install-project-requirements">1. Install Project Requirements</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#2-configure-dvc-remote">2. Configure DVC Remote</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#3-ssh-access-setup">3. SSH Access Setup</a>
+    </li>
+        </ul>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#downloading-qa-data">Downloading QA Data</a>
+        <ul>
+    <li class="toctree-l3"><a class="reference internal" href="#understanding-the-qa-data-structure">Understanding the QA Data Structure</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#pull-all-data">Pull All Data</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#pull-specific-qa-dataset">Pull Specific QA Dataset</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#access-the-dataset-parquet">Access the Dataset Parquet</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#pull-other-data-files">Pull Other Data Files</a>
+    </li>
+        </ul>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#working-with-dvc-pipelines">Working with DVC Pipelines</a>
+        <ul>
+    <li class="toctree-l3"><a class="reference internal" href="#view-pipeline-stages">View Pipeline Stages</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#reproduce-pipeline-stages">Reproduce Pipeline Stages</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#check-pipeline-status">Check Pipeline Status</a>
+    </li>
+        </ul>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#contributing-data">Contributing Data</a>
+        <ul>
+    <li class="toctree-l3"><a class="reference internal" href="#adding-new-data-files">Adding New Data Files</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#committing-dvc-files-to-git">Committing DVC Files to Git</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#pushing-data-to-remote-storage">Pushing Data to Remote Storage</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#complete-workflow-example">Complete Workflow Example</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#updating-existing-data">Updating Existing Data</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#working-with-dvc-pipeline-outputs">Working with DVC Pipeline Outputs</a>
+    </li>
+        </ul>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#common-dvc-commands">Common DVC Commands</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#troubleshooting">Troubleshooting</a>
+        <ul>
+    <li class="toctree-l3"><a class="reference internal" href="#permission-denied-ssh">Permission Denied (SSH)</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#large-download-times">Large Download Times</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#cache-issues">Cache Issues</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#file-not-found">File Not Found</a>
+    </li>
+        </ul>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#best-practices">Best Practices</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#next-steps">Next Steps</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#support">Support</a>
+    </li>
+    </ul>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../Silver-truth-generation/">Silver-truth Generation</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../quality_assurance/">Quality Assurance</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../experiment_tracking/">Experiment Tracking</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../paper_protocol/">Paper Protocol</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="" href="../qa_sweep_results.md">QA Sweep Results</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="" href="../ensemble_c3_experiment_log.md">Ensemble C3 Experiment Log</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../function_index/">Function Index</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../api_reference_generated/">API Reference (Generated)</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../qa_data_preparation/">QA Data Preparation</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../Evaluations/">Evaluations</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../label_synchronizer/">Label Synchronizer</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="" href="../notebooks.md">Notebooks</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../Roadmap/">Roadmap</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../References/">References</a>
+                </li>
+              </ul>
+      </div>
+    </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+      <nav class="wy-nav-top" role="navigation" aria-label="Mobile navigation menu">
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="..">Silver-truth 3.0 Documentation</a>
+        
+      </nav>
+      <div class="wy-nav-content">
+        <div class="rst-content"><div role="navigation" aria-label="breadcrumbs navigation">
+  <ul class="wy-breadcrumbs">
+    <li><a href=".." class="icon icon-home" aria-label="Docs"></a></li>
+      <li class="breadcrumb-item active">DVC Guide</li>
+    <li class="wy-breadcrumbs-aside">
+    </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+            <div class="section" itemprop="articleBody">
+              
+                <h1 id="dvc-guide-for-silver-truth-repository">DVC Guide for Silver Truth Repository</h1>
+<p>This guide will help you set up DVC (Data Version Control) and download the QA datasets used in this project.</p>
+<h2 id="prerequisites">Prerequisites</h2>
+<ul>
+<li>Git repository cloned</li>
+<li>Python virtual environment activated</li>
+<li>Project dependencies installed (see README.md)</li>
+</ul>
+<h2 id="initial-setup">Initial Setup</h2>
+<h3 id="1-install-project-requirements">1. Install Project Requirements</h3>
+<p>First, ensure you have all project dependencies installed:</p>
+<pre><code class="language-bash"># Navigate to project root
+cd silver-truth
+
+# Create and activate virtual environment (if not already done)
+python -m venv .venv
+source .venv/bin/activate  # on macOS/Linux
+# or .venv\Scripts\activate on Windows
+
+# Install project in editable mode with all dependencies
+pip install -e .[dev]
+</code></pre>
+<p>This will install DVC along with all other required packages.</p>
+<h3 id="2-configure-dvc-remote">2. Configure DVC Remote</h3>
+<p>You need to configure DVC to connect to the HPC storage where the data is stored. Add the following configuration to your local DVC config:</p>
+<pre><code class="language-bash"># Configure the remote storage
+dvc remote add hpc_storage ssh://karolina.it4i.cz/mnt/proj1/eu-25-40/innovaite/dvc_store
+dvc remote default hpc_storage
+
+# Set cache to be shared across the team
+dvc cache dir .dvc/cache
+dvc config cache.shared group
+</code></pre>
+<p><strong>Alternative: Manual Configuration</strong></p>
+<p>You can also manually edit <code>.dvc/config</code> and add:</p>
+<pre><code class="language-ini">[core]
+    remote = hpc_storage
+[cache]
+    shared = group
+['remote &quot;hpc_storage&quot;']
+    url = ssh://karolina.it4i.cz/mnt/proj1/eu-25-40/innovaite/dvc_store
+</code></pre>
+<h3 id="3-ssh-access-setup">3. SSH Access Setup</h3>
+<p>Ensure you have SSH access to the HPC storage:</p>
+<pre><code class="language-bash"># Test SSH connection
+ssh karolina.it4i.cz
+
+# If you need to set up SSH keys for passwordless access:
+ssh-copy-id karolina.it4i.cz
+</code></pre>
+<h2 id="downloading-qa-data">Downloading QA Data</h2>
+<h3 id="understanding-the-qa-data-structure">Understanding the QA Data Structure</h3>
+<p>The QA datasets are organized by:
+- <strong>Dataset name</strong>: <code>BF-C2DL-HSC</code>, <code>BF-C2DL-MuSC</code>
+- <strong>Split type</strong>: <code>mixed</code> (70-15-15 train-val-test split)
+- <strong>Crop size</strong>: Defined in <code>params.yaml</code> (e.g., <code>sz64</code> for 64x64 crops)</p>
+<p>Each QA dataset contains:
+- Cropped images in:
+  - <code>data/qa_crops/{DATASET}/sz{CROP_SIZE}/</code>
+- Split-specific QA parquet files in:
+  - <code>data/dataframes/{DATASET}/qa_crops/*_sz{CROP_SIZE}_qa_dataset.parquet</code>
+  - These contain metadata, <code>split</code>, and evaluation labels (<code>jaccard_score</code>, <code>f1_score</code>).</p>
+<p>QA crop TIFF channel layout is <code>(4, H, W)</code>:
+- <code>0</code>: raw image
+- <code>1</code>: competitor segmentation mask
+- <code>2</code>: GT mask
+- <code>3</code>: tracking marker mask</p>
+<h3 id="pull-all-data">Pull All Data</h3>
+<p>To download everything tracked by DVC:</p>
+<pre><code class="language-bash">dvc pull
+</code></pre>
+<p>⚠️ <strong>Warning</strong>: This may download a large amount of data. Use selective pulling if you only need specific datasets.</p>
+<h3 id="pull-specific-qa-dataset">Pull Specific QA Dataset</h3>
+<p>To download QA data for a specific dataset:</p>
+<pre><code class="language-bash"># For BF-C2DL-HSC with 64x64 crops (images + dataframes)
+dvc pull data/qa_crops/BF-C2DL-HSC/sz64/
+dvc pull data/dataframes/BF-C2DL-HSC/qa_crops/mixed_sz64_qa_dataset.parquet
+
+# For BF-C2DL-MuSC with 64x64 crops (images + dataframes)
+dvc pull data/qa_crops/BF-C2DL-MuSC/sz64/
+dvc pull data/dataframes/BF-C2DL-MuSC/qa_crops/mixed_sz64_qa_dataset.parquet
+</code></pre>
+<p><strong>Note</strong>: Check <code>params.yaml</code> to see the configured crop size for each dataset:</p>
+<pre><code class="language-yaml">datasets:
+  BF-C2DL-HSC:
+    crop_size: 64
+  BF-C2DL-MuSC:
+    crop_size: 64
+</code></pre>
+<h3 id="access-the-dataset-parquet">Access the Dataset Parquet</h3>
+<p>After pulling, the parquet file will be available at:</p>
+<pre><code>data/dataframes/{DATASET_NAME}/qa_crops/mixed_sz{CROP_SIZE}_qa_dataset.parquet
+</code></pre>
+<p>Example:</p>
+<pre><code>data/dataframes/BF-C2DL-HSC/qa_crops/mixed_sz64_qa_dataset.parquet
+</code></pre>
+<p>You can load this in Python:</p>
+<pre><code class="language-python">import pandas as pd
+
+# Load the QA dataset
+df = pd.read_parquet('data/dataframes/BF-C2DL-HSC/qa_crops/mixed_sz64_qa_dataset.parquet')
+print(df.head())
+</code></pre>
+<h3 id="pull-other-data-files">Pull Other Data Files</h3>
+<p>For other datasets used in the pipeline:</p>
+<pre><code class="language-bash"># Pull synchronized data
+dvc pull data/synchronized_data/
+
+# Pull dataset dataframes
+dvc pull data/dataframes/
+
+# Pull specific parquet files
+dvc pull data/BF_C2DL-HSC_QA_with_fused_split70-15-15_seed42.parquet
+</code></pre>
+<h2 id="working-with-dvc-pipelines">Working with DVC Pipelines</h2>
+<h3 id="view-pipeline-stages">View Pipeline Stages</h3>
+<p>To see all available DVC pipeline stages:</p>
+<pre><code class="language-bash">dvc dag
+</code></pre>
+<h3 id="reproduce-pipeline-stages">Reproduce Pipeline Stages</h3>
+<p>To regenerate data by running DVC stages:</p>
+<pre><code class="language-bash"># Reproduce everything
+dvc repro
+
+# Reproduce specific stage
+dvc repro create_qa_crops_split_mixed
+</code></pre>
+<p><code>create_qa_crops_split_*</code> stages run both split attachment and QA label generation
+(<code>jaccard_score</code>, <code>f1_score</code>) for cropped data.</p>
+<h3 id="check-pipeline-status">Check Pipeline Status</h3>
+<p>To see which stages need to be re-run:</p>
+<pre><code class="language-bash">dvc status
+</code></pre>
+<h2 id="contributing-data">Contributing Data</h2>
+<p>When you generate new datasets, models, or other large files, you need to add them to DVC and share them with the team.</p>
+<h3 id="adding-new-data-files">Adding New Data Files</h3>
+<p>Use <code>dvc add</code> to track large files with DVC instead of Git:</p>
+<pre><code class="language-bash"># Add a single file
+dvc add data/new_dataset.parquet
+
+# Add a directory
+dvc add data/qa_crops/BF-C2DL-NewDataset/
+
+# Add a trained model
+dvc add models/resnet50_new_experiment.pt
+</code></pre>
+<p><strong>What happens when you run <code>dvc add</code>:</strong>
+1. DVC copies the file to <code>.dvc/cache</code>
+2. Creates a <code>.dvc</code> file (e.g., <code>new_dataset.parquet.dvc</code>) with metadata
+3. Adds the original file to <code>.gitignore</code></p>
+<h3 id="committing-dvc-files-to-git">Committing DVC Files to Git</h3>
+<p>⚠️ <strong>Important</strong>: After <code>dvc add</code>, you MUST commit the <code>.dvc</code> file to Git:</p>
+<pre><code class="language-bash"># After dvc add, Git will see the new .dvc file
+git status
+
+# Add the .dvc file and updated .gitignore
+git add data/new_dataset.parquet.dvc .gitignore
+
+# Commit to Git
+git commit -m &quot;Add new QA dataset for BF-C2DL-HSC&quot;
+</code></pre>
+<h3 id="pushing-data-to-remote-storage">Pushing Data to Remote Storage</h3>
+<p>After adding files with DVC, push them to the HPC storage so your team can access them:</p>
+<pre><code class="language-bash"># Push all new data
+dvc push
+
+# Push specific file
+dvc push data/new_dataset.parquet.dvc
+</code></pre>
+<h3 id="complete-workflow-example">Complete Workflow Example</h3>
+<p>Here is a typical workflow for refreshing QA crops and labels:</p>
+<pre><code class="language-bash"># 1. Reproduce QA split parquet + labels through DVC
+dvc repro create_qa_crops_split_mixed
+
+# 2. Push pipeline outputs to DVC remote
+dvc push
+
+# 3. Commit pipeline state
+git add dvc.lock
+git commit -m &quot;Update QA crops split/labels&quot;
+git push origin your-branch
+</code></pre>
+<h3 id="updating-existing-data">Updating Existing Data</h3>
+<p>If you modify a file that's already tracked by DVC:</p>
+<pre><code class="language-bash"># Modify the file
+python scripts/update_dataset.py
+
+# Update DVC tracking (this updates the .dvc file)
+dvc add data/existing_dataset.parquet
+
+# Commit the updated .dvc file
+git add data/existing_dataset.parquet.dvc
+git commit -m &quot;Update dataset with new labels&quot;
+
+# Push both to DVC remote and Git
+dvc push
+git push
+</code></pre>
+<h3 id="working-with-dvc-pipeline-outputs">Working with DVC Pipeline Outputs</h3>
+<p>If you generate data through DVC pipelines (defined in <code>dvc.yaml</code>), you don't need to manually <code>dvc add</code>:</p>
+<pre><code class="language-bash"># Run the pipeline
+dvc repro
+
+# Push pipeline outputs
+dvc push
+
+# Commit dvc.lock which tracks pipeline state
+git add dvc.lock
+git commit -m &quot;Update pipeline outputs&quot;
+git push
+</code></pre>
+<h2 id="common-dvc-commands">Common DVC Commands</h2>
+<table>
+<thead>
+<tr>
+<th>Command</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>dvc pull</code></td>
+<td>Download data from remote storage</td>
+</tr>
+<tr>
+<td><code>dvc push</code></td>
+<td>Upload data to remote storage</td>
+</tr>
+<tr>
+<td><code>dvc status</code></td>
+<td>Check pipeline status</td>
+</tr>
+<tr>
+<td><code>dvc repro</code></td>
+<td>Reproduce pipeline stages</td>
+</tr>
+<tr>
+<td><code>dvc dag</code></td>
+<td>Show pipeline dependency graph</td>
+</tr>
+<tr>
+<td><code>dvc list --dvc-only .</code></td>
+<td>List all DVC-tracked files</td>
+</tr>
+</tbody>
+</table>
+<h2 id="troubleshooting">Troubleshooting</h2>
+<h3 id="permission-denied-ssh">Permission Denied (SSH)</h3>
+<p>If you get SSH permission errors:</p>
+<ol>
+<li>Verify SSH access: <code>ssh karolina.it4i.cz</code></li>
+<li>Check SSH keys are properly configured</li>
+<li>Contact your team lead for HPC storage access</li>
+</ol>
+<h3 id="large-download-times">Large Download Times</h3>
+<p>If downloads are slow:</p>
+<ul>
+<li>Use selective pulling instead of <code>dvc pull</code></li>
+<li>Check your network connection</li>
+<li>Consider using <code>--jobs</code> flag: <code>dvc pull --jobs 4</code></li>
+</ul>
+<h3 id="cache-issues">Cache Issues</h3>
+<p>If you encounter cache corruption:</p>
+<pre><code class="language-bash"># Verify cache integrity
+dvc cache verify
+
+# Clear local cache and re-download
+rm -rf .dvc/cache
+dvc pull
+</code></pre>
+<h3 id="file-not-found">File Not Found</h3>
+<p>If a file is missing after <code>dvc pull</code>:</p>
+<ol>
+<li>Check expected output paths:</li>
+<li><code>ls data/qa_crops/BF-C2DL-HSC/sz64/</code></li>
+<li><code>ls data/dataframes/BF-C2DL-HSC/qa_crops/mixed_sz64_qa_dataset.parquet</code></li>
+<li>Verify remote configuration: <code>dvc remote list</code></li>
+<li>Check if file exists on remote: Contact team lead</li>
+</ol>
+<h2 id="best-practices">Best Practices</h2>
+<ol>
+<li><strong>Don't commit large files to Git</strong>: Always use <code>dvc add</code> for data files</li>
+<li><strong>Pull before you start</strong>: Run <code>dvc pull</code> to ensure you have the latest data</li>
+<li><strong>Push your changes</strong>: After running pipelines, use <code>dvc push</code> to share results</li>
+<li><strong>Track parameters</strong>: Changes to <code>params.yaml</code> will trigger pipeline reruns</li>
+<li><strong>Use selective pulls</strong>: Only download the data you need for your task</li>
+</ol>
+<h2 id="next-steps">Next Steps</h2>
+<ul>
+<li>Read about <a href="../qa_data_preparation/">QA Data Preparation</a></li>
+<li>Learn about <a href="../quality_assurance/">Quality Assurance</a></li>
+<li>Explore <a href="../experiment_tracking/">Experiment Tracking</a></li>
+</ul>
+<h2 id="support">Support</h2>
+<p>If you encounter issues not covered here:</p>
+<ol>
+<li>Check the <a href="https://dvc.org/doc">DVC documentation</a></li>
+<li>Contact your team lead</li>
+<li>Open an issue in the repository</li>
+</ol>
+              
+            </div>
+          </div><footer>
+    <div class="rst-footer-buttons" role="navigation" aria-label="Footer Navigation">
+        <a href="../repository_workflow_map/" class="btn btn-neutral float-left" title="Repository Workflow Map"><span class="icon icon-circle-arrow-left"></span> Previous</a>
+        <a href="../Silver-truth-generation/" class="btn btn-neutral float-right" title="Silver-truth Generation">Next <span class="icon icon-circle-arrow-right"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <!-- Copyright etc -->
+  </div>
+
+  Built with <a href="https://www.mkdocs.org/">MkDocs</a> using a <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>.
+</footer>
+          
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+
+  <div class="rst-versions" role="note" aria-label="Versions">
+  <span class="rst-current-version" data-toggle="rst-current-version">
+    
+    
+      <span><a href="../repository_workflow_map/" style="color: #fcfcfc">&laquo; Previous</a></span>
+    
+    
+      <span><a href="../Silver-truth-generation/" style="color: #fcfcfc">Next &raquo;</a></span>
+    
+  </span>
+</div>
+    <script src="../js/jquery-3.6.0.min.js"></script>
+    <script>var base_url = "..";</script>
+    <script src="../js/theme_extra.js"></script>
+    <script src="../js/theme.js"></script>
+      <script src="../search/main.js"></script>
+    <script>
+        jQuery(function () {
+            SphinxRtdTheme.Navigation.enable(true);
+        });
+    </script>
+
+</body>
+</html>

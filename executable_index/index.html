@@ -1,0 +1,402 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+    <meta charset="utf-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><link rel="canonical" href="https://silver-truth-3-0.readthedocs.io/executable_index/" />
+      <link rel="shortcut icon" href="../img/favicon.ico" />
+    <title>Executable Index - Silver-truth 3.0 Documentation</title>
+    <link rel="stylesheet" href="../css/theme.css" />
+    <link rel="stylesheet" href="../css/theme_extra.css" />
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/styles/github.min.css" />
+    
+      <script>
+        // Current page data
+        var mkdocs_page_name = "Executable Index";
+        var mkdocs_page_input_path = "executable_index.md";
+        var mkdocs_page_url = "/executable_index/";
+      </script>
+    
+    <!--[if lt IE 9]>
+      <script src="../js/html5shiv.min.js"></script>
+    <![endif]-->
+      <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/highlight.min.js"></script>
+      <script>hljs.highlightAll();</script> 
+</head>
+
+<body class="wy-body-for-nav" role="document">
+
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side stickynav">
+    <div class="wy-side-scroll">
+      <div class="wy-side-nav-search">
+          <a href=".." class="icon icon-home"> Silver-truth 3.0 Documentation
+        </a><div role="search">
+  <form id ="rtd-search-form" class="wy-form" action="../search.html" method="get">
+      <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" title="Type search term here" />
+  </form>
+</div>
+      </div>
+
+      <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="..">Home</a>
+                </li>
+              </ul>
+              <ul class="current">
+                <li class="toctree-l1 current"><a class="reference internal current" href="#">Executable Index</a>
+    <ul class="current">
+    <li class="toctree-l2"><a class="reference internal" href="#start-here">Start Here</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#console-entrypoints">Console Entrypoints</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#maintained-scripts">Maintained Scripts</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#legacy-ad-hoc-surfaces">Legacy / Ad Hoc Surfaces</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#task-lookup">Task Lookup</a>
+        <ul>
+    <li class="toctree-l3"><a class="reference internal" href="#find-gt-cell-sizes-across-a-dataset">Find GT Cell Sizes Across a Dataset</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#check-dataset-readiness-before-hpc">Check Dataset Readiness Before HPC</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#audit-cells-that-would-be-clipped-by-a-chosen-square-crop">Audit Cells That Would Be Clipped By a Chosen Square Crop</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#check-whether-overflow-cells-actually-change-metrics">Check Whether Overflow Cells Actually Change Metrics</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#if-you-encounter-the-older-largest-cell-helper">If You Encounter the Older Largest-Cell Helper</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#compare-multiple-datasets-before-opening-a-new-crop-size-branch">Compare Multiple Datasets Before Opening a New Crop-Size Branch</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#audit-why-a-qa-fold-behaves-differently-across-train-validation-test">Audit Why a QA Fold Behaves Differently Across Train / Validation / Test</a>
+    </li>
+        </ul>
+    </li>
+    </ul>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../repository_workflow_map/">Repository Workflow Map</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../dvc_guide/">DVC Guide</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../Silver-truth-generation/">Silver-truth Generation</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../quality_assurance/">Quality Assurance</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../experiment_tracking/">Experiment Tracking</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../paper_protocol/">Paper Protocol</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="" href="../qa_sweep_results.md">QA Sweep Results</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="" href="../ensemble_c3_experiment_log.md">Ensemble C3 Experiment Log</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../function_index/">Function Index</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../api_reference_generated/">API Reference (Generated)</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../qa_data_preparation/">QA Data Preparation</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../Evaluations/">Evaluations</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../label_synchronizer/">Label Synchronizer</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="" href="../notebooks.md">Notebooks</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../Roadmap/">Roadmap</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../References/">References</a>
+                </li>
+              </ul>
+      </div>
+    </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+      <nav class="wy-nav-top" role="navigation" aria-label="Mobile navigation menu">
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="..">Silver-truth 3.0 Documentation</a>
+        
+      </nav>
+      <div class="wy-nav-content">
+        <div class="rst-content"><div role="navigation" aria-label="breadcrumbs navigation">
+  <ul class="wy-breadcrumbs">
+    <li><a href=".." class="icon icon-home" aria-label="Docs"></a></li>
+      <li class="breadcrumb-item active">Executable Index</li>
+    <li class="wy-breadcrumbs-aside">
+    </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+            <div class="section" itemprop="articleBody">
+              
+                <h1 id="executable-index">Executable Index</h1>
+<p>This page is a task-oriented map of what agents should check before adding new code.</p>
+<h2 id="start-here">Start Here</h2>
+<p>Prefer these surfaces in this order:</p>
+<ol>
+<li>Console entrypoints from <code>pyproject.toml</code></li>
+<li>Maintained orchestration scripts in <code>scripts/</code></li>
+<li>Reusable functions in <code>src/silver_truth/...</code></li>
+<li>Only then legacy scratch files or notebooks</li>
+</ol>
+<p>If a task is already covered by a CLI command or a tested function, reuse that path instead of creating another script.</p>
+<h2 id="console-entrypoints">Console Entrypoints</h2>
+<p>These are the supported package commands defined in <code>pyproject.toml</code>:</p>
+<ul>
+<li><code>silver-preprocessing</code></li>
+<li>dataset synchronization, dataframe creation, TIFF compression, GT/cell-size statistics</li>
+<li><code>silver-qa</code></li>
+<li>QA crop generation, split attachment, QA CNN train/eval helpers</li>
+<li><code>silver-fusion</code></li>
+<li>job-file generation, Java fusion, crop-level fusion experiments</li>
+<li><code>silver-evaluation</code></li>
+<li>competitor evaluation, fusion reconstruction scoring, QA evaluation, parquet filtering</li>
+<li><code>silver-ensemble</code></li>
+<li>ensemble databank build, training, checkpoint evaluation</li>
+</ul>
+<p>For the current command map, see <a href="../repository_workflow_map/">Repository Workflow Map</a> and <a href="../function_index/">Function Index</a>.</p>
+<h2 id="maintained-scripts">Maintained Scripts</h2>
+<p>These are the repository-level scripts that currently have clear documentation support and should be preferred over ad hoc files:</p>
+<ul>
+<li><code>scripts/run_ablation.py</code></li>
+<li>maintained paper runner; orchestrates Phase A/B/C from YAML configs in <code>experiments/variants/</code></li>
+<li>supports <code>--workflow reduced</code> for a smaller first pass and <code>--workflow full</code> to expand later without <code>--reset</code></li>
+<li><code>scripts/run_ablation_hpc.sh</code></li>
+<li>maintained Slurm wrapper for the ablation runner; stages data to scratch and isolates outputs under a durable campaign root</li>
+<li>forwards <code>--workflow {config|reduced|full}</code> and records the workflow in durable logs / job index</li>
+<li><code>scripts/submit_hela_ablation_hpc.sh</code></li>
+<li>convenience submitter for the first <code>DIC-C2DH-HeLa</code> <code>sz256</code> ablation jobs; runs dataset readiness checks before Slurm submission and defaults logs to <code>/home/davidciz/silver-truth/logs</code></li>
+<li><code>scripts/check_dataset_readiness.py</code></li>
+<li>pre-HPC gate for dataset preprocessing, DVC artifact presence, crop-size fit, split sanity, and QA crop TIFF dimensions</li>
+<li><code>scripts/run_qa_transfer.py</code></li>
+<li>maintained zero-shot QA transfer runner; evaluates a source QA checkpoint on a different dataset/split and writes transfer-specific artifacts under <code>paper_runs/qa_transfer/</code></li>
+<li><code>scripts/run_qa_transfer_hpc.sh</code></li>
+<li>Slurm wrapper for the QA transfer runner; stages source/target datasets to scratch and logs a dedicated transfer run bundle</li>
+<li><code>scripts/analyze_dataset_profiles.py</code></li>
+<li>compares synchronized datasets at the raw-frame and GT-object level; writes crop-fit and size-profile reports under <code>data/analysis/dataset_profiles/</code></li>
+<li><code>scripts/analyze_qa_prediction_bundle.py</code></li>
+<li>audits saved QA prediction Excel bundles for split drift, timepoint-level shift, and residual calibration by score range; useful for follow-up analysis after ablation runs</li>
+<li><code>scripts/generate_api_docs.py</code></li>
+<li>refreshes <code>docs/api_reference_generated.md</code> from source docstrings</li>
+</ul>
+<p>For a human-oriented explanation of the ablation runner itself, see <a href="ablation_runner_explained.md">Ablation Runner Explained</a>.</p>
+<p>Other files in <code>scripts/</code> may still be useful, but many are experiment-specific helpers. Before reusing one, verify that it is still referenced by the docs or current workflows.</p>
+<h2 id="legacy-ad-hoc-surfaces">Legacy / Ad Hoc Surfaces</h2>
+<p>These exist, but should not be the default reuse path:</p>
+<ul>
+<li><code>ztest_commands.py</code></li>
+<li>historical scratch workflow; not part of the maintained CLI</li>
+<li><code>notebooks/</code></li>
+<li>exploratory analysis and one-off debugging</li>
+<li><code>scripts/analyze_segmentation.py</code></li>
+<li>visualization helper for a single TIFF mask; not the maintained way to compute dataset-wide size statistics</li>
+</ul>
+<h2 id="task-lookup">Task Lookup</h2>
+<h3 id="find-gt-cell-sizes-across-a-dataset">Find GT Cell Sizes Across a Dataset</h3>
+<p>Use this maintained command with either GT directories or whole-image dataset parquets:</p>
+<pre><code class="language-bash">silver-preprocessing segmentation-size-stats \
+  data/dataframes/BF-C2DL-MuSC/whole_image/BF-C2DL-MuSC_split_mixed.parquet \
+  --crop-size 64 --crop-size 96 --crop-size 128 \
+  --rect-size 128x256
+</code></pre>
+<p>Supported source functions:</p>
+<ul>
+<li><code>silver_truth.data_processing.segmentation_stats.collect_segmentation_object_stats</code></li>
+<li>scans labeled GT masks and records per-cell area, bbox height/width, and aspect-ratio fields</li>
+<li><code>silver_truth.data_processing.segmentation_stats.collect_segmentation_object_stats_from_dataframes</code></li>
+<li>reads whole-image dataset parquets and resolves GT and source-image context from parquet metadata</li>
+<li><code>silver_truth.data_processing.segmentation_stats.summarize_segmentation_object_stats</code></li>
+<li>computes overall and per-directory summary stats, square/rectangular fit rates, and bbox aspect-ratio bias summaries</li>
+<li><code>silver_truth.cli.preprocessing.segmentation_size_stats</code></li>
+<li>CLI wrapper that prints JSON and can also save summary/per-object outputs and optional outlier audits</li>
+</ul>
+<p>Useful options:</p>
+<ul>
+<li><code>--output &lt;path&gt;.json</code></li>
+<li>save the aggregated summary</li>
+<li><code>--per-object-output &lt;path&gt;.parquet</code></li>
+<li>save one row per GT cell for follow-up analysis</li>
+</ul>
+<p>Interpretation:</p>
+<ul>
+<li><code>fit_bbox_rate_sz128</code> means the fraction of GT cells whose bbox height and width are both <code>&lt;= 128</code></li>
+<li><code>over_bbox_count_sz128</code> means how many GT cells would still be too large for a <code>128x128</code> crop</li>
+<li><code>fit_bbox_rate_rect128x256</code> means the fraction of GT cells that fit a fixed axis-aligned <code>128x256</code> crop</li>
+<li><code>fit_bbox_rate_rect128x256_swappable</code> means the fraction of GT cells that fit either <code>128x256</code> or <code>256x128</code></li>
+<li><code>max_bbox_dim_px</code> is the single largest bbox dimension seen anywhere in the input folders</li>
+<li><code>mean_bbox_aspect_ratio_wh</code> is the average <code>width / height</code> ratio</li>
+<li><code>wide_bbox_rate</code> and <code>tall_bbox_rate</code> show whether the dataset is systematically wider or taller</li>
+<li><code>mean_bbox_elongation_ratio</code> shows how stretched boxes are regardless of direction</li>
+</ul>
+<p>For MuSC specifically, use the current crop-size rerun path in
+<a href="clean_slate_experiment_rerun_plan_2026-05-05.md">Clean Slate Experiment Rerun Plan</a>
+and <a href="rerun_hypotheses_backlog_2026-05-05.md">Rerun Hypotheses Backlog</a>.</p>
+<h3 id="check-dataset-readiness-before-hpc">Check Dataset Readiness Before HPC</h3>
+<p>Use the readiness gate before launching reduced or full ablations:</p>
+<pre><code class="language-bash">PYTHONPATH=src .venv/bin/python scripts/check_dataset_readiness.py \
+  --config experiments/variants/hela_crop256.yaml \
+  --fold 1 \
+  --fold 2
+</code></pre>
+<p>This writes JSON/Markdown reports under <code>data/audits/dataset_readiness/</code> and
+prints the exact <code>dvc repro ...</code> command if split-aware parquets or QA crop
+artifacts are missing. See <a href="dataset_readiness_checks.md">Dataset Readiness Checks</a>.
+For the complete add-dataset workflow, use
+<a href="new_dataset_dvc_hpc_runbook.md">New Dataset DVC + HPC Runbook</a>.</p>
+<h3 id="audit-cells-that-would-be-clipped-by-a-chosen-square-crop">Audit Cells That Would Be Clipped By a Chosen Square Crop</h3>
+<p>Use the same command with <code>--show-outliers-for</code> when you want parquet-driven inspection with both GT and source-image context:</p>
+<pre><code class="language-bash">silver-preprocessing segmentation-size-stats \
+  data/dataframes/BF-C2DL-MuSC/whole_image/BF-C2DL-MuSC_split_mixed.parquet \
+  --crop-size 128 --crop-size 256 --crop-size 512 \
+  --show-outliers-for 256 \
+  --outlier-output-dir data/audits/musc_sz256
+</code></pre>
+<p>This mode:</p>
+<ul>
+<li>reads <code>gt_image</code> and <code>source_image</code> from the dataset parquet</li>
+<li>finds GT cells whose bbox height or width exceeds the requested square crop size</li>
+<li>writes a CSV audit table</li>
+<li>writes raw+GT context PNGs so you can inspect likely merged/pathological cases</li>
+</ul>
+<h3 id="check-whether-overflow-cells-actually-change-metrics">Check Whether Overflow Cells Actually Change Metrics</h3>
+<p>When you already have a per-cell result table, use:</p>
+<pre><code class="language-bash">silver-evaluation report-overflow-impact \
+  results/BF-C2DL-MuSC_fold-2_detailed.parquet \
+  data/dataframes/BF-C2DL-MuSC/whole_image/BF-C2DL-MuSC_split_fold-2.parquet \
+  --crop-size 256 \
+  --output-dir data/audits/musc_fold2_overflow_impact
+</code></pre>
+<p>This command:</p>
+<ul>
+<li>reads a per-cell result parquet/CSV such as <code>evaluate-competitor --detailed</code></li>
+<li>computes which GT cells overflow the chosen crop size</li>
+<li>writes enriched per-cell results plus summary tables split into <code>fits</code> vs <code>overflow</code></li>
+</ul>
+<h3 id="if-you-encounter-the-older-largest-cell-helper">If You Encounter the Older Largest-Cell Helper</h3>
+<p>There is also an older helper:</p>
+<ul>
+<li><code>silver_truth.ensemble.utils.find_largest_gt_cell_size</code></li>
+</ul>
+<p>That helper:</p>
+<ul>
+<li>reads GT image paths from a parquet</li>
+<li>returns only the single largest bbox dimension and source image</li>
+<li>is currently referenced from <code>ztest_commands.py</code></li>
+</ul>
+<p>Use <code>segmentation-size-stats</code> instead when the real question is dataset-wide crop-size safety or minimum usable box size.</p>
+<h3 id="compare-multiple-datasets-before-opening-a-new-crop-size-branch">Compare Multiple Datasets Before Opening a New Crop-Size Branch</h3>
+<p>Use:</p>
+<pre><code class="language-bash">PYTHONPATH=src .venv/bin/python scripts/analyze_dataset_profiles.py
+</code></pre>
+<p>This script:</p>
+<ul>
+<li>scans <code>DIC-C2DH-HeLa</code>, <code>BF-C2DL-HSC</code>, and <code>BF-C2DL-MuSC</code> by default</li>
+<li>records raw-frame counts, GT-frame counts, competitor counts, and image sizes</li>
+<li>computes GT bbox fit rates across a grid of crop sizes</li>
+<li>writes reusable outputs under <code>data/analysis/dataset_profiles/</code></li>
+</ul>
+<p>Current reference note:</p>
+<ul>
+<li><a href="datasets/hela_hsc_musc_profile.md">HeLa, HSC, and MuSC Profile Notes</a></li>
+</ul>
+<h3 id="audit-why-a-qa-fold-behaves-differently-across-train-validation-test">Audit Why a QA Fold Behaves Differently Across Train / Validation / Test</h3>
+<p>Use:</p>
+<pre><code class="language-bash">PYTHONPATH=src .venv/bin/python scripts/analyze_qa_prediction_bundle.py \
+  --input-root data/paper_runs/qa_results/&lt;DATASET&gt;/&lt;CROP_TAG&gt;/&lt;VARIANT&gt; \
+  --output-dir data/analysis/qa_prediction_bundle/&lt;DATASET&gt;/&lt;CROP_TAG&gt;/&lt;VARIANT&gt;
+</code></pre>
+<p>This script:</p>
+<ul>
+<li>scans one or more <code>*_qa_predictions_*.xlsx</code> files</li>
+<li>summarizes split composition, including campaign and timepoint coverage</li>
+<li>reports per-timepoint true/predicted quality and residual bias</li>
+<li>bins residuals by true Jaccard range so calibration failures are easy to spot</li>
+</ul>
+<p>Current reference note:</p>
+<ul>
+<li><a href="rerun_hypotheses_backlog_2026-05-05.md">Rerun Hypotheses Backlog</a></li>
+</ul>
+<p>The old HeLa result notes were archived under
+<code>archive/docs_pre_split_fix_2026-05-05/</code> and should not be used as result
+sources.</p>
+              
+            </div>
+          </div><footer>
+    <div class="rst-footer-buttons" role="navigation" aria-label="Footer Navigation">
+        <a href=".." class="btn btn-neutral float-left" title="Home"><span class="icon icon-circle-arrow-left"></span> Previous</a>
+        <a href="../repository_workflow_map/" class="btn btn-neutral float-right" title="Repository Workflow Map">Next <span class="icon icon-circle-arrow-right"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <!-- Copyright etc -->
+  </div>
+
+  Built with <a href="https://www.mkdocs.org/">MkDocs</a> using a <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>.
+</footer>
+          
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+
+  <div class="rst-versions" role="note" aria-label="Versions">
+  <span class="rst-current-version" data-toggle="rst-current-version">
+    
+    
+      <span><a href=".." style="color: #fcfcfc">&laquo; Previous</a></span>
+    
+    
+      <span><a href="../repository_workflow_map/" style="color: #fcfcfc">Next &raquo;</a></span>
+    
+  </span>
+</div>
+    <script src="../js/jquery-3.6.0.min.js"></script>
+    <script>var base_url = "..";</script>
+    <script src="../js/theme_extra.js"></script>
+    <script src="../js/theme.js"></script>
+      <script src="../search/main.js"></script>
+    <script>
+        jQuery(function () {
+            SphinxRtdTheme.Navigation.enable(true);
+        });
+    </script>
+
+</body>
+</html>

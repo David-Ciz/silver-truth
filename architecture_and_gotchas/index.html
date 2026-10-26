@@ -1,0 +1,357 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+    <meta charset="utf-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><link rel="canonical" href="https://silver-truth-3-0.readthedocs.io/architecture_and_gotchas/" />
+      <link rel="shortcut icon" href="../img/favicon.ico" />
+    <title>Architecture &amp; Gotchas - Silver-truth 3.0 Documentation</title>
+    <link rel="stylesheet" href="../css/theme.css" />
+    <link rel="stylesheet" href="../css/theme_extra.css" />
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/styles/github.min.css" />
+    
+      <script>
+        // Current page data
+        var mkdocs_page_name = "Architecture \u0026amp; Gotchas";
+        var mkdocs_page_input_path = "architecture_and_gotchas.md";
+        var mkdocs_page_url = "/architecture_and_gotchas/";
+      </script>
+    
+    <!--[if lt IE 9]>
+      <script src="../js/html5shiv.min.js"></script>
+    <![endif]-->
+      <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/highlight.min.js"></script>
+      <script>hljs.highlightAll();</script> 
+</head>
+
+<body class="wy-body-for-nav" role="document">
+
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side stickynav">
+    <div class="wy-side-scroll">
+      <div class="wy-side-nav-search">
+          <a href=".." class="icon icon-home"> Silver-truth 3.0 Documentation
+        </a><div role="search">
+  <form id ="rtd-search-form" class="wy-form" action="../search.html" method="get">
+      <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" title="Type search term here" />
+  </form>
+</div>
+      </div>
+
+      <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="..">Home</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../executable_index/">Executable Index</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../repository_workflow_map/">Repository Workflow Map</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../dvc_guide/">DVC Guide</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../Silver-truth-generation/">Silver-truth Generation</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../quality_assurance/">Quality Assurance</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../experiment_tracking/">Experiment Tracking</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../paper_protocol/">Paper Protocol</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="" href="../qa_sweep_results.md">QA Sweep Results</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="" href="../ensemble_c3_experiment_log.md">Ensemble C3 Experiment Log</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../function_index/">Function Index</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../api_reference_generated/">API Reference (Generated)</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../qa_data_preparation/">QA Data Preparation</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../Evaluations/">Evaluations</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../label_synchronizer/">Label Synchronizer</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="" href="../notebooks.md">Notebooks</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../Roadmap/">Roadmap</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../References/">References</a>
+                </li>
+              </ul>
+      </div>
+    </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+      <nav class="wy-nav-top" role="navigation" aria-label="Mobile navigation menu">
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="..">Silver-truth 3.0 Documentation</a>
+        
+      </nav>
+      <div class="wy-nav-content">
+        <div class="rst-content"><div role="navigation" aria-label="breadcrumbs navigation">
+  <ul class="wy-breadcrumbs">
+    <li><a href=".." class="icon icon-home" aria-label="Docs"></a></li>
+      <li class="breadcrumb-item active">Architecture &amp; Gotchas</li>
+    <li class="wy-breadcrumbs-aside">
+    </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+            <div class="section" itemprop="articleBody">
+              
+                <h1 id="architecture-gotchas">Architecture &amp; Gotchas</h1>
+<p><em>Things that are non-obvious and require digging through the source code to understand.</em></p>
+<hr />
+<h2 id="how-the-two-stage-pipeline-works">How the Two-Stage Pipeline Works</h2>
+<pre><code>Raw images + GT labels
+      ↓
+[Preprocessing] → Whole-image parquets (per competitor, with split column)
+      ↓
+[QA Crop Generation] → 64×64 crops: (raw, competitor_mask, gt_mask, tracking_marker)
+      ↓
+[QA Model] → ResNet50 regression → predicted_jaccard_index per crop
+      ↓
+[Filtering] → Threshold gate keeps &quot;good&quot; crops (+ top-1 fallback for uncovered cells)
+      ↓
+[Fusion] → Java voting (SIMPLE/MAJORITY/THRESHOLD/BIC) OR learned ensemble (UNet++)
+      ↓
+[Reconstruction] → Crops placed back into full images for evaluation
+      ↓
+[Evaluation] → Sparse-GT label-by-label IoU/F1
+</code></pre>
+<hr />
+<h2 id="critical-architectural-details">Critical Architectural Details</h2>
+<h3 id="what-competitors-are">What "competitors" are</h3>
+<p>The 5 competitors are <strong>existing cell segmentation methods</strong> from the Cell Tracking Challenge that all ran on the same dataset:
+- <code>CALT-US</code>, <code>DREX-US</code>, <code>KIT-Sch-GE</code>, <code>KTH-SE</code>, <code>MU-Lux-CZ</code></p>
+<p>Each produces a segmentation mask for the same cells. The pipeline's job is to combine (fuse) their outputs into a better segmentation than any individual competitor.</p>
+<h3 id="how-crops-work">How crops work</h3>
+<p>Each cell generates <strong>~5-6 rows</strong> in the QA parquet (one per competitor). All share the same <code>(campaign_number, original_image_key, label)</code> key but have different <code>competitor</code> and <code>stacked_path</code> columns. The actual "cell count" is the number of unique keys, NOT the parquet row count.</p>
+<h3 id="the-ensemble-is-a-fusion-method-not-a-separate-model">The ensemble is a fusion method, not a separate model</h3>
+<p>The ensemble (<code>silver-ensemble</code>) is an alternative to Java voting. It takes competitor masks as input channels and learns to output a fused mask. It competes directly with Java fusion strategies like <code>SIMPLE</code> voting.</p>
+<h3 id="why-the-qa-model-uses-2-channels">Why the QA model uses 2 channels</h3>
+<p>The <code>--input-channels 0,1</code> flag selects channels from the 4-channel crop TIFF. Channel 0 is the raw image, channel 1 is the competitor mask. This means the QA model sees both the microscopy image and the competitor's segmentation attempt, and predicts how good that segmentation is (IoU vs ground truth).</p>
+<h3 id="how-full-image-evaluation-works">How full-image evaluation works</h3>
+<p>Crop-level IoU is <strong>not</strong> used in the paper. Crops clip cells at edges, distorting metrics.</p>
+<p>The evaluation path:
+1. Place each 64×64 crop back into the full image at its original coordinates
+2. Use sparse-GT semantics: only score labels present in the ground truth
+3. Compute per-label IoU, then aggregate</p>
+<p>This is handled by <code>reconstruct_full_images_from_paths</code> (Java fusion) or <code>reconstruct_full_images_from_arrays</code> (ensemble).</p>
+<hr />
+<h2 id="gotchas">Gotchas</h2>
+<h3 id="column-name-mismatch-between-fusion-and-reconstruction">Column name mismatch between fusion and reconstruction</h3>
+<p><code>run-fusion-crops</code> outputs parquets with <code>crop_y_start/end/x_start/x_end</code> columns. But <code>reconstruct_full_images_from_paths</code> expects <code>recon_crop_*</code> columns. The <code>evaluate-fusion-crops</code> CLI handles the rename on-the-fly. This is not a bug — just confusing if you try to call reconstruction manually.</p>
+<h3 id="paramsyaml-drives-dvc-crop-stages"><code>params.yaml</code> drives DVC crop stages</h3>
+<p>The DVC <code>foreach: ${datasets}</code> stages reference <code>params.yaml</code>. If a dataset is missing there, the QA crop stages will not reproduce for it. <code>BF-C2DL-MuSC</code> is now included, but keep this dependency in mind whenever adding another dataset.</p>
+<h3 id="attach-split-is-deprecated-but-required"><code>attach-split</code> is "deprecated" but required</h3>
+<p>The docstring for <code>silver-qa attach-split</code> says DEPRECATED, but it is actively used in <code>dvc.yaml</code> QA crop split stages. Don't remove it.</p>
+<h3 id="mixed-split-has-temporal-bleed">Mixed split has temporal bleed</h3>
+<p>The <code>mixed</code> split mode distributes GT images across train/val/test by cell count balancing <strong>within a sequence</strong>. Since microscopy sequences are temporally correlated (cells in frame T look similar to frame T+1), models trained on mixed splits see near-duplicates of their test data. <strong>Do not use mixed-split results for paper claims.</strong></p>
+<h3 id="fold-trainvalidation-size-must-be-audited-at-the-supervised-unit">Fold train/validation size must be audited at the supervised unit</h3>
+<p>Sparse GT means raw frame counts are not enough. A fold can look balanced by raw
+frames while being badly imbalanced by GT cells, QA crop rows, or ensemble
+databank rows.</p>
+<p>Use the current preflight audit before training:</p>
+<ul>
+<li><a href="experiment_preflight_methodology_2026-05-05.md">Experiment Preflight Methodology</a></li>
+<li><a href="dataset_split_fix_plan_2026-05-05.md">Dataset Split Fix Plan</a></li>
+</ul>
+<h3 id="ensemble-encoder-is-untrained-fix-available">Ensemble encoder is untrained (fix available)</h3>
+<p>Models in <code>models.py</code> defaulted to <code>encoder_weights=None</code>. The ResNet34
+backbone was trained from scratch on tiny fold datasets. <code>--encoder-weights
+imagenet</code> is available via CLI, but its effect must be re-evaluated under the
+current split/crop protocol before making a result claim.</p>
+<h3 id="ensemble-input-channels-c1-vs-c2">Ensemble input channels (C1 vs C2)</h3>
+<table>
+<thead>
+<tr>
+<th>Version</th>
+<th>Input</th>
+<th style="text-align: right;">Channels</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>C1</code> (default)</td>
+<td>Normalized competitor overlap</td>
+<td style="text-align: right;">1</td>
+<td>Pixel = fraction of competitors that agree</td>
+</tr>
+<tr>
+<td><code>C2</code></td>
+<td>Overlap + raw microscopy image</td>
+<td style="text-align: right;">2</td>
+<td>Implemented; old result claims were archived</td>
+</tr>
+</tbody>
+</table>
+<p><code>C2</code> gives the ensemble access to what the cell actually looks like. Whether it
+helps should be retested as an ensemble variant after the corrected split/crop
+preflight passes.</p>
+<h3 id="qa-threshold-is-a-validation-selected-operating-point">QA threshold is a validation-selected operating point</h3>
+<p>Archived runs suggested the hard QA threshold was brittle. Do not carry any old
+threshold value forward as a result. Sweep thresholds, select the operating
+point from validation only, and then evaluate the frozen choice on test.</p>
+<h3 id="java-fusion-can-crash-with-return-code-6">Java fusion can crash with <code>return code -6</code></h3>
+<p>Known issue logged in <code>WORK_TRACKER.md</code>. The chunking/fallback mechanism in <code>run-fusion-crops</code> handles this, but standalone <code>run-fusion</code> calls may still fail.</p>
+<hr />
+<h2 id="helper-scripts">Helper Scripts</h2>
+<table>
+<thead>
+<tr>
+<th>Script</th>
+<th>Purpose</th>
+<th>Run time</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>scripts/run_fold_comparison.sh</code></td>
+<td>Train + evaluate ensemble vs competitors on both folds. Fresh data each run (timestamped output).</td>
+<td>~10-15 min</td>
+</tr>
+<tr>
+<td><code>scripts/run_fair_comparison.sh</code></td>
+<td>Evaluate CALT-US through the same crop-reconstruct path used by the ensemble — apples-to-apples.</td>
+<td>~5 min</td>
+</tr>
+<tr>
+<td><code>scripts/run_experiment_battery.sh</code></td>
+<td>Full experiment battery: 4 configs (baseline, strong_aug, c2_raw, c2_strong) × 2 folds = 8 runs. Auto-compiles results.</td>
+<td>~40 min</td>
+</tr>
+<tr>
+<td><code>scripts/compile_results.py</code></td>
+<td>Reads experiment parquets/CSVs, produces a markdown summary with cross-fold averages vs CALT-US. Can run standalone on any results dir.</td>
+<td>instant</td>
+</tr>
+<tr>
+<td><code>scripts/test_pretrained_ensemble.sh</code></td>
+<td>A/B test: pretrained (ImageNet) vs scratch encoder on fold-1.</td>
+<td>~5 min</td>
+</tr>
+<tr>
+<td><code>scripts/run_ablation.py</code></td>
+<td>Full ablation runner for all phases (competitor, fusion, QA, ensemble, threshold sweeps).</td>
+<td>~60 min per split</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="archived-result-tables">Archived Result Tables</h2>
+<p>Older result tables were removed from this active architecture note because the
+underlying split/crop inputs were invalidated by the May 2026 audit. Treat their
+ideas as rerun hypotheses, not as evidence.</p>
+<p>See:</p>
+<ul>
+<li><a href="clean_slate_experiment_rerun_plan_2026-05-05.md">Clean Slate Experiment Rerun Plan</a></li>
+<li><a href="rerun_hypotheses_backlog_2026-05-05.md">Rerun Hypotheses Backlog</a></li>
+</ul>
+<h3 id="ensemble-transfer-path">Ensemble transfer path</h3>
+<p>The runner now supports initializing a new ensemble training run from an existing ensemble checkpoint:
+- pretrain config: <code>experiments/variants/ensemble_ref_musc.yaml</code>
+- fine-tune config: <code>experiments/variants/ensemble_transfer_musc_to_hsc.yaml</code></p>
+<p>Preferred usage is fold-locked:
+- <code>BF-C2DL-MuSC fold-1 -&gt; BF-C2DL-HSC fold-1</code>
+- <code>BF-C2DL-MuSC fold-2 -&gt; BF-C2DL-HSC fold-2</code></p>
+<p>This is the preferred next experiment path over more one-off scripts.</p>
+<hr />
+<h2 id="environment-setup">Environment Setup</h2>
+<p>Must-do steps not fully obvious from the README:</p>
+<pre><code class="language-bash"># 1. Clone and set up
+git clone https://github.com/David-Ciz/silver-truth
+cd silver-truth
+python -m venv .venv
+source .venv/bin/activate
+pip install -e .[dev]
+
+# 2. MLflow (REQUIRED for any experiment command)
+export MLFLOW_TRACKING_URI=file:$(pwd)/data/mlflow/mlruns
+mkdir -p data/mlflow/mlruns
+
+# 3. Pull data (requires SSH access to Karolina HPC)
+dvc remote add hpc_storage ssh://karolina.it4i.cz/mnt/proj1/eu-25-40/innovaite/dvc_store
+dvc remote default hpc_storage
+dvc pull
+
+# 4. Verify DVC prep stages
+dvc repro create_fold1@BF-C2DL-HSC create_fold2@BF-C2DL-HSC
+</code></pre>
+<p><strong>Important</strong>: Always run commands from <code>.venv</code>. System Python will cause dependency mismatches, especially for <code>pytorch_lightning</code> and <code>segmentation_models_pytorch</code>.</p>
+              
+            </div>
+          </div><footer>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <!-- Copyright etc -->
+  </div>
+
+  Built with <a href="https://www.mkdocs.org/">MkDocs</a> using a <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>.
+</footer>
+          
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+
+  <div class="rst-versions" role="note" aria-label="Versions">
+  <span class="rst-current-version" data-toggle="rst-current-version">
+    
+    
+    
+  </span>
+</div>
+    <script src="../js/jquery-3.6.0.min.js"></script>
+    <script>var base_url = "..";</script>
+    <script src="../js/theme_extra.js"></script>
+    <script src="../js/theme.js"></script>
+      <script src="../search/main.js"></script>
+    <script>
+        jQuery(function () {
+            SphinxRtdTheme.Navigation.enable(true);
+        });
+    </script>
+
+</body>
+</html>

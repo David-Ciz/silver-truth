@@ -1,0 +1,413 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+    <meta charset="utf-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><link rel="canonical" href="https://silver-truth-3-0.readthedocs.io/qa_pruned_ensemble_no_explicit_qa_ablation_2026_06_03/" />
+      <link rel="shortcut icon" href="../img/favicon.ico" />
+    <title>No-Explicit-QA Deep Sets ENSEMBLE Ablation - Silver-truth 3.0 Documentation</title>
+    <link rel="stylesheet" href="../css/theme.css" />
+    <link rel="stylesheet" href="../css/theme_extra.css" />
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/styles/github.min.css" />
+    
+      <script>
+        // Current page data
+        var mkdocs_page_name = "No-Explicit-QA Deep Sets ENSEMBLE Ablation";
+        var mkdocs_page_input_path = "qa_pruned_ensemble_no_explicit_qa_ablation_2026_06_03.md";
+        var mkdocs_page_url = "/qa_pruned_ensemble_no_explicit_qa_ablation_2026_06_03/";
+      </script>
+    
+    <!--[if lt IE 9]>
+      <script src="../js/html5shiv.min.js"></script>
+    <![endif]-->
+      <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/highlight.min.js"></script>
+      <script>hljs.highlightAll();</script> 
+</head>
+
+<body class="wy-body-for-nav" role="document">
+
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side stickynav">
+    <div class="wy-side-scroll">
+      <div class="wy-side-nav-search">
+          <a href=".." class="icon icon-home"> Silver-truth 3.0 Documentation
+        </a><div role="search">
+  <form id ="rtd-search-form" class="wy-form" action="../search.html" method="get">
+      <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" title="Type search term here" />
+  </form>
+</div>
+      </div>
+
+      <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="..">Home</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../executable_index/">Executable Index</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../repository_workflow_map/">Repository Workflow Map</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../dvc_guide/">DVC Guide</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../Silver-truth-generation/">Silver-truth Generation</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../quality_assurance/">Quality Assurance</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../experiment_tracking/">Experiment Tracking</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../paper_protocol/">Paper Protocol</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="" href="../qa_sweep_results.md">QA Sweep Results</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="" href="../ensemble_c3_experiment_log.md">Ensemble C3 Experiment Log</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../function_index/">Function Index</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../api_reference_generated/">API Reference (Generated)</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../qa_data_preparation/">QA Data Preparation</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../Evaluations/">Evaluations</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../label_synchronizer/">Label Synchronizer</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="" href="../notebooks.md">Notebooks</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../Roadmap/">Roadmap</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../References/">References</a>
+                </li>
+              </ul>
+      </div>
+    </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+      <nav class="wy-nav-top" role="navigation" aria-label="Mobile navigation menu">
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="..">Silver-truth 3.0 Documentation</a>
+        
+      </nav>
+      <div class="wy-nav-content">
+        <div class="rst-content"><div role="navigation" aria-label="breadcrumbs navigation">
+  <ul class="wy-breadcrumbs">
+    <li><a href=".." class="icon icon-home" aria-label="Docs"></a></li>
+      <li class="breadcrumb-item active">No-Explicit-QA Deep Sets ENSEMBLE Ablation</li>
+    <li class="wy-breadcrumbs-aside">
+    </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+            <div class="section" itemprop="articleBody">
+              
+                <h1 id="no-explicit-qa-deep-sets-ensemble-ablation">No-Explicit-QA Deep Sets ENSEMBLE Ablation</h1>
+<p>Date: 2026-06-03</p>
+<h2 id="purpose">Purpose</h2>
+<p>This ablation tests whether the newest QA-pruned Deep Sets ENSEMBLE benefits from
+explicit QA features inside the final candidate-set weight model.</p>
+<p>It keeps the same QA-pruned candidate pool and the same object-vote settings as
+the current best strict run, but removes the explicit QA feature columns from the
+Deep Sets weight model:</p>
+<ul>
+<li><code>qa_score</code></li>
+<li><code>qa_rank_in_image</code></li>
+<li><code>ranker_cluster_qa_rank</code></li>
+</ul>
+<p>Because relative candidate-set features are generated from the configured base
+features, removing those three columns also removes their candidate-set
+rank/centered/gap derivatives. The no-explicit-QA model has 212 numeric features
+plus 26 one-hot categorical features, for input dimension 238. The full model has
+224 numeric features plus 26 one-hot categorical features, for input dimension
+250.</p>
+<p>Important limitation: this is not a fully no-QA pipeline. The candidate pool is
+still QA-pruned, and <code>pairwise_cluster_score</code> may still encode upstream QA-related
+information. This isolates explicit QA evidence inside the final Deep Sets
+ENSEMBLE.</p>
+<h2 id="command">Command</h2>
+<pre><code class="language-bash">.venv/bin/python scripts/qa_pruned_ensemble/run_pruned_candidate_set_weight.py \
+  --model-type deep_sets \
+  --candidate-run clipped_score_boundary_floor075_thr050 \
+  --run-label-suffix trainonly_ltv_boundary_floor075_e080_no_explicit_qa \
+  --train-split train \
+  --deep-sets-epochs 80 \
+  --weight-transform raw_cluster_softmax \
+  --weight-temperature 1.0 \
+  --vote-threshold 0.48 \
+  --boundary-support-column local_image_support_score \
+  --boundary-floor 0.75 \
+  --boundary-iterations 1 \
+  --exclude-explicit-qa-features \
+  --overwrite
+</code></pre>
+<h2 id="overall-result">Overall Result</h2>
+<table>
+<thead>
+<tr>
+<th>Method</th>
+<th style="text-align: right;">Mean IoU</th>
+<th style="text-align: right;">Mean F1</th>
+<th style="text-align: right;">Cells</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Full explicit-QA Deep Sets ENSEMBLE</td>
+<td style="text-align: right;">0.867563</td>
+<td style="text-align: right;">0.924697</td>
+<td style="text-align: right;">1767</td>
+</tr>
+<tr>
+<td>No-explicit-QA Deep Sets ENSEMBLE</td>
+<td style="text-align: right;">0.866866</td>
+<td style="text-align: right;">0.924363</td>
+<td style="text-align: right;">1767</td>
+</tr>
+<tr>
+<td>Delta, no-QA minus full</td>
+<td style="text-align: right;">-0.000697</td>
+<td style="text-align: right;">-0.000334</td>
+<td style="text-align: right;">1767</td>
+</tr>
+</tbody>
+</table>
+<p>Explicit QA features add only a very small overall gain in this setup.</p>
+<h2 id="dataset-breakdown">Dataset Breakdown</h2>
+<table>
+<thead>
+<tr>
+<th>Dataset</th>
+<th style="text-align: right;">Full IoU</th>
+<th style="text-align: right;">No-explicit-QA IoU</th>
+<th style="text-align: right;">Delta</th>
+<th style="text-align: right;">Full F1</th>
+<th style="text-align: right;">No-explicit-QA F1</th>
+<th style="text-align: right;">Delta</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>BF-C2DL-HSC</td>
+<td style="text-align: right;">0.871801</td>
+<td style="text-align: right;">0.870762</td>
+<td style="text-align: right;">-0.001039</td>
+<td style="text-align: right;">0.930447</td>
+<td style="text-align: right;">0.929831</td>
+<td style="text-align: right;">-0.000616</td>
+</tr>
+<tr>
+<td>BF-C2DL-MuSC</td>
+<td style="text-align: right;">0.809146</td>
+<td style="text-align: right;">0.808597</td>
+<td style="text-align: right;">-0.000549</td>
+<td style="text-align: right;">0.890908</td>
+<td style="text-align: right;">0.890382</td>
+<td style="text-align: right;">-0.000526</td>
+</tr>
+<tr>
+<td>DIC-C2DH-HeLa</td>
+<td style="text-align: right;">0.953121</td>
+<td style="text-align: right;">0.952632</td>
+<td style="text-align: right;">-0.000488</td>
+<td style="text-align: right;">0.975707</td>
+<td style="text-align: right;">0.975446</td>
+<td style="text-align: right;">-0.000260</td>
+</tr>
+<tr>
+<td>Fluo-C2DL-MSC</td>
+<td style="text-align: right;">0.756011</td>
+<td style="text-align: right;">0.754545</td>
+<td style="text-align: right;">-0.001466</td>
+<td style="text-align: right;">0.853907</td>
+<td style="text-align: right;">0.853602</td>
+<td style="text-align: right;">-0.000305</td>
+</tr>
+<tr>
+<td>Fluo-N2DH-GOWT1</td>
+<td style="text-align: right;">0.947737</td>
+<td style="text-align: right;">0.947792</td>
+<td style="text-align: right;">+0.000054</td>
+<td style="text-align: right;">0.972517</td>
+<td style="text-align: right;">0.972555</td>
+<td style="text-align: right;">+0.000037</td>
+</tr>
+</tbody>
+</table>
+<h2 id="fold-breakdown">Fold Breakdown</h2>
+<table>
+<thead>
+<tr>
+<th>Dataset</th>
+<th>Fold</th>
+<th style="text-align: right;">Full IoU</th>
+<th style="text-align: right;">No-explicit-QA IoU</th>
+<th style="text-align: right;">Delta</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>BF-C2DL-HSC</td>
+<td>fold-1</td>
+<td style="text-align: right;">0.848530</td>
+<td style="text-align: right;">0.847399</td>
+<td style="text-align: right;">-0.001131</td>
+</tr>
+<tr>
+<td>BF-C2DL-HSC</td>
+<td>fold-2</td>
+<td style="text-align: right;">0.895072</td>
+<td style="text-align: right;">0.894126</td>
+<td style="text-align: right;">-0.000947</td>
+</tr>
+<tr>
+<td>BF-C2DL-MuSC</td>
+<td>fold-1</td>
+<td style="text-align: right;">0.783587</td>
+<td style="text-align: right;">0.784713</td>
+<td style="text-align: right;">+0.001126</td>
+</tr>
+<tr>
+<td>BF-C2DL-MuSC</td>
+<td>fold-2</td>
+<td style="text-align: right;">0.834704</td>
+<td style="text-align: right;">0.832481</td>
+<td style="text-align: right;">-0.002223</td>
+</tr>
+<tr>
+<td>DIC-C2DH-HeLa</td>
+<td>fold-1</td>
+<td style="text-align: right;">0.954826</td>
+<td style="text-align: right;">0.954826</td>
+<td style="text-align: right;">+0.000000</td>
+</tr>
+<tr>
+<td>DIC-C2DH-HeLa</td>
+<td>fold-2</td>
+<td style="text-align: right;">0.951416</td>
+<td style="text-align: right;">0.950439</td>
+<td style="text-align: right;">-0.000977</td>
+</tr>
+<tr>
+<td>Fluo-C2DL-MSC</td>
+<td>fold-1</td>
+<td style="text-align: right;">0.773948</td>
+<td style="text-align: right;">0.766583</td>
+<td style="text-align: right;">-0.007364</td>
+</tr>
+<tr>
+<td>Fluo-C2DL-MSC</td>
+<td>fold-2</td>
+<td style="text-align: right;">0.738074</td>
+<td style="text-align: right;">0.742507</td>
+<td style="text-align: right;">+0.004433</td>
+</tr>
+<tr>
+<td>Fluo-N2DH-GOWT1</td>
+<td>fold-1</td>
+<td style="text-align: right;">0.966460</td>
+<td style="text-align: right;">0.966089</td>
+<td style="text-align: right;">-0.000371</td>
+</tr>
+<tr>
+<td>Fluo-N2DH-GOWT1</td>
+<td>fold-2</td>
+<td style="text-align: right;">0.929015</td>
+<td style="text-align: right;">0.929494</td>
+<td style="text-align: right;">+0.000479</td>
+</tr>
+</tbody>
+</table>
+<h2 id="interpretation">Interpretation</h2>
+<p>The explicit QA features are not carrying the final ENSEMBLE. Removing them loses
+only 0.000697 mean IoU overall. This supports the interpretation from the real
+case study: QA is a noisy, sometimes useful signal, but the stronger parts of the
+newest ENSEMBLE are the candidate-set context, source/geometry/support evidence,
+and Deep Sets weighting.</p>
+<p>This does not mean QA is useless in the whole pipeline. The pool is still
+QA-pruned, and some upstream ranking features may still contain QA influence.
+What this ablation says is narrower and cleaner: explicit QA columns inside the
+final Deep Sets weight model provide only a small marginal gain.</p>
+<h2 id="artifacts">Artifacts</h2>
+<ul>
+<li>Result root:
+  <code>hpc_results/soft_hybrid_probe/qa_pruned_ensemble/learned_candidate_set_weight/deep_sets_ltv_clipped_score_boundary_floor075_thr050_trainonly_ltv_boundary_floor075_e080_no_explicit_qa/</code></li>
+<li>Overall summary:
+  <code>qa_pruned_ensemble_candidate_set_weight_overall_summary.csv</code></li>
+<li>Dataset summary:
+  <code>qa_pruned_ensemble_candidate_set_weight_dataset_summary.csv</code></li>
+<li>Fold rows:
+  <code>qa_pruned_ensemble_candidate_set_weight_comparison_rows.csv</code></li>
+</ul>
+              
+            </div>
+          </div><footer>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <!-- Copyright etc -->
+  </div>
+
+  Built with <a href="https://www.mkdocs.org/">MkDocs</a> using a <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>.
+</footer>
+          
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+
+  <div class="rst-versions" role="note" aria-label="Versions">
+  <span class="rst-current-version" data-toggle="rst-current-version">
+    
+    
+    
+  </span>
+</div>
+    <script src="../js/jquery-3.6.0.min.js"></script>
+    <script>var base_url = "..";</script>
+    <script src="../js/theme_extra.js"></script>
+    <script src="../js/theme.js"></script>
+      <script src="../search/main.js"></script>
+    <script>
+        jQuery(function () {
+            SphinxRtdTheme.Navigation.enable(true);
+        });
+    </script>
+
+</body>
+</html>

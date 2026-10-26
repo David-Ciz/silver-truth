@@ -1,0 +1,475 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+    <meta charset="utf-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><link rel="canonical" href="https://silver-truth-3-0.readthedocs.io/current_pipeline_handoff/" />
+      <link rel="shortcut icon" href="../img/favicon.ico" />
+    <title>Current Pipeline Handoff - Silver-truth 3.0 Documentation</title>
+    <link rel="stylesheet" href="../css/theme.css" />
+    <link rel="stylesheet" href="../css/theme_extra.css" />
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/styles/github.min.css" />
+    
+      <script>
+        // Current page data
+        var mkdocs_page_name = "Current Pipeline Handoff";
+        var mkdocs_page_input_path = "current_pipeline_handoff.md";
+        var mkdocs_page_url = "/current_pipeline_handoff/";
+      </script>
+    
+    <!--[if lt IE 9]>
+      <script src="../js/html5shiv.min.js"></script>
+    <![endif]-->
+      <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/highlight.min.js"></script>
+      <script>hljs.highlightAll();</script> 
+</head>
+
+<body class="wy-body-for-nav" role="document">
+
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side stickynav">
+    <div class="wy-side-scroll">
+      <div class="wy-side-nav-search">
+          <a href=".." class="icon icon-home"> Silver-truth 3.0 Documentation
+        </a><div role="search">
+  <form id ="rtd-search-form" class="wy-form" action="../search.html" method="get">
+      <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" title="Type search term here" />
+  </form>
+</div>
+      </div>
+
+      <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="..">Home</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../executable_index/">Executable Index</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../repository_workflow_map/">Repository Workflow Map</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../dvc_guide/">DVC Guide</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../Silver-truth-generation/">Silver-truth Generation</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../quality_assurance/">Quality Assurance</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../experiment_tracking/">Experiment Tracking</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../paper_protocol/">Paper Protocol</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="" href="../qa_sweep_results.md">QA Sweep Results</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="" href="../ensemble_c3_experiment_log.md">Ensemble C3 Experiment Log</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../function_index/">Function Index</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../api_reference_generated/">API Reference (Generated)</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../qa_data_preparation/">QA Data Preparation</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../Evaluations/">Evaluations</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../label_synchronizer/">Label Synchronizer</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="" href="../notebooks.md">Notebooks</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../Roadmap/">Roadmap</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../References/">References</a>
+                </li>
+              </ul>
+      </div>
+    </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+      <nav class="wy-nav-top" role="navigation" aria-label="Mobile navigation menu">
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="..">Silver-truth 3.0 Documentation</a>
+        
+      </nav>
+      <div class="wy-nav-content">
+        <div class="rst-content"><div role="navigation" aria-label="breadcrumbs navigation">
+  <ul class="wy-breadcrumbs">
+    <li><a href=".." class="icon icon-home" aria-label="Docs"></a></li>
+      <li class="breadcrumb-item active">Current Pipeline Handoff</li>
+    <li class="wy-breadcrumbs-aside">
+    </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+            <div class="section" itemprop="articleBody">
+              
+                <h1 id="current-pipeline-handoff">Current Pipeline Handoff</h1>
+<p>This document is the shortest accurate description of what this repository is
+currently doing, based on the maintained CLI code and the ablation runner.</p>
+<p>It is intended as a handoff for a human reviewer or another agent who should
+not need to read the whole repository line by line.</p>
+<h2 id="goal">Goal</h2>
+<p>The repository tries to build a segmentation result that beats either:</p>
+<ul>
+<li>the existing <strong>silver truth</strong></li>
+<li>or the best individual <strong>competitor</strong></li>
+</ul>
+<p>using two learned components:</p>
+<ul>
+<li>a <strong>QA regressor</strong> that predicts how good one competitor's cell crop is</li>
+<li>an <strong>ensemble / learned fusion model</strong> that predicts a fused cell mask from
+  multiple competitors</li>
+</ul>
+<p>The maintained paper path is orchestrated by
+<a href="../scripts/run_ablation.py"><code>scripts/run_ablation.py</code></a>.</p>
+<h2 id="core-idea">Core Idea</h2>
+<p>For each ground-truth cell:</p>
+<ol>
+<li>extract one crop per competitor</li>
+<li>score or predict the quality of each crop</li>
+<li>either:</li>
+<li>keep the best crop (<code>qa_only</code>)</li>
+<li>fuse all crops (<code>fusion_only</code>)</li>
+<li>QA-filter then fuse (<code>full_pipeline</code>)</li>
+<li>replace fusion with a learned ensemble (<code>ensemble_*</code>)</li>
+<li>paste the chosen/fused/predicted crop back into the original full image</li>
+<li>evaluate with the same sparse-GT, label-aware metric used for competitor and
+   silver-truth baselines</li>
+</ol>
+<h2 id="canonical-evaluation-metric">Canonical Evaluation Metric</h2>
+<p>The fair comparison metric is:</p>
+<ol>
+<li>reconstruct a <strong>labeled</strong> full-image prediction</li>
+<li>for each GT label, compare <code>(prediction == label)</code> vs <code>(gt == label)</code></li>
+<li>compute IoU/F1 per label</li>
+<li>average across GT labels</li>
+</ol>
+<p>This is the same metric used for:</p>
+<ul>
+<li>competitor baselines</li>
+<li>silver truth</li>
+<li>current final ablation evaluation</li>
+</ul>
+<p>Important:</p>
+<ul>
+<li>crop-level Jaccard is still used internally for QA training and some fusion
+  diagnostics</li>
+<li>the paper-comparable metric is the final <strong>full-image label-aware IoU/F1</strong></li>
+</ul>
+<h2 id="main-data-objects">Main Data Objects</h2>
+<h3 id="1-whole-image-dataframe">1. Whole-image dataframe</h3>
+<p>Built from synchronized datasets. One row corresponds to a GT image and carries
+paths to competitor segmentations, GT, raw image, split assignment, and related
+metadata.</p>
+<p>Typical location:</p>
+<ul>
+<li><code>data/dataframes/{dataset}/whole_image/*.parquet</code></li>
+</ul>
+<h3 id="2-qa-crop-parquet">2. QA crop parquet</h3>
+<p>Built from the whole-image dataframe. Each row corresponds to <strong>one competitor's
+proposal for one logical cell</strong>.</p>
+<p>A logical cell is identified by:</p>
+<ul>
+<li><code>campaign_number</code></li>
+<li><code>original_image_key</code></li>
+<li><code>label</code></li>
+</ul>
+<p>So one biological cell usually produces several QA rows, one per competitor.</p>
+<p>Typical locations:</p>
+<ul>
+<li><code>data/dataframes/{dataset}/qa_crops/base_sz{crop}_qa_dataset.parquet</code></li>
+<li><code>data/dataframes/{dataset}/qa_crops/fold-1_sz{crop}_qa_dataset.parquet</code></li>
+<li><code>data/dataframes/{dataset}/qa_crops/fold-2_sz{crop}_qa_dataset.parquet</code></li>
+</ul>
+<p>Before launching HPC runs, use
+<a href="../scripts/check_dataset_readiness.py"><code>scripts/check_dataset_readiness.py</code></a> to
+verify that these split-aware artifacts exist, that QA crop TIFFs have the
+configured shape, that GT bbox crop-fit is acceptable, and that QA splits still
+match whole-image splits.</p>
+<h3 id="3-stacked-crop-tiff">3. Stacked crop TIFF</h3>
+<p>Each QA crop row points to a <code>stacked_path</code> TIFF with shape <code>(4, H, W)</code>.</p>
+<p>Channels:</p>
+<ul>
+<li><code>0</code>: raw microscopy crop</li>
+<li><code>1</code>: competitor segmentation crop</li>
+<li><code>2</code>: GT mask crop</li>
+<li><code>3</code>: tracking marker crop</li>
+</ul>
+<p>Only channels <code>0,1</code> are used by the default QA CNN.</p>
+<h3 id="4-ensemble-databank">4. Ensemble databank</h3>
+<p>Built from QA crops. Each row corresponds to one training/eval example for the
+ensemble model, with:</p>
+<ul>
+<li><code>image_path</code></li>
+<li><code>gt_image</code></li>
+<li><code>label</code></li>
+<li><code>recon_crop_y_start/end</code></li>
+<li><code>recon_crop_x_start/end</code></li>
+<li><code>split</code></li>
+</ul>
+<p>Typical location:</p>
+<ul>
+<li><code>data/ensemble_data/databanks/*.parquet</code></li>
+</ul>
+<h2 id="qa-network">QA Network</h2>
+<h3 id="purpose">Purpose</h3>
+<p>Predict the quality of <strong>one competitor crop for one cell</strong>.</p>
+<h3 id="inputs">Inputs</h3>
+<p>Source:</p>
+<ul>
+<li><code>stacked_path</code> from the QA parquet</li>
+</ul>
+<p>Default channels:</p>
+<ul>
+<li><code>0</code>: raw crop</li>
+<li><code>1</code>: competitor mask crop</li>
+</ul>
+<p>So the QA model sees:</p>
+<ul>
+<li>what the cell looks like</li>
+<li>what one competitor predicted for that cell</li>
+</ul>
+<h3 id="label-target">Label / target</h3>
+<p>Default target column:</p>
+<ul>
+<li><code>jaccard_score</code></li>
+</ul>
+<p>This is generated by comparing the competitor crop mask against the GT crop mask
+for that same cell.</p>
+<p>The label is therefore:</p>
+<ul>
+<li>a <strong>continuous regression target</strong></li>
+<li>crop-level IoU / Jaccard</li>
+</ul>
+<h3 id="output">Output</h3>
+<p>The network outputs a single scalar:</p>
+<ul>
+<li>predicted crop quality</li>
+</ul>
+<p>In downstream tables/parquets it is merged back as:</p>
+<ul>
+<li><code>predicted_jaccard_index</code></li>
+</ul>
+<h3 id="train-eval-splits">Train / eval splits</h3>
+<p>The QA CNN reads the <code>split</code> column directly from the split-aware QA parquet:</p>
+<ul>
+<li><code>train</code></li>
+<li><code>validation</code></li>
+<li><code>test</code></li>
+</ul>
+<h3 id="artifacts">Artifacts</h3>
+<p>Training produces:</p>
+<ul>
+<li>model checkpoint / exported <code>.pt</code></li>
+<li>Excel file with sheets <code>train</code>, <code>validation</code>, <code>test</code></li>
+</ul>
+<p>Each sheet contains:</p>
+<ul>
+<li><code>cell_id</code></li>
+<li><code>Jaccard index</code></li>
+<li><code>Predicted Jaccard index</code></li>
+</ul>
+<h3 id="what-qa-is-used-for-in-the-ablation-pipeline">What QA is used for in the ablation pipeline</h3>
+<ul>
+<li><code>fusion_only</code>: ignore QA, use all candidates</li>
+<li><code>qa_only</code>: keep the top-1 QA-scored candidate per logical cell</li>
+<li><code>full_pipeline</code>: keep candidates above threshold; if none survive for a cell,
+  keep the top-1 fallback</li>
+</ul>
+<p>Current default threshold is controlled from <code>experiments/base.yaml</code>.</p>
+<h2 id="ensemble">Ensemble</h2>
+<h3 id="purpose_1">Purpose</h3>
+<p>Replace hand-designed Java voting fusion with a learned model that predicts a
+fused mask for one cell crop.</p>
+<h3 id="main-maintained-dataset-versions">Main maintained dataset versions</h3>
+<p>The ablation path mainly uses:</p>
+<ul>
+<li><code>C1</code>: normalized competitor overlap only</li>
+<li><code>C2</code>: normalized competitor overlap + raw image</li>
+</ul>
+<p>Interpretation:</p>
+<ul>
+<li><code>C1</code> input is a single-channel "how many competitors agree here" image</li>
+<li><code>C2</code> adds the raw microscopy crop as a second channel</li>
+</ul>
+<h3 id="how-the-databank-is-built">How the databank is built</h3>
+<p>For each logical cell:</p>
+<ol>
+<li>collect all competitor crops for that cell</li>
+<li>align them around the original crop center</li>
+<li>sum / normalize their masks into a normalized overlap image</li>
+<li>crop the GT mask for the same cell</li>
+<li>optionally add the raw image channel</li>
+<li>save a composed TIFF and a parquet row with reconstruction metadata</li>
+</ol>
+<h3 id="inputs_1">Inputs</h3>
+<p>For <code>C1</code>:</p>
+<ul>
+<li>input: normalized overlap crop</li>
+<li>target: binary GT crop for that cell</li>
+</ul>
+<p>For <code>C2</code>:</p>
+<ul>
+<li>input: normalized overlap crop + raw crop</li>
+<li>target: binary GT crop for that cell</li>
+</ul>
+<h3 id="output_1">Output</h3>
+<p>The ensemble predicts a binary mask crop for that cell.</p>
+<p>That prediction is then:</p>
+<ol>
+<li>thresholded / binarized</li>
+<li>pasted back into the full-image canvas using the stored reconstruction coords</li>
+<li>scored with the same full-image label-aware metric as the baselines</li>
+</ol>
+<h3 id="evaluation-levels">Evaluation levels</h3>
+<p>Two levels still appear in the code / MLflow:</p>
+<ul>
+<li><code>cell_crop</code>: crop-level diagnostics</li>
+<li><code>full_image_label</code>: final comparable metric</li>
+</ul>
+<p>For paper-style comparison, only <code>full_image_label</code> matters.</p>
+<h2 id="end-to-end-ablation-flow">End-to-End Ablation Flow</h2>
+<h3 id="phase-a">Phase A</h3>
+<ul>
+<li>evaluate competitor baselines</li>
+<li>evaluate silver truth</li>
+</ul>
+<p>These are direct full-image label-aware baseline scores.</p>
+<h3 id="phase-b">Phase B</h3>
+<ul>
+<li>train QA CNN on split-aware QA crops</li>
+<li>evaluate QA regression quality</li>
+<li>evaluate threshold sweeps as QA diagnostics</li>
+<li>merge <code>predicted_jaccard_index</code> back into the QA parquet</li>
+</ul>
+<h3 id="phase-c">Phase C</h3>
+<p>Runs the actual methods being compared:</p>
+<ul>
+<li><code>fusion_only</code></li>
+<li><code>qa_only</code></li>
+<li><code>oracle_qa_only</code></li>
+<li><code>competitor_prior_qa_only</code></li>
+<li><code>full_pipeline</code></li>
+<li><code>ensemble_only</code></li>
+<li><code>ensemble_qa</code></li>
+<li><code>ensemble_qa_retrained</code></li>
+</ul>
+<p>Each branch produces final <code>full_image_label</code> evaluation outputs.</p>
+<p><code>full_pipeline</code>, <code>ensemble_qa</code>, and <code>ensemble_qa_retrained</code> reuse shared
+per-threshold filtered parquets under <code>data/paper_runs/paper_inputs/...</code>; the
+runner no longer filters the same threshold separately for each method family.</p>
+<p>For new datasets, start with:</p>
+<pre><code class="language-bash">python scripts/run_ablation.py --config &lt;variant.yaml&gt; --fold &lt;1|2&gt; --workflow reduced
+</code></pre>
+<p>Then expand without <code>--reset</code> if the reduced diagnostics justify the full sweep:</p>
+<pre><code class="language-bash">python scripts/run_ablation.py --config &lt;variant.yaml&gt; --fold &lt;1|2&gt; --workflow full
+</code></pre>
+<h2 id="important-limits-caveats">Important Limits / Caveats</h2>
+<h3 id="mixed-split-is-not-for-paper-claims">Mixed split is not for paper claims</h3>
+<p><code>mixed</code> is useful for development, not for fair paper reporting, because it can
+bleed temporally correlated examples across train/test.</p>
+<h3 id="fold-results-can-be-asymmetric">Fold results can be asymmetric</h3>
+<p>Some folds have much less training data than others. Learned methods can be
+much weaker on those folds.</p>
+<h3 id="qa-crop-iou-is-not-the-final-metric">QA crop IoU is not the final metric</h3>
+<p>It is only:</p>
+<ul>
+<li>the QA supervision target</li>
+<li>and a diagnostic metric</li>
+</ul>
+<p>The final comparison is always the reconstructed full-image label-aware score.</p>
+<h3 id="overlaps-during-reconstruction-are-resolved-deterministically">Overlaps during reconstruction are resolved deterministically</h3>
+<p>When reconstructed cell masks overlap, the code resolves collisions with a
+deterministic priority rule so the final labeled image is reproducible.</p>
+<h2 id="best-existing-docs-to-read-next">Best Existing Docs To Read Next</h2>
+<p>If someone wants more detail after reading this file, the best follow-ups are:</p>
+<ul>
+<li><a href="../README.md"><code>README.md</code></a>: entrypoints and run commands</li>
+<li><a href="../repository_workflow_map/"><code>docs/repository_workflow_map.md</code></a>: current CLI
+  map and artifact flow</li>
+<li><a href="../qa_data_preparation/"><code>docs/qa_data_preparation.md</code></a>: QA crop structure</li>
+<li><a href="../architecture_and_gotchas/"><code>docs/architecture_and_gotchas.md</code></a>: current
+  non-obvious behavior and caveats</li>
+<li><a href="../pipeline_design/"><code>docs/pipeline_design.md</code></a>: ablation runner structure</li>
+</ul>
+<h2 id="key-code-entry-points">Key Code Entry Points</h2>
+<ul>
+<li><code>scripts/run_ablation.py</code></li>
+<li><code>src/silver_truth/cli/qa.py</code></li>
+<li><code>src/silver_truth/qa/cnn.py</code></li>
+<li><code>src/silver_truth/cli/evaluation.py</code></li>
+<li><code>src/silver_truth/cli/ensemble.py</code></li>
+<li><code>src/silver_truth/ensemble/databanks_builds.py</code></li>
+<li><code>src/silver_truth/ensemble/reconstruction.py</code></li>
+</ul>
+              
+            </div>
+          </div><footer>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <!-- Copyright etc -->
+  </div>
+
+  Built with <a href="https://www.mkdocs.org/">MkDocs</a> using a <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>.
+</footer>
+          
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+
+  <div class="rst-versions" role="note" aria-label="Versions">
+  <span class="rst-current-version" data-toggle="rst-current-version">
+    
+    
+    
+  </span>
+</div>
+    <script src="../js/jquery-3.6.0.min.js"></script>
+    <script>var base_url = "..";</script>
+    <script src="../js/theme_extra.js"></script>
+    <script src="../js/theme.js"></script>
+      <script src="../search/main.js"></script>
+    <script>
+        jQuery(function () {
+            SphinxRtdTheme.Navigation.enable(true);
+        });
+    </script>
+
+</body>
+</html>

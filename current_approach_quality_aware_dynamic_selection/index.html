@@ -1,0 +1,710 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+    <meta charset="utf-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><link rel="canonical" href="https://silver-truth-3-0.readthedocs.io/current_approach_quality_aware_dynamic_selection/" />
+      <link rel="shortcut icon" href="../img/favicon.ico" />
+    <title>Current Approach: Quality-Aware Dynamic Candidate Selection - Silver-truth 3.0 Documentation</title>
+    <link rel="stylesheet" href="../css/theme.css" />
+    <link rel="stylesheet" href="../css/theme_extra.css" />
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/styles/github.min.css" />
+    
+      <script>
+        // Current page data
+        var mkdocs_page_name = "Current Approach: Quality-Aware Dynamic Candidate Selection";
+        var mkdocs_page_input_path = "current_approach_quality_aware_dynamic_selection.md";
+        var mkdocs_page_url = "/current_approach_quality_aware_dynamic_selection/";
+      </script>
+    
+    <!--[if lt IE 9]>
+      <script src="../js/html5shiv.min.js"></script>
+    <![endif]-->
+      <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/highlight.min.js"></script>
+      <script>hljs.highlightAll();</script> 
+</head>
+
+<body class="wy-body-for-nav" role="document">
+
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side stickynav">
+    <div class="wy-side-scroll">
+      <div class="wy-side-nav-search">
+          <a href=".." class="icon icon-home"> Silver-truth 3.0 Documentation
+        </a><div role="search">
+  <form id ="rtd-search-form" class="wy-form" action="../search.html" method="get">
+      <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" title="Type search term here" />
+  </form>
+</div>
+      </div>
+
+      <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="..">Home</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../executable_index/">Executable Index</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../repository_workflow_map/">Repository Workflow Map</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../dvc_guide/">DVC Guide</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../Silver-truth-generation/">Silver-truth Generation</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../quality_assurance/">Quality Assurance</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../experiment_tracking/">Experiment Tracking</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../paper_protocol/">Paper Protocol</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="" href="../qa_sweep_results.md">QA Sweep Results</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="" href="../ensemble_c3_experiment_log.md">Ensemble C3 Experiment Log</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../function_index/">Function Index</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../api_reference_generated/">API Reference (Generated)</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../qa_data_preparation/">QA Data Preparation</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../Evaluations/">Evaluations</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../label_synchronizer/">Label Synchronizer</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="" href="../notebooks.md">Notebooks</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../Roadmap/">Roadmap</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../References/">References</a>
+                </li>
+              </ul>
+      </div>
+    </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+      <nav class="wy-nav-top" role="navigation" aria-label="Mobile navigation menu">
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="..">Silver-truth 3.0 Documentation</a>
+        
+      </nav>
+      <div class="wy-nav-content">
+        <div class="rst-content"><div role="navigation" aria-label="breadcrumbs navigation">
+  <ul class="wy-breadcrumbs">
+    <li><a href=".." class="icon icon-home" aria-label="Docs"></a></li>
+      <li class="breadcrumb-item active">Current Approach: Quality-Aware Dynamic Candidate Selection</li>
+    <li class="wy-breadcrumbs-aside">
+    </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+            <div class="section" itemprop="articleBody">
+              
+                <h1 id="current-approach-quality-aware-dynamic-candidate-selection">Current Approach: Quality-Aware Dynamic Candidate Selection</h1>
+<h2 id="purpose">Purpose</h2>
+<p>This document summarizes the current approach in enough detail for another
+agent to rewrite it into a dissertation or book-style chapter. It focuses on
+the conceptual method, how it differs from the original QA/ENSEMBLE idea, what
+the current implementation does, and which results should be treated as the
+current state of evidence.</p>
+<h2 id="short-summary">Short Summary</h2>
+<p>The current method is best described as:</p>
+<pre><code class="language-text">quality-aware dynamic candidate selection for silver-truth segmentation
+</code></pre>
+<p>It uses multiple candidate segmentation masks for the same object, synchronizes
+them into local object clusters, scores each candidate using QA-like and
+contextual evidence, selects the most reliable candidates, and reconstructs a
+final segmentation mask.</p>
+<p>The method evolved from the original QA-gated ENSEMBLE idea. The original idea
+was to predict segmentation quality, filter low-quality candidates, and feed
+the remaining candidates into an ENSEMBLE model. The current evidence suggests
+that the most robust decision is not a hard QA threshold or a direct neural
+mask-generating ENSEMBLE. It is a local candidate-ranking problem.</p>
+<h2 id="dissertation-framing">Dissertation Framing</h2>
+<p>The dissertation proposal is about improving segmentation using ensemble
+methods with quality assurance. It highlights a limitation of Cell Tracking
+Challenge silver-truth generation: candidate methods are filtered mostly at the
+model or dataset level, but individual object instances can vary strongly in
+quality.</p>
+<p>The current method addresses exactly that limitation:</p>
+<ul>
+<li>it operates at object-instance level;</li>
+<li>it uses quality-related evidence to select or prune candidates;</li>
+<li>it works with multiple segmentation sources;</li>
+<li>it can be used before or instead of fusion;</li>
+<li>it targets improved silver-truth masks.</li>
+</ul>
+<p>The safest dissertation wording is:</p>
+<blockquote>
+<p>The original QA-gated ENSEMBLE architecture was reformulated as
+quality-aware dynamic candidate selection. Instead of relying on one global QA
+threshold or a fixed-input neural mask generator, the system ranks candidate
+masks inside synchronized object clusters using QA, source reliability,
+temporal context, geometry, and image-support features.</p>
+</blockquote>
+<p>This is still aligned with QA-driven dynamic ensemble pruning. It should not be
+presented as unrelated feature engineering.</p>
+<h2 id="reporting-taxonomy">Reporting Taxonomy</h2>
+<p>Use this terminology consistently:</p>
+<ul>
+<li><strong>FUSION is not ENSEMBLE.</strong></li>
+<li><strong>FUSION is not our method.</strong></li>
+<li><strong>ENSEMBLE is our method.</strong></li>
+<li><code>fusion_only_*</code> rows are external fusion baselines.</li>
+<li><code>ensemble_only</code> and <code>ensemble_qa_*</code> rows are our ENSEMBLE methods.</li>
+<li><code>qa_only_*</code> rows are QA-selection ablations.</li>
+<li><code>full_pipeline_*</code> rows are deployable pipeline rows that apply our
+  QA/filtering logic to a fusion proposal set.</li>
+<li>The current soft-hybrid / ranker rows are deployable quality-aware candidate
+  selection rows, not strict QA/ENSEMBLE rows.</li>
+</ul>
+<p>Use separate tables for:</p>
+<ol>
+<li>strict QA/ENSEMBLE methods;</li>
+<li>deployable quality-aware candidate selection;</li>
+<li>external fusion baselines;</li>
+<li>external competitors and silver truth.</li>
+</ol>
+<h2 id="method-data-flow">Method Data Flow</h2>
+<p>The current pipeline can be described as:</p>
+<pre><code class="language-text">paper-ready candidate table
+-&gt; candidate feature extraction
+-&gt; optional candidate/pairwise ranker
+-&gt; soft-hybrid scoring
+-&gt; local conflict resolution and candidate selection
+-&gt; reconstruction of selected candidates into segmentation masks
+-&gt; validation-based strategy selection
+-&gt; reporting against fusion, competitors, and silver truth
+</code></pre>
+<p>The important unit is the synchronized object cluster: several candidate masks
+from different sources may correspond to the same real cell. The task is to
+decide which candidate or subset of candidates should represent that cell.</p>
+<h2 id="implementation-map">Implementation Map</h2>
+<p>Main scripts:</p>
+<table>
+<thead>
+<tr>
+<th>File</th>
+<th>Role</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>scripts/tune_soft_hybrid_grid.py</code></td>
+<td>Builds feature tables, trains rankers, runs preset grid, reconstructs masks, writes <code>soft_hybrid_grid_summary.csv</code>.</td>
+</tr>
+<tr>
+<td><code>scripts/select_soft_hybrid_strategy.py</code></td>
+<td>Selects strategies by validation IoU with conservative preset tie-breaking.</td>
+</tr>
+<tr>
+<td><code>scripts/run_soft_hybrid_batch.py</code></td>
+<td>Batch runner for soft-hybrid experiments.</td>
+</tr>
+<tr>
+<td><code>scripts/build_reporting_mode_tables.py</code></td>
+<td>Builds reporting-mode tables combining strict QA/ENSEMBLE, deployable rows, and soft-hybrid rows.</td>
+</tr>
+</tbody>
+</table>
+<p>Main modules:</p>
+<table>
+<thead>
+<tr>
+<th>File</th>
+<th>Role</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>src/silver_truth/evaluation/candidate_features.py</code></td>
+<td>Builds candidate-level feature tables from <code>paper_ready.parquet</code> and image data.</td>
+</tr>
+<tr>
+<td><code>src/silver_truth/evaluation/candidate_ranker.py</code></td>
+<td>Candidate ranker and ranker feature column definitions.</td>
+</tr>
+<tr>
+<td><code>src/silver_truth/evaluation/cluster_pairwise_ranker.py</code></td>
+<td>Pairwise ranker inside local candidate clusters.</td>
+</tr>
+<tr>
+<td><code>src/silver_truth/evaluation/soft_hybrid.py</code></td>
+<td>Soft-hybrid scoring and candidate selection.</td>
+</tr>
+<tr>
+<td><code>src/silver_truth/evaluation/soft_hybrid_reconstruction.py</code></td>
+<td>Reconstructs selected candidates into evaluated masks.</td>
+</tr>
+<tr>
+<td><code>src/silver_truth/evaluation/soft_hybrid_strategy_selection.py</code></td>
+<td>Validation-based selection across strategies and presets.</td>
+</tr>
+<tr>
+<td><code>src/silver_truth/evaluation/reporting_mode_selector.py</code></td>
+<td>Combines strict, deployable, and soft-hybrid modes for reporting.</td>
+</tr>
+</tbody>
+</table>
+<p>Important tests:</p>
+<table>
+<thead>
+<tr>
+<th>Test file</th>
+<th>Coverage</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>tests/evaluation/test_candidate_features.py</code></td>
+<td>Feature extraction.</td>
+</tr>
+<tr>
+<td><code>tests/evaluation/test_candidate_ranker.py</code></td>
+<td>Candidate ranker behavior.</td>
+</tr>
+<tr>
+<td><code>tests/evaluation/test_cluster_pairwise_ranker.py</code></td>
+<td>Pairwise ranker behavior.</td>
+</tr>
+<tr>
+<td><code>tests/evaluation/test_soft_hybrid.py</code></td>
+<td>Soft-hybrid scoring and selection.</td>
+</tr>
+<tr>
+<td><code>tests/evaluation/test_soft_hybrid_reconstruction.py</code></td>
+<td>Reconstruction from selected candidates.</td>
+</tr>
+<tr>
+<td><code>tests/evaluation/test_soft_hybrid_strategy_selection.py</code></td>
+<td>Validation-based strategy selection.</td>
+</tr>
+<tr>
+<td><code>tests/evaluation/test_reporting_mode_selector.py</code></td>
+<td>Reporting mode selection and taxonomy.</td>
+</tr>
+</tbody>
+</table>
+<h2 id="feature-families">Feature Families</h2>
+<p>The current approach combines several feature families.</p>
+<table>
+<thead>
+<tr>
+<th>Feature family</th>
+<th>Purpose</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>QA score</td>
+<td>Estimate candidate mask reliability.</td>
+</tr>
+<tr>
+<td>Fusion/support evidence</td>
+<td>Capture local agreement among candidate sources.</td>
+</tr>
+<tr>
+<td>Source identity / source prior</td>
+<td>Model source reliability differences.</td>
+</tr>
+<tr>
+<td>Temporal support</td>
+<td>Capture frame-to-frame plausibility.</td>
+</tr>
+<tr>
+<td>Morphology / geometry</td>
+<td>Capture shape, size, position, border contact, and crop geometry.</td>
+</tr>
+<tr>
+<td>Crop image features</td>
+<td>Use raw image evidence inside stacked square crops.</td>
+</tr>
+<tr>
+<td>Rectangular image features</td>
+<td>Use tighter object-local image/mask statistics.</td>
+</tr>
+<tr>
+<td>Full-image features</td>
+<td>Measure object evidence in true image coordinates.</td>
+</tr>
+<tr>
+<td>Boundary/noise features</td>
+<td>Capture contrast-to-noise, boundary gradients, holes, eccentricity.</td>
+</tr>
+<tr>
+<td>Local image support score</td>
+<td>Cluster-relative image evidence used as a soft-hybrid support term.</td>
+</tr>
+</tbody>
+</table>
+<p>Important <code>tune_soft_hybrid_grid.py</code> flags:</p>
+<pre><code class="language-text">--use-pairwise-cluster-ranker
+--use-source-identity
+--ranker-train-split train
+--include-image-features
+--include-rect-image-features
+--include-full-image-features
+--include-full-image-boundary-noise-features
+--include-crop-geometry-features
+--use-local-image-support-score
+--local-image-support-mode average
+--local-image-support-mode boundary_mean
+--local-image-support-mode boundary_min
+--local-image-support-mode full_boundary
+--local-image-support-mode rect_boundary
+</code></pre>
+<p>The strongest recent selected setup uses square, rectangular, and full-image
+features with pairwise source-aware ranking. The latest support-mode selector
+adds a tiny improvement by selecting a full-boundary support variant for one
+MSC fold.</p>
+<h2 id="current-result-paths">Current Result Paths</h2>
+<p>Strict and full paper summaries:</p>
+<pre><code class="language-text">hpc_results/combined/reports/paper_result_summary_all_available.csv
+hpc_results/combined/reports/paper_result_summary_all_available_qa_ensemble_only.csv
+</code></pre>
+<p>Current selected full-image / geometry soft-hybrid result:</p>
+<pre><code class="language-text">hpc_results/soft_hybrid_probe/all_available_full_image_vs_geometry_combined_validation_selection/
+</code></pre>
+<p>Important files inside it:</p>
+<pre><code class="language-text">validation_selected_strategy.csv
+validation_selected_dataset_summary.csv
+validation_vs_fusion_simple_summary.csv
+</code></pre>
+<p>Current support-mode reporting selection:</p>
+<pre><code class="language-text">hpc_results/soft_hybrid_probe/reporting_mode_selection_full_image_vs_local_support_modes_combined/
+</code></pre>
+<p>Important files inside it:</p>
+<pre><code class="language-text">validation_selected_reporting_mode.csv
+validation_selected_reporting_mode.md
+reporting_mode_candidates.csv
+</code></pre>
+<h2 id="current-numbers">Current Numbers</h2>
+<p>Against strict original QA/ENSEMBLE methods:</p>
+<table>
+<thead>
+<tr>
+<th>Dataset</th>
+<th style="text-align: right;">Strict original QA/ENSEMBLE foldwise best</th>
+<th style="text-align: right;">Strict original QA/ENSEMBLE validation-selected</th>
+<th style="text-align: right;">Current soft-hybrid selected</th>
+<th style="text-align: right;">Change vs foldwise best</th>
+<th style="text-align: right;">Change vs validation-selected</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>BF-C2DL-HSC</td>
+<td style="text-align: right;">0.8658</td>
+<td style="text-align: right;">0.8387</td>
+<td style="text-align: right;">0.8689</td>
+<td style="text-align: right;">+0.0030</td>
+<td style="text-align: right;">+0.0302</td>
+</tr>
+<tr>
+<td>BF-C2DL-MuSC</td>
+<td style="text-align: right;">0.7896</td>
+<td style="text-align: right;">0.7638</td>
+<td style="text-align: right;">0.7871</td>
+<td style="text-align: right;">-0.0024</td>
+<td style="text-align: right;">+0.0234</td>
+</tr>
+<tr>
+<td>DIC-C2DH-HeLa</td>
+<td style="text-align: right;">0.8701</td>
+<td style="text-align: right;">0.8701</td>
+<td style="text-align: right;">0.9598</td>
+<td style="text-align: right;">+0.0896</td>
+<td style="text-align: right;">+0.0896</td>
+</tr>
+<tr>
+<td>Fluo-C2DL-MSC</td>
+<td style="text-align: right;">0.6154</td>
+<td style="text-align: right;">0.6154</td>
+<td style="text-align: right;">0.7242</td>
+<td style="text-align: right;">+0.1088</td>
+<td style="text-align: right;">+0.1088</td>
+</tr>
+<tr>
+<td>Fluo-N2DH-GOWT1</td>
+<td style="text-align: right;">0.9279</td>
+<td style="text-align: right;">0.9279</td>
+<td style="text-align: right;">0.9496</td>
+<td style="text-align: right;">+0.0217</td>
+<td style="text-align: right;">+0.0217</td>
+</tr>
+<tr>
+<td><strong>Mean</strong></td>
+<td style="text-align: right;"><strong>0.8138</strong></td>
+<td style="text-align: right;"><strong>0.8032</strong></td>
+<td style="text-align: right;"><strong>0.8579</strong></td>
+<td style="text-align: right;"><strong>+0.0441</strong></td>
+<td style="text-align: right;"><strong>+0.0547</strong></td>
+</tr>
+</tbody>
+</table>
+<p>Against best <code>fusion_only_*</code> baselines:</p>
+<table>
+<thead>
+<tr>
+<th>Dataset</th>
+<th style="text-align: right;">Best <code>fusion_only_*</code> IoU</th>
+<th style="text-align: right;">Current soft-hybrid IoU</th>
+<th style="text-align: right;">Delta</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>BF-C2DL-HSC</td>
+<td style="text-align: right;">0.8726</td>
+<td style="text-align: right;">0.8689</td>
+<td style="text-align: right;">-0.0037</td>
+</tr>
+<tr>
+<td>BF-C2DL-MuSC</td>
+<td style="text-align: right;">0.7307</td>
+<td style="text-align: right;">0.7871</td>
+<td style="text-align: right;">+0.0564</td>
+</tr>
+<tr>
+<td>DIC-C2DH-HeLa</td>
+<td style="text-align: right;">0.9307</td>
+<td style="text-align: right;">0.9598</td>
+<td style="text-align: right;">+0.0291</td>
+</tr>
+<tr>
+<td>Fluo-C2DL-MSC</td>
+<td style="text-align: right;">0.7463</td>
+<td style="text-align: right;">0.7242</td>
+<td style="text-align: right;">-0.0221</td>
+</tr>
+<tr>
+<td>Fluo-N2DH-GOWT1</td>
+<td style="text-align: right;">0.9350</td>
+<td style="text-align: right;">0.9496</td>
+<td style="text-align: right;">+0.0146</td>
+</tr>
+<tr>
+<td><strong>Mean</strong></td>
+<td style="text-align: right;"><strong>0.8431</strong></td>
+<td style="text-align: right;"><strong>0.8579</strong></td>
+<td style="text-align: right;"><strong>+0.0149</strong></td>
+</tr>
+</tbody>
+</table>
+<p>Against broader context:</p>
+<table>
+<thead>
+<tr>
+<th>Comparison</th>
+<th style="text-align: right;">Mean IoU</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Current soft-hybrid</td>
+<td style="text-align: right;">0.8579</td>
+</tr>
+<tr>
+<td>Current support-mode selected variant</td>
+<td style="text-align: right;">0.8581</td>
+</tr>
+<tr>
+<td>Best <code>fusion_only_*</code> baseline</td>
+<td style="text-align: right;">0.8431</td>
+</tr>
+<tr>
+<td>Best competitor</td>
+<td style="text-align: right;">0.8712</td>
+</tr>
+<tr>
+<td>Silver truth</td>
+<td style="text-align: right;">0.8819</td>
+</tr>
+</tbody>
+</table>
+<p>Interpretation:</p>
+<ul>
+<li>The current method beats fusion-only on average.</li>
+<li>It wins against fusion-only on three of five datasets.</li>
+<li>It loses to fusion-only on HSC and MSC.</li>
+<li>It is still below the best external competitor average.</li>
+<li>The support-mode improvement is real but very small: about <code>+0.000165</code> mean
+  IoU over the current selected full-image baseline.</li>
+</ul>
+<h2 id="known-failure-modes">Known Failure Modes</h2>
+<p>The current method is not yet a clean replacement for fusion.</p>
+<p>Main regressions:</p>
+<table>
+<thead>
+<tr>
+<th>Dataset</th>
+<th>Issue</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>BF-C2DL-HSC</td>
+<td>Small regression versus fusion-only; likely strategy selection or conservative tie-breaking issue.</td>
+</tr>
+<tr>
+<td>Fluo-C2DL-MSC</td>
+<td>Large regression versus fusion-only and best competitor; highest-priority failure case.</td>
+</tr>
+</tbody>
+</table>
+<p>MSC is the main blocker because:</p>
+<ul>
+<li>current method loses to fusion-only by about <code>-0.0221</code> IoU;</li>
+<li>current method loses to the best competitor by about <code>-0.0505</code> IoU;</li>
+<li>image features helped MSC substantially in earlier probes;</li>
+<li>full-boundary/local-support features helped one MSC fold slightly;</li>
+<li>the remaining gap may be reconstruction/fusion-related rather than purely
+  candidate-ranking-related.</li>
+</ul>
+<p>Important diagnostic question:</p>
+<blockquote>
+<p>Is fusion better on MSC because it selects better object candidates, or
+because averaging/voting boundaries produces a better final mask than direct
+candidate selection?</p>
+</blockquote>
+<p>That question motivates the next major experiment: run fusion after QA/ranker
+pruning.</p>
+<h2 id="why-this-is-not-just-old-school-feature-engineering">Why This Is Not Just Old-School Feature Engineering</h2>
+<p>The current approach uses engineered features, but those features are serving a
+scientific purpose. They expose which signals matter before building a higher
+capacity neural system.</p>
+<p>The earlier neural ENSEMBLE approach may have struggled because:</p>
+<ul>
+<li>the input crops were too large and background-heavy;</li>
+<li>the true problem is a variable-size set problem;</li>
+<li>a fixed stacked-mask U-Net is not naturally source-aware or
+  permutation-invariant;</li>
+<li>the objective should often be ranking/pruning, not full mask generation;</li>
+<li>there may be too little cross-dataset data for a high-capacity model;</li>
+<li>temporal context was not central enough in the neural input;</li>
+<li>source identity and source reliability were not represented explicitly enough.</li>
+</ul>
+<p>The current feature/ranker system should therefore be treated as a blueprint
+for the next neural model.</p>
+<h2 id="neural-direction-to-preserve">Neural Direction To Preserve</h2>
+<p>The likely next neural direction is:</p>
+<pre><code class="language-text">object-local candidate encoder
++ source identity / source embedding
++ temporal candidate context
++ permutation-aware set aggregation
++ pairwise or listwise ranking objective
++ optional fusion after neural QA pruning
+</code></pre>
+<p>This is more promising than a generic stacked-mask U-Net because it matches the
+actual decision problem:</p>
+<ul>
+<li>candidates are variable in number;</li>
+<li>source order should not matter;</li>
+<li>local candidate comparison is more stable than global QA regression;</li>
+<li>the final output can still be produced by classical fusion after neural
+  pruning.</li>
+</ul>
+<p>This neural model should come after the QA-pruned fusion and ablation work,
+because those experiments will reveal which signals are worth learning.</p>
+<h2 id="chapter-level-narrative">Chapter-Level Narrative</h2>
+<p>A dissertation/book chapter can use this structure:</p>
+<ol>
+<li><strong>Problem.</strong> CTC silver-truth generation relies on model-level filtering and
+   fusion, but object-level candidate quality varies.</li>
+<li><strong>Original hypothesis.</strong> QA can identify unreliable masks and improve
+   ENSEMBLE/fusion.</li>
+<li><strong>Observed limitation.</strong> Hard QA thresholds and first neural ENSEMBLE
+   variants were brittle under dataset/fold transfer.</li>
+<li><strong>Reformulation.</strong> Treat the task as quality-aware dynamic candidate
+   selection inside synchronized object clusters.</li>
+<li><strong>Method.</strong> Extract QA, source, temporal, geometry, and image-support
+   features; train a pairwise/source-aware ranker; select candidates; reconstruct
+   masks.</li>
+<li><strong>Results.</strong> Strong improvement over strict QA/ENSEMBLE baselines and mean
+   improvement over fusion-only, but still dataset-specific failures.</li>
+<li><strong>Analysis.</strong> MSC and HSC regressions show why direct candidate selection is
+   not enough; QA-pruned fusion is the next decisive test.</li>
+<li><strong>Future architecture.</strong> Use the engineered ranker as a guide for a neural
+   candidate-ranking model rather than returning to a generic mask generator.</li>
+</ol>
+<h2 id="related-handoff-documents">Related Handoff Documents</h2>
+<p>Continue from these documents:</p>
+<pre><code class="language-text">docs/next_steps_quality_aware_dynamic_selection.md
+docs/dissertation_alignment_and_architecture_evolution.md
+docs/next_agent_rectangular_image_feature_plan.md
+docs/fusion_qa_soft_hybrid_and_ranker_plan.md
+</code></pre>
+              
+            </div>
+          </div><footer>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <!-- Copyright etc -->
+  </div>
+
+  Built with <a href="https://www.mkdocs.org/">MkDocs</a> using a <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>.
+</footer>
+          
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+
+  <div class="rst-versions" role="note" aria-label="Versions">
+  <span class="rst-current-version" data-toggle="rst-current-version">
+    
+    
+    
+  </span>
+</div>
+    <script src="../js/jquery-3.6.0.min.js"></script>
+    <script>var base_url = "..";</script>
+    <script src="../js/theme_extra.js"></script>
+    <script src="../js/theme.js"></script>
+      <script src="../search/main.js"></script>
+    <script>
+        jQuery(function () {
+            SphinxRtdTheme.Navigation.enable(true);
+        });
+    </script>
+
+</body>
+</html>

@@ -1,0 +1,420 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+    <meta charset="utf-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><link rel="canonical" href="https://silver-truth-3-0.readthedocs.io/api_reference_generated/" />
+      <link rel="shortcut icon" href="../img/favicon.ico" />
+    <title>API Reference (Generated) - Silver-truth 3.0 Documentation</title>
+    <link rel="stylesheet" href="../css/theme.css" />
+    <link rel="stylesheet" href="../css/theme_extra.css" />
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/styles/github.min.css" />
+    
+      <script>
+        // Current page data
+        var mkdocs_page_name = "API Reference (Generated)";
+        var mkdocs_page_input_path = "api_reference_generated.md";
+        var mkdocs_page_url = "/api_reference_generated/";
+      </script>
+    
+    <!--[if lt IE 9]>
+      <script src="../js/html5shiv.min.js"></script>
+    <![endif]-->
+      <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/highlight.min.js"></script>
+      <script>hljs.highlightAll();</script> 
+</head>
+
+<body class="wy-body-for-nav" role="document">
+
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side stickynav">
+    <div class="wy-side-scroll">
+      <div class="wy-side-nav-search">
+          <a href=".." class="icon icon-home"> Silver-truth 3.0 Documentation
+        </a><div role="search">
+  <form id ="rtd-search-form" class="wy-form" action="../search.html" method="get">
+      <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" title="Type search term here" />
+  </form>
+</div>
+      </div>
+
+      <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="..">Home</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../executable_index/">Executable Index</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../repository_workflow_map/">Repository Workflow Map</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../dvc_guide/">DVC Guide</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../Silver-truth-generation/">Silver-truth Generation</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../quality_assurance/">Quality Assurance</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../experiment_tracking/">Experiment Tracking</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../paper_protocol/">Paper Protocol</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="" href="../qa_sweep_results.md">QA Sweep Results</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="" href="../ensemble_c3_experiment_log.md">Ensemble C3 Experiment Log</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../function_index/">Function Index</a>
+                </li>
+              </ul>
+              <ul class="current">
+                <li class="toctree-l1 current"><a class="reference internal current" href="#">API Reference (Generated)</a>
+    <ul class="current">
+    <li class="toctree-l2"><a class="reference internal" href="#silver_truthmetricsevaluation_logic">silver_truth.metrics.evaluation_logic</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#silver_truthmetricsmetrics">silver_truth.metrics.metrics</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#silver_truthfusioncrops_experiment">silver_truth.fusion.crops_experiment</a>
+    </li>
+    </ul>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../qa_data_preparation/">QA Data Preparation</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../Evaluations/">Evaluations</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../label_synchronizer/">Label Synchronizer</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="" href="../notebooks.md">Notebooks</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../Roadmap/">Roadmap</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../References/">References</a>
+                </li>
+              </ul>
+      </div>
+    </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+      <nav class="wy-nav-top" role="navigation" aria-label="Mobile navigation menu">
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="..">Silver-truth 3.0 Documentation</a>
+        
+      </nav>
+      <div class="wy-nav-content">
+        <div class="rst-content"><div role="navigation" aria-label="breadcrumbs navigation">
+  <ul class="wy-breadcrumbs">
+    <li><a href=".." class="icon icon-home" aria-label="Docs"></a></li>
+      <li class="breadcrumb-item active">API Reference (Generated)</li>
+    <li class="wy-breadcrumbs-aside">
+    </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+            <div class="section" itemprop="articleBody">
+              
+                <h1 id="api-reference-generated">API Reference (Generated)</h1>
+<p>This page is generated from function signatures and docstrings.</p>
+<h2 id="silver_truthmetricsevaluation_logic"><code>silver_truth.metrics.evaluation_logic</code></h2>
+<table>
+<thead>
+<tr>
+<th>Function</th>
+<th>Signature</th>
+<th>Summary</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>evaluate_by_split</code></td>
+<td><code>(parquet_path: pathlib.Path, segmentation_column: str, gt_column: str = 'gt_image') -&gt; Dict[str, Dict[str, float]]</code></td>
+<td>Evaluate segmentation results broken down by train/val/test split.</td>
+</tr>
+<tr>
+<td><code>run_evaluation</code></td>
+<td><code>(dataset_dataframe_path: pathlib.Path, competitor: Optional[str] = None, output: Optional[pathlib.Path] = None, visualize: bool = False, campaign_col: str = 'campaign_number') -&gt; Dict[str, Any]</code></td>
+<td>Evaluates competitor segmentation results against ground truth using Jaccard index.</td>
+</tr>
+</tbody>
+</table>
+<h2 id="silver_truthmetricsmetrics"><code>silver_truth.metrics.metrics</code></h2>
+<table>
+<thead>
+<tr>
+<th>Function</th>
+<th>Signature</th>
+<th>Summary</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>calculate_jaccard_scores</code></td>
+<td><code>(gt_image, mask_image)</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>calculate_qa_jaccard_score</code></td>
+<td><code>(gt_image, predicted_mask, target_label, original_image_key, campaign, qa_row)</code></td>
+<td>Calculate Jaccard score for QA cropped images.</td>
+</tr>
+</tbody>
+</table>
+<h2 id="silver_truthfusioncrops_experiment"><code>silver_truth.fusion.crops_experiment</code></h2>
+<table>
+<thead>
+<tr>
+<th>Function</th>
+<th>Signature</th>
+<th>Summary</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>_binary_mask</code></td>
+<td><code>(layer: 'np.ndarray') -&gt; 'np.ndarray'</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>_build_cell_level_eval_df</code></td>
+<td><code>(qa_df_with_paths: 'pd.DataFrame', fused_column: 'str') -&gt; 'pd.DataFrame'</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>_build_key_path_lookup</code></td>
+<td><code>(mapping: 'Dict[int, CellKey]', base_dir: 'Path', file_prefix: 'str') -&gt; 'CellPathLookup'</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>_compute_metrics</code></td>
+<td><code>(fused_path: 'Path', gt_path: 'Path') -&gt; 'Tuple[float, float]'</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>_crop_to_shape</code></td>
+<td><code>(source: 'np.ndarray', target_shape: 'Tuple[int, int]') -&gt; 'np.ndarray'</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>_enrich_qa_with_paths</code></td>
+<td><code>(qa_df: 'pd.DataFrame', fused_lookup: 'CellPathLookup', gt_lookup: 'CellPathLookup', fused_column: 'str') -&gt; 'pd.DataFrame'</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>_extract_competitor_weights</code></td>
+<td><code>(df: 'pd.DataFrame', competitors: 'Sequence[str]', weights_column: 'Optional[str]') -&gt; 'Optional[Dict[str, float]]'</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>_extract_split_core_metrics</code></td>
+<td><code>(eval_metrics_by_split: 'Dict[str, Dict[str, float]]') -&gt; 'Dict[str, float]'</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>_first_non_null_value</code></td>
+<td><code>(values: 'pd.Series') -&gt; 'Any'</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>_gt_mask_from_metadata</code></td>
+<td><code>(metadata: 'Dict[str, Any]', label: 'CellLabel', reference_shape: 'Tuple[int, int]') -&gt; 'Optional[np.ndarray]'</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>_is_finite_number</code></td>
+<td><code>(value: 'Any') -&gt; 'bool'</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>_label_specific_mask</code></td>
+<td><code>(segmentation: 'np.ndarray', label: 'CellLabel') -&gt; 'np.ndarray'</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>_normalize_campaign</code></td>
+<td><code>(value: 'Any') -&gt; 'str'</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>_normalize_label</code></td>
+<td><code>(value: 'Any') -&gt; 'CellLabel'</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>_persist_gt_masks</code></td>
+<td><code>(source_gt_dir: 'Path', destination_dir: 'Path', mapping: 'Dict[int, CellKey]') -&gt; 'None'</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>_resolve_output_path</code></td>
+<td><code>(output_dir: 'Union[Path, str]') -&gt; 'Path'</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>_resolve_stacked_path</code></td>
+<td><code>(path_value: 'Any', qa_parquet: 'Path') -&gt; 'Optional[Path]'</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>_resolve_tracking_path</code></td>
+<td><code>(tracking_path: 'Union[Path, str]') -&gt; 'Path'</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>_resolve_weight_column</code></td>
+<td><code>(df: 'pd.DataFrame', weights_column: 'Optional[str]') -&gt; 'Optional[str]'</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>_safe_metric_name</code></td>
+<td><code>(value: 'str') -&gt; 'str'</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>_safe_run_token</code></td>
+<td><code>(value: 'str') -&gt; 'str'</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>_select_ranking_split</code></td>
+<td><code>(split_metrics: 'Dict[str, float]') -&gt; 'str'</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>build_cell_groups</code></td>
+<td><code>(df: 'pd.DataFrame', qa_parquet: 'Path') -&gt; 'Tuple[CellGroups, CellSplits, Dict[CellKey, Dict[str, Any]]]'</code></td>
+<td>Group rows by logical cell key and collect stacked paths per competitor.</td>
+</tr>
+<tr>
+<td><code>build_competitor_dir_names</code></td>
+<td><code>(competitors: 'Sequence[str]') -&gt; 'Dict[str, str]'</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>chunk_indices</code></td>
+<td><code>(indices: 'Sequence[int]', chunk_size: 'int') -&gt; 'List[List[int]]'</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>evaluate_model_results</code></td>
+<td><code>(fusion_out_dir: 'Path', gt_dir: 'Path', mapping: 'Dict[int, CellKey]', cell_splits: 'CellSplits', model: 'str') -&gt; 'pd.DataFrame'</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>fusion_job_dir</code></td>
+<td><code>(output_base_dir: 'Path', keep_job_dir: 'bool', explicit_job_dir: 'Optional[Path]') -&gt; 'Iterator[Path]'</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>inspect_fused_outputs</code></td>
+<td><code>(fusion_out_dir: 'Path', mapping: 'Dict[int, CellKey]') -&gt; 'Dict[str, float]'</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>prepare_fusion_job</code></td>
+<td><code>(job_dir: 'Path', cell_groups: 'CellGroups', competitors: 'Sequence[str]', cell_metadata: 'Optional[Dict[CellKey, Dict[str, Any]]]' = None, competitor_dir_names: 'Optional[Dict[str, str]]' = None) -&gt; 'Dict[int, CellKey]'</code></td>
+<td>Build a fusion job directory in which each logical cell is represented as a</td>
+</tr>
+<tr>
+<td><code>run_crops_fusion_experiment</code></td>
+<td><code>(qa_parquet: 'Union[Path, str]', output_dir: 'Union[Path, str]' = 'fusion_results_crops', models: 'Sequence[str]' = (), all_models: 'bool' = False, flat_models_only: 'bool' = False, num_threads: 'int' = 4, mlflow_experiment: 'str' = 'fusion-crops-baseline', mlflow_tracking_path: 'Union[Path, str]' = 'data/fusion_experiments/mlruns', weights_column: 'Optional[str]' = None, skip_fusion: 'bool' = False, keep_job_dir: 'bool' = False, job_dir: 'Optional[Union[Path, str]]' = None, chunk_size: 'int' = 0, debug: 'bool' = False) -&gt; 'Dict[str, Any]'</code></td>
+<td>Run fusion on QA crops for multiple models with MLflow tracking.</td>
+</tr>
+<tr>
+<td><code>select_models</code></td>
+<td><code>(models: 'Sequence[str]', all_models: 'bool' = False, flat_models_only: 'bool' = False) -&gt; 'List[str]'</code></td>
+<td>Resolve model list from CLI flags.</td>
+</tr>
+<tr>
+<td><code>summarize_results</code></td>
+<td><code>(results_df: 'pd.DataFrame') -&gt; 'Dict[str, float]'</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>validate_columns</code></td>
+<td><code>(df: 'pd.DataFrame') -&gt; 'None'</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>write_job_file</code></td>
+<td><code>(job_dir: 'Path', competitors: 'Sequence[str]', weighted: 'bool', competitor_dir_names: 'Optional[Dict[str, str]]' = None, competitor_weights: 'Optional[Dict[str, float]]' = None) -&gt; 'Path'</code></td>
+<td></td>
+</tr>
+</tbody>
+</table>
+              
+            </div>
+          </div><footer>
+    <div class="rst-footer-buttons" role="navigation" aria-label="Footer Navigation">
+        <a href="../function_index/" class="btn btn-neutral float-left" title="Function Index"><span class="icon icon-circle-arrow-left"></span> Previous</a>
+        <a href="../qa_data_preparation/" class="btn btn-neutral float-right" title="QA Data Preparation">Next <span class="icon icon-circle-arrow-right"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <!-- Copyright etc -->
+  </div>
+
+  Built with <a href="https://www.mkdocs.org/">MkDocs</a> using a <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>.
+</footer>
+          
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+
+  <div class="rst-versions" role="note" aria-label="Versions">
+  <span class="rst-current-version" data-toggle="rst-current-version">
+    
+    
+      <span><a href="../function_index/" style="color: #fcfcfc">&laquo; Previous</a></span>
+    
+    
+      <span><a href="../qa_data_preparation/" style="color: #fcfcfc">Next &raquo;</a></span>
+    
+  </span>
+</div>
+    <script src="../js/jquery-3.6.0.min.js"></script>
+    <script>var base_url = "..";</script>
+    <script src="../js/theme_extra.js"></script>
+    <script src="../js/theme.js"></script>
+      <script src="../search/main.js"></script>
+    <script>
+        jQuery(function () {
+            SphinxRtdTheme.Navigation.enable(true);
+        });
+    </script>
+
+</body>
+</html>

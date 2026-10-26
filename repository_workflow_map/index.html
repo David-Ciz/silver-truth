@@ -1,0 +1,445 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+    <meta charset="utf-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><link rel="canonical" href="https://silver-truth-3-0.readthedocs.io/repository_workflow_map/" />
+      <link rel="shortcut icon" href="../img/favicon.ico" />
+    <title>Repository Workflow Map - Silver-truth 3.0 Documentation</title>
+    <link rel="stylesheet" href="../css/theme.css" />
+    <link rel="stylesheet" href="../css/theme_extra.css" />
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/styles/github.min.css" />
+    
+      <script>
+        // Current page data
+        var mkdocs_page_name = "Repository Workflow Map";
+        var mkdocs_page_input_path = "repository_workflow_map.md";
+        var mkdocs_page_url = "/repository_workflow_map/";
+      </script>
+    
+    <!--[if lt IE 9]>
+      <script src="../js/html5shiv.min.js"></script>
+    <![endif]-->
+      <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/highlight.min.js"></script>
+      <script>hljs.highlightAll();</script> 
+</head>
+
+<body class="wy-body-for-nav" role="document">
+
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side stickynav">
+    <div class="wy-side-scroll">
+      <div class="wy-side-nav-search">
+          <a href=".." class="icon icon-home"> Silver-truth 3.0 Documentation
+        </a><div role="search">
+  <form id ="rtd-search-form" class="wy-form" action="../search.html" method="get">
+      <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" title="Type search term here" />
+  </form>
+</div>
+      </div>
+
+      <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="..">Home</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../executable_index/">Executable Index</a>
+                </li>
+              </ul>
+              <ul class="current">
+                <li class="toctree-l1 current"><a class="reference internal current" href="#">Repository Workflow Map</a>
+    <ul class="current">
+    <li class="toctree-l2"><a class="reference internal" href="#scope-and-source-of-truth">Scope and Source of Truth</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#executable-surfaces">Executable Surfaces</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#cli-command-map">CLI Command Map</a>
+        <ul>
+    <li class="toctree-l3"><a class="reference internal" href="#silver-preprocessing">silver-preprocessing</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#silver-qa">silver-qa</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#silver-fusion">silver-fusion</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#silver-evaluation">silver-evaluation</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#silver-ensemble">silver-ensemble</a>
+    </li>
+        </ul>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#data-and-artifact-flow">Data and Artifact Flow</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#what-dvcyaml-currently-automates">What dvc.yaml Currently Automates</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#paper-ablation-mechanics-actual-implementation">Paper Ablation Mechanics (Actual Implementation)</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#known-operational-notes">Known Operational Notes</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#practical-run-order-current-recommended">Practical Run Order (Current Recommended)</a>
+    </li>
+    </ul>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../dvc_guide/">DVC Guide</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../Silver-truth-generation/">Silver-truth Generation</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../quality_assurance/">Quality Assurance</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../experiment_tracking/">Experiment Tracking</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../paper_protocol/">Paper Protocol</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="" href="../qa_sweep_results.md">QA Sweep Results</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="" href="../ensemble_c3_experiment_log.md">Ensemble C3 Experiment Log</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../function_index/">Function Index</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../api_reference_generated/">API Reference (Generated)</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../qa_data_preparation/">QA Data Preparation</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../Evaluations/">Evaluations</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../label_synchronizer/">Label Synchronizer</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="" href="../notebooks.md">Notebooks</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../Roadmap/">Roadmap</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../References/">References</a>
+                </li>
+              </ul>
+      </div>
+    </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+      <nav class="wy-nav-top" role="navigation" aria-label="Mobile navigation menu">
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="..">Silver-truth 3.0 Documentation</a>
+        
+      </nav>
+      <div class="wy-nav-content">
+        <div class="rst-content"><div role="navigation" aria-label="breadcrumbs navigation">
+  <ul class="wy-breadcrumbs">
+    <li><a href=".." class="icon icon-home" aria-label="Docs"></a></li>
+      <li class="breadcrumb-item active">Repository Workflow Map</li>
+    <li class="wy-breadcrumbs-aside">
+    </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+            <div class="section" itemprop="articleBody">
+              
+                <h1 id="repository-workflow-map">Repository Workflow Map</h1>
+<p>This page documents how this repository currently works end-to-end, based on the actual CLI code, <code>dvc.yaml</code>, and the current README/docs.</p>
+<h2 id="scope-and-source-of-truth">Scope and Source of Truth</h2>
+<ul>
+<li>CLI behavior is defined in <code>src/silver_truth/cli/*.py</code> and their called modules.</li>
+<li>Deterministic data preparation is defined in <code>dvc.yaml</code>.</li>
+<li>Paper experiment orchestration is implemented in <code>scripts/run_ablation.py</code> with YAML configs in <code>experiments/</code>.</li>
+</ul>
+<h2 id="executable-surfaces">Executable Surfaces</h2>
+<p>The package defines these console entrypoints (in <code>pyproject.toml</code>):</p>
+<ul>
+<li><code>silver-preprocessing</code></li>
+<li><code>silver-qa</code></li>
+<li><code>silver-fusion</code></li>
+<li><code>silver-evaluation</code></li>
+<li><code>silver-ensemble</code></li>
+</ul>
+<p>Note: these are only available after environment setup (<code>pip install -e .[dev]</code>).</p>
+<h2 id="cli-command-map">CLI Command Map</h2>
+<h3 id="silver-preprocessing"><code>silver-preprocessing</code></h3>
+<ul>
+<li><code>verify-dataset-synchronization</code></li>
+<li><code>verify-folder-synchronization</code></li>
+<li><code>synchronize-labels</code></li>
+<li><code>synchronize-datasets</code></li>
+<li><code>create-dataset-dataframe</code></li>
+<li><code>segmentation-size-stats</code></li>
+<li><code>compress-tifs</code></li>
+</ul>
+<p>Core behavior:</p>
+<ul>
+<li>Synchronizes label masks with tracking markers.</li>
+<li>Builds whole-image parquet dataframes from synchronized dataset folders.</li>
+<li>Reports GT cell area, bbox size, aspect-ratio bias, and candidate crop-size fit rates from segmentation folders or dataset parquets.</li>
+<li>Can optionally audit oversized GT cells from dataset parquets and generate source/GT context visualizations for crop-size review.</li>
+<li>Assigns splits with either:</li>
+<li><code>mixed</code> strategy (<code>train/validation/test</code> via GT-cell-count balancing).</li>
+<li><code>fold-1</code> or <code>fold-2</code> strategy (leave-one-sequence-out, with validation
+  selected inside the held-in sequence by supervised GT-cell support).</li>
+<li>Stores competitor columns in parquet metadata (<code>df.attrs["competitor_columns"]</code>).</li>
+</ul>
+<h3 id="silver-qa"><code>silver-qa</code></h3>
+<ul>
+<li><code>create-dataset</code></li>
+<li><code>attach-split</code> (docstring says DEPRECATED, but used in DVC)</li>
+<li><code>evaluate</code></li>
+<li><code>convert-results</code></li>
+<li><code>batch-convert-results</code></li>
+<li><code>cnn train</code></li>
+<li><code>cnn evaluate</code></li>
+</ul>
+<p>Core behavior:</p>
+<ul>
+<li>Creates QA crops (or full-image QA stacks) from whole-image dataframe rows with valid GT.</li>
+<li>Crop TIFF layout for <code>--crop</code> mode is <code>(4, H, W)</code>:</li>
+<li>channel 0 raw image</li>
+<li>channel 1 competitor mask (binary)</li>
+<li>channel 2 GT mask (binary)</li>
+<li>channel 3 tracking marker mask (binary)</li>
+<li>Supports centering strategies: <code>competitor_consensus</code>, <code>competitor_individual</code>, <code>gt_mask</code>, <code>tracking_marker</code>.</li>
+<li><code>attach-split</code> joins base QA parquet to whole-image split parquet (preferred keys: <code>campaign_number + gt_image</code>).</li>
+</ul>
+<h3 id="silver-fusion"><code>silver-fusion</code></h3>
+<ul>
+<li><code>run-fusion</code></li>
+<li><code>generate-jobfiles</code></li>
+<li><code>add-fused-images</code></li>
+<li><code>run-fusion-crops</code></li>
+</ul>
+<p>Core behavior:</p>
+<ul>
+<li><code>run-fusion</code> is a Python wrapper around Java <code>RunFusersCli</code> using <code>FusionModel</code> enum modes.</li>
+<li><code>generate-jobfiles</code> builds one job file per dataset/campaign from parquet competitor columns and tracking marker paths.</li>
+<li><code>add-fused-images</code> maps produced fused TIFFs back into parquet columns.</li>
+<li><code>run-fusion-crops</code> is the MLflow-tracked crop experiment orchestrator:</li>
+<li>stages QA rows into synthetic timepoints</li>
+<li>runs one or more fusion models (with optional chunking/fallback)</li>
+<li>evaluates cell-level IoU/F1</li>
+<li>writes model summary, leaderboard, and enriched parquet artifacts</li>
+<li>logs metrics/artifacts/tags to MLflow</li>
+</ul>
+<h3 id="silver-evaluation"><code>silver-evaluation</code></h3>
+<ul>
+<li><code>evaluate-competitor</code></li>
+<li><code>calculate-evaluation-metrics-cli</code></li>
+<li><code>evaluate-qa-model</code></li>
+<li><code>evaluate-qa-filtering</code></li>
+<li><code>merge-qa-predictions</code></li>
+<li><code>evaluate-fusion-crops</code></li>
+<li><code>filter-parquet</code></li>
+</ul>
+<p>Core behavior:</p>
+<ul>
+<li>Computes crop/full evaluation metrics and writes back to parquet.</li>
+<li>Evaluates QA model predictions from Excel and can log to MLflow.</li>
+<li>Merges QA prediction columns (e.g., <code>predicted_jaccard_index</code>) into parquet.</li>
+<li>Reconstructs fused crops back to full images for paper-level IoU/F1 scoring.</li>
+<li>Filters QA-enriched parquets for <code>qa_only</code> and thresholded <code>full_pipeline</code> modes.</li>
+</ul>
+<h3 id="silver-ensemble"><code>silver-ensemble</code></h3>
+<ul>
+<li><code>ensemble-experiment</code></li>
+<li><code>build-databank</code></li>
+<li><code>evaluate-checkpoint</code></li>
+<li><code>evaluate-best-checkpoint</code></li>
+</ul>
+<p>Core behavior:</p>
+<ul>
+<li>Builds ensemble databank parquet/assets from QA parquet.</li>
+<li>Trains/evaluates ensemble checkpoints.</li>
+</ul>
+<h2 id="data-and-artifact-flow">Data and Artifact Flow</h2>
+<p>High-level path:</p>
+<ol>
+<li>Synchronized dataset folder</li>
+<li>Whole-image dataframe parquet (<code>create-dataset-dataframe</code>)</li>
+<li>Base QA crops + parquet (<code>silver-qa create-dataset --crop</code>)</li>
+<li>Split-specific QA parquet (<code>silver-qa attach-split</code>)</li>
+<li>QA labels for crops (<code>silver-evaluation calculate-evaluation-metrics-cli --mode cropped</code>)</li>
+<li>QA model predictions merged (<code>merge-qa-predictions</code>)</li>
+<li>Experiment orchestration via <code>scripts/run_ablation.py</code> or direct manual CLI calls</li>
+<li>Per-step CSV/parquet artifacts under <code>data/paper_runs/</code>, plus MLflow runs and <code>.state/</code> runner checkpoints</li>
+</ol>
+<p>Key directories used by current workflows:</p>
+<ul>
+<li><code>data/synchronized_data/...</code></li>
+<li><code>data/dataframes/{dataset}/whole_image/...</code></li>
+<li><code>data/qa_crops/{dataset}/sz{crop_size}/...</code></li>
+<li><code>data/dataframes/{dataset}/qa_crops/...</code></li>
+<li><code>data/job_files/{dataset}/{split}/...</code></li>
+<li><code>data/paper_runs/...</code></li>
+<li><code>data/mlflow/mlruns</code></li>
+</ul>
+<h2 id="what-dvcyaml-currently-automates">What <code>dvc.yaml</code> Currently Automates</h2>
+<p>Defined stages include:</p>
+<ul>
+<li><code>create_fold1</code> (for <code>BF-C2DL-HSC</code>, <code>BF-C2DL-MuSC</code>, <code>DIC-C2DH-HeLa</code>)</li>
+<li><code>create_fold2</code> (for <code>BF-C2DL-HSC</code>, <code>BF-C2DL-MuSC</code>, <code>DIC-C2DH-HeLa</code>)</li>
+<li><code>create_mixed</code> (for <code>BF-C2DL-HSC</code>, <code>BF-C2DL-MuSC</code>, <code>DIC-C2DH-HeLa</code>)</li>
+<li><code>create_qa_crops_base</code> (foreach <code>${datasets}</code>)</li>
+<li><code>create_qa_crops_split_mixed</code> (foreach <code>${datasets}</code>)</li>
+<li><code>create_qa_crops_split_fold1</code> (foreach <code>${datasets}</code>)</li>
+<li><code>create_qa_crops_split_fold2</code> (foreach <code>${datasets}</code>)</li>
+<li><code>create_ensemble_databank_c1_hsc_mixed</code></li>
+<li><code>generate_job_files_mixed</code> (HSC and HeLa campaigns 01/02)</li>
+<li><code>generate_job_files_fold1</code> (HSC and HeLa campaigns 01/02)</li>
+<li><code>generate_job_files_fold2</code> (HSC and HeLa campaigns 01/02)</li>
+</ul>
+<p>Important:</p>
+<ul>
+<li>DVC currently covers data preparation and job-file generation.</li>
+<li>DVC does not run the paper experiment runner or QA CNN training.</li>
+<li>Fusion execution/evaluation is primarily handled as MLflow experiments outside DVC.</li>
+<li><code>scripts/check_dataset_readiness.py</code> now sits on top of these DVC stages and
+  reports which preprocessing stages are missing for a given experiment config.</li>
+</ul>
+<h2 id="paper-ablation-mechanics-actual-implementation">Paper Ablation Mechanics (Actual Implementation)</h2>
+<p>The maintained implementation path is <code>scripts/run_ablation.py</code>, which wires together:</p>
+<ul>
+<li><code>silver-evaluation evaluate-competitor</code></li>
+<li><code>silver-qa cnn train</code></li>
+<li><code>silver-evaluation evaluate-qa-model</code></li>
+<li><code>silver-evaluation evaluate-qa-filtering</code></li>
+<li><code>silver-evaluation merge-qa-predictions</code></li>
+<li><code>silver-evaluation filter-parquet</code></li>
+<li><code>silver-evaluation score-parquet</code></li>
+<li><code>silver-fusion run-fusion-crops</code></li>
+<li><code>silver-evaluation evaluate-fusion-crops</code></li>
+<li><code>silver-ensemble build-databank</code></li>
+<li><code>silver-ensemble ensemble-experiment</code></li>
+<li><code>silver-ensemble evaluate-best-checkpoint</code></li>
+</ul>
+<p>The fold protocol is encoded by config-selected input paths and split naming:</p>
+<ul>
+<li><code>fold-1</code> test campaign must be <code>02</code>; non-test must be <code>01</code>.</li>
+<li><code>fold-2</code> test campaign must be <code>01</code>; non-test must be <code>02</code>.</li>
+</ul>
+<p>Modes:</p>
+<ul>
+<li><code>fusion_only</code>: no QA gate, all candidates fused with Java model.</li>
+<li><code>full_pipeline</code>: threshold gate on QA score, then Java fusion.</li>
+<li><code>qa_only</code>: threshold-filtered top-1 QA candidate per cell, no voting fusion.</li>
+<li><code>oracle_qa_only</code>: diagnostic top-1 selector using true crop-level Jaccard.</li>
+<li><code>competitor_prior_qa_only</code>: diagnostic top-1 selector using train-split competitor priors.</li>
+<li><code>ensemble_only</code>: evaluate the unfiltered trained ensemble.</li>
+<li><code>ensemble_qa</code>: evaluate the trained ensemble on a QA-filtered databank.</li>
+<li><code>ensemble_qa_retrained</code>: retrain the ensemble on QA-filtered input, then evaluate.</li>
+</ul>
+<p>Selection safeguard:</p>
+<ul>
+<li>If a cell has no candidate above threshold, deterministic top-1 fallback is used by <code>silver-evaluation filter-parquet</code>.</li>
+<li>Thresholded <code>full_pipeline</code>, <code>ensemble_qa</code>, and <code>ensemble_qa_retrained</code> reuse shared filtered parquets under <code>data/paper_runs/paper_inputs/...</code>.</li>
+</ul>
+<p>Workflow profiles:</p>
+<ul>
+<li><code>--workflow reduced</code>: smaller first pass for new datasets; uses the reduced threshold grid and <code>SIMPLE</code> fusion for Phase C threshold-sensitive Java fusion.</li>
+<li><code>--workflow full</code>: exhaustive configured sweep; can be run after reduced without <code>--reset</code> to fill in missing thresholds/models.</li>
+</ul>
+<p>Metrics:</p>
+<ul>
+<li>Cell-level IoU/F1 is computed on staged masks.</li>
+<li>Full-image primary metrics are reconstructed from fused crops with sparse-GT label-aware scoring.</li>
+<li>There is not yet a single final paper-reporting aggregator for all folds/modes.</li>
+<li>Canonical outputs today are the per-step CSV/parquet artifacts in <code>data/paper_runs/</code>, MLflow metrics, and <code>.state/*.json</code>.</li>
+</ul>
+<h2 id="known-operational-notes">Known Operational Notes</h2>
+<ul>
+<li>The fusion command used by the maintained experiment path is <code>silver-fusion run-fusion-crops</code>.</li>
+<li><code>silver-qa attach-split</code> is marked DEPRECATED in docstring but is still used in DVC stages.</li>
+<li><code>dvc.yaml</code> and <code>dvc.lock</code> can diverge during active development; trust current <code>dvc.yaml</code> for intended pipeline definition.</li>
+<li><code>params.yaml</code> currently defines <code>BF-C2DL-HSC</code>, <code>BF-C2DL-MuSC</code>, and <code>DIC-C2DH-HeLa</code> under <code>datasets</code>.</li>
+<li>The first committed HeLa crop baseline is <code>sz256</code>, based on the direct GT bbox comparison captured in <a href="datasets/hela_hsc_musc_profile.md">HeLa, HSC, and MuSC Profile Notes</a>.</li>
+</ul>
+<h2 id="practical-run-order-current-recommended">Practical Run Order (Current Recommended)</h2>
+<p>For fold-locked paper runs:</p>
+<ol>
+<li>Follow <a href="../paper_protocol/">Paper Protocol</a> and the
+   <a href="clean_slate_experiment_rerun_plan_2026-05-05.md">Clean Slate Experiment Rerun Plan</a>.</li>
+<li>Run <code>scripts/check_dataset_readiness.py --config &lt;variant.yaml&gt; --fold 1 --fold 2</code>.</li>
+<li>Reproduce any missing DVC stages emitted by the readiness report, or rerun
+   the readiness command with <code>--repro</code>.</li>
+<li>Submit reduced ablations first; the ablation runner repeats split sanity as
+   a Phase A preflight before training.</li>
+<li>Record current artifacts in <a href="manuscript_artifact_registry.md">Manuscript Artifact Registry</a>.</li>
+</ol>
+<p>For fusion baseline comparison on QA crops:</p>
+<ol>
+<li>Prepare split QA parquet.</li>
+<li>Run <code>silver-fusion run-fusion-crops</code>.</li>
+<li>Compare <code>fusion_crops_summary.csv</code>, <code>fusion_crops_leaderboard.csv</code>, and MLflow model runs.</li>
+</ol>
+              
+            </div>
+          </div><footer>
+    <div class="rst-footer-buttons" role="navigation" aria-label="Footer Navigation">
+        <a href="../executable_index/" class="btn btn-neutral float-left" title="Executable Index"><span class="icon icon-circle-arrow-left"></span> Previous</a>
+        <a href="../dvc_guide/" class="btn btn-neutral float-right" title="DVC Guide">Next <span class="icon icon-circle-arrow-right"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <!-- Copyright etc -->
+  </div>
+
+  Built with <a href="https://www.mkdocs.org/">MkDocs</a> using a <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>.
+</footer>
+          
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+
+  <div class="rst-versions" role="note" aria-label="Versions">
+  <span class="rst-current-version" data-toggle="rst-current-version">
+    
+    
+      <span><a href="../executable_index/" style="color: #fcfcfc">&laquo; Previous</a></span>
+    
+    
+      <span><a href="../dvc_guide/" style="color: #fcfcfc">Next &raquo;</a></span>
+    
+  </span>
+</div>
+    <script src="../js/jquery-3.6.0.min.js"></script>
+    <script>var base_url = "..";</script>
+    <script src="../js/theme_extra.js"></script>
+    <script src="../js/theme.js"></script>
+      <script src="../search/main.js"></script>
+    <script>
+        jQuery(function () {
+            SphinxRtdTheme.Navigation.enable(true);
+        });
+    </script>
+
+</body>
+</html>
