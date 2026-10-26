@@ -1,5 +1,10 @@
 # Silver Truth
 
+## Cell manuscript: code and pretrained models
+
+The current cell MLEM-QA pipeline includes candidate-feature extraction, pairwise ranking and source-balanced selection, Deep Sets weighting, and boundary-aware voting. See [the method description](docs/current_approach_quality_aware_dynamic_selection.md), [training and inference scripts](scripts/qa_pruned_ensemble/), and [the ten pretrained manuscript Deep Sets models](pretrained/cell_deep_sets/README.md). The models are small (about 1.3 MB total); their reference scores and input instructions are provided with them. Original third-party competitor masks are not redistributed.
+
+
 Tools for processing, synchronizing, and evaluating cell tracking data, with a
 full ablation pipeline for the paper experiments.
 
@@ -144,7 +149,7 @@ This project uses DVC to manage large data files and datasets.
    ```bash
    # Pull all data
    dvc pull
-   
+
    # Or pull specific QA dataset
    dvc pull data/qa_crops/BF-C2DL-HSC/mixed_sz64/
    ```

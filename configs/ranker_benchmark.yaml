@@ -1,0 +1,188 @@
+# Ranker Benchmark Registry
+# -------------------------
+# Single source of truth for all candidate-ranker comparison experiments.
+#
+# To add a new method: add one entry under `methods`.
+# To add a new dataset/fold: add one entry under `folds`.
+# Changing shared fusion settings: edit `benchmark`.
+#
+# Runner:   scripts/run_ranker_benchmark.py
+# Collector: scripts/build_ranker_benchmark_table.py
+# Output:   hpc_results/ranker_benchmark/{method_name}/{dataset}/{variant}/{fold}/
+
+benchmark:
+  output_root: hpc_results/ranker_benchmark
+  policy: source_balanced_topk
+  top_k: 3
+  source_top_k: 1
+  models: [SIMPLE]
+
+# -----------------------------------------------------------------
+# Dataset/fold definitions
+# candidate_parquet: the paper-ready parquet for this fold
+# -----------------------------------------------------------------
+folds:
+  - id: BF-C2DL-HSC/fold-1
+    dataset: BF-C2DL-HSC
+    crop_tag: sz64
+    variant: baseline
+    fold: fold-1
+    candidate_parquet: data/paper_runs/paper_inputs/BF-C2DL-HSC/sz64/baseline/fold-1_paper_ready.parquet
+
+  - id: BF-C2DL-HSC/fold-2
+    dataset: BF-C2DL-HSC
+    crop_tag: sz64
+    variant: baseline
+    fold: fold-2
+    candidate_parquet: data/paper_runs/paper_inputs/BF-C2DL-HSC/sz64/baseline/fold-2_paper_ready.parquet
+
+  - id: BF-C2DL-MuSC/fold-1
+    dataset: BF-C2DL-MuSC
+    crop_tag: sz256
+    variant: musc_crop256
+    fold: fold-1
+    candidate_parquet: data/paper_runs/paper_inputs/BF-C2DL-MuSC/sz256/musc_crop256/fold-1_paper_ready.parquet
+
+  - id: BF-C2DL-MuSC/fold-2
+    dataset: BF-C2DL-MuSC
+    crop_tag: sz256
+    variant: musc_crop256
+    fold: fold-2
+    candidate_parquet: data/paper_runs/paper_inputs/BF-C2DL-MuSC/sz256/musc_crop256/fold-2_paper_ready.parquet
+
+  - id: DIC-C2DH-HeLa/fold-1
+    dataset: DIC-C2DH-HeLa
+    crop_tag: sz256
+    variant: hela_crop256
+    fold: fold-1
+    candidate_parquet: hpc_results/hela/paper_runs/paper_inputs/DIC-C2DH-HeLa/sz256/hela_crop256/fold-1_paper_ready.parquet
+
+  - id: DIC-C2DH-HeLa/fold-2
+    dataset: DIC-C2DH-HeLa
+    crop_tag: sz256
+    variant: hela_crop256
+    fold: fold-2
+    candidate_parquet: hpc_results/hela/paper_runs/paper_inputs/DIC-C2DH-HeLa/sz256/hela_crop256/fold-2_paper_ready.parquet
+
+  - id: Fluo-C2DL-MSC/fold-1
+    dataset: Fluo-C2DL-MSC
+    crop_tag: sz1024
+    variant: msc_crop1024
+    fold: fold-1
+    candidate_parquet: hpc_results/msc/paper_runs/paper_inputs/Fluo-C2DL-MSC/sz1024/msc_crop1024/fold-1_paper_ready.parquet
+
+  - id: Fluo-C2DL-MSC/fold-2
+    dataset: Fluo-C2DL-MSC
+    crop_tag: sz1024
+    variant: msc_crop1024
+    fold: fold-2
+    candidate_parquet: hpc_results/msc/paper_runs/paper_inputs/Fluo-C2DL-MSC/sz1024/msc_crop1024/fold-2_paper_ready.parquet
+
+  - id: Fluo-N2DH-GOWT1/fold-1
+    dataset: Fluo-N2DH-GOWT1
+    crop_tag: sz160
+    variant: gowt1_crop160
+    fold: fold-1
+    candidate_parquet: hpc_results/gowt1/gowt1_sz160_reduced_20260514/paper_runs/paper_inputs/Fluo-N2DH-GOWT1/sz160/gowt1_crop160/fold-1_paper_ready.parquet
+
+  - id: Fluo-N2DH-GOWT1/fold-2
+    dataset: Fluo-N2DH-GOWT1
+    crop_tag: sz160
+    variant: gowt1_crop160
+    fold: fold-2
+    candidate_parquet: hpc_results/gowt1/gowt1_sz160_reduced_20260514/paper_runs/paper_inputs/Fluo-N2DH-GOWT1/sz160/gowt1_crop160/fold-2_paper_ready.parquet
+
+# -----------------------------------------------------------------
+# Method definitions
+#
+# name:              unique identifier used as subdirectory name
+# label:             human-readable display name for tables
+# score_column:      column name passed to --score-column in run_ranker_pruned_fusion.py
+# scored_candidates: dict of fold_id -> path to pre-scored ranked candidates file
+#                    (parquet or CSV containing the score_column).
+#                    Use the candidate_parquet path to reuse the fold's own columns.
+# -----------------------------------------------------------------
+methods:
+
+  # Source-prior top5 — source_train_mean_iou is present in the MLP-ranked parquets
+  # (which are supersets of the paper-ready parquets with candidate_id added).
+  # Uses top_k=5 (overrides benchmark default).
+  - name: source_prior_top5
+    label: "Source-prior top5"
+    score_column: source_train_mean_iou
+    top_k: 5
+    scored_candidates:
+      BF-C2DL-HSC/fold-1: hpc_results/soft_hybrid_probe/hsc_musc_source_ranked_trainonly_caltrain/features/BF-C2DL-HSC/sz64/baseline/fold-1_paper_ready_ranked.parquet
+      BF-C2DL-HSC/fold-2: hpc_results/soft_hybrid_probe/hsc_musc_source_ranked_trainonly_caltrain/features/BF-C2DL-HSC/sz64/baseline/fold-2_paper_ready_ranked.parquet
+      BF-C2DL-MuSC/fold-1: hpc_results/soft_hybrid_probe/hsc_musc_source_ranked_trainonly_caltrain/features/BF-C2DL-MuSC/sz256/musc_crop256/fold-1_paper_ready_ranked.parquet
+      BF-C2DL-MuSC/fold-2: hpc_results/soft_hybrid_probe/hsc_musc_source_ranked_trainonly_caltrain/features/BF-C2DL-MuSC/sz256/musc_crop256/fold-2_paper_ready_ranked.parquet
+      DIC-C2DH-HeLa/fold-1: hpc_results/soft_hybrid_probe/hela_source_ranked_trainonly_caltrain/features/DIC-C2DH-HeLa/sz256/hela_crop256/fold-1_paper_ready_ranked.parquet
+      DIC-C2DH-HeLa/fold-2: hpc_results/soft_hybrid_probe/hela_source_ranked_trainonly_caltrain/features/DIC-C2DH-HeLa/sz256/hela_crop256/fold-2_paper_ready_ranked.parquet
+      Fluo-C2DL-MSC/fold-1: hpc_results/soft_hybrid_probe/msc_gowt1_source_ranked_trainonly_caltrain/features/Fluo-C2DL-MSC/sz1024/msc_crop1024/fold-1_paper_ready_ranked.parquet
+      Fluo-C2DL-MSC/fold-2: hpc_results/soft_hybrid_probe/msc_gowt1_source_ranked_trainonly_caltrain/features/Fluo-C2DL-MSC/sz1024/msc_crop1024/fold-2_paper_ready_ranked.parquet
+      Fluo-N2DH-GOWT1/fold-1: hpc_results/soft_hybrid_probe/msc_gowt1_source_ranked_trainonly_caltrain/features/Fluo-N2DH-GOWT1/sz160/gowt1_crop160/fold-1_paper_ready_ranked.parquet
+      Fluo-N2DH-GOWT1/fold-2: hpc_results/soft_hybrid_probe/msc_gowt1_source_ranked_trainonly_caltrain/features/Fluo-N2DH-GOWT1/sz160/gowt1_crop160/fold-2_paper_ready_ranked.parquet
+
+  # Pairwise LogisticRegression (within-cluster pairwise preference, tabular features)
+  - name: pairwise_lr
+    label: "Pairwise LR (tabular, within-cluster)"
+    score_column: pairwise_cluster_score
+    scored_candidates:
+      BF-C2DL-HSC/fold-1: hpc_results/soft_hybrid_probe/hsc_musc_pairwise_source_trainonly/features/BF-C2DL-HSC/sz64/baseline/fold-1_paper_ready_pairwise_ranked.parquet
+      BF-C2DL-HSC/fold-2: hpc_results/soft_hybrid_probe/hsc_musc_pairwise_source_trainonly/features/BF-C2DL-HSC/sz64/baseline/fold-2_paper_ready_pairwise_ranked.parquet
+      BF-C2DL-MuSC/fold-1: hpc_results/soft_hybrid_probe/hsc_musc_pairwise_source_trainonly/features/BF-C2DL-MuSC/sz256/musc_crop256/fold-1_paper_ready_pairwise_ranked.parquet
+      BF-C2DL-MuSC/fold-2: hpc_results/soft_hybrid_probe/hsc_musc_pairwise_source_trainonly/features/BF-C2DL-MuSC/sz256/musc_crop256/fold-2_paper_ready_pairwise_ranked.parquet
+      DIC-C2DH-HeLa/fold-1: hpc_results/soft_hybrid_probe/hela_pairwise_source_trainonly/features/DIC-C2DH-HeLa/sz256/hela_crop256/fold-1_paper_ready_pairwise_ranked.parquet
+      DIC-C2DH-HeLa/fold-2: hpc_results/soft_hybrid_probe/hela_pairwise_source_trainonly/features/DIC-C2DH-HeLa/sz256/hela_crop256/fold-2_paper_ready_pairwise_ranked.parquet
+      Fluo-C2DL-MSC/fold-1: hpc_results/soft_hybrid_probe/msc_gowt1_pairwise_source_trainonly/features/Fluo-C2DL-MSC/sz1024/msc_crop1024/fold-1_paper_ready_pairwise_ranked.parquet
+      Fluo-C2DL-MSC/fold-2: hpc_results/soft_hybrid_probe/msc_gowt1_pairwise_source_trainonly/features/Fluo-C2DL-MSC/sz1024/msc_crop1024/fold-2_paper_ready_pairwise_ranked.parquet
+      Fluo-N2DH-GOWT1/fold-1: hpc_results/soft_hybrid_probe/msc_gowt1_pairwise_source_trainonly/features/Fluo-N2DH-GOWT1/sz160/gowt1_crop160/fold-1_paper_ready_pairwise_ranked.parquet
+      Fluo-N2DH-GOWT1/fold-2: hpc_results/soft_hybrid_probe/msc_gowt1_pairwise_source_trainonly/features/Fluo-N2DH-GOWT1/sz160/gowt1_crop160/fold-2_paper_ready_pairwise_ranked.parquet
+
+  # MLP tabular ranker (pointwise IoU regression, tabular features)
+  - name: mlp_tabular
+    label: "MLP tabular ranker (pointwise IoU regression)"
+    score_column: candidate_ranker_score
+    scored_candidates:
+      BF-C2DL-HSC/fold-1: hpc_results/soft_hybrid_probe/hsc_musc_source_ranked_trainonly_caltrain/features/BF-C2DL-HSC/sz64/baseline/fold-1_paper_ready_ranked.parquet
+      BF-C2DL-HSC/fold-2: hpc_results/soft_hybrid_probe/hsc_musc_source_ranked_trainonly_caltrain/features/BF-C2DL-HSC/sz64/baseline/fold-2_paper_ready_ranked.parquet
+      BF-C2DL-MuSC/fold-1: hpc_results/soft_hybrid_probe/hsc_musc_source_ranked_trainonly_caltrain/features/BF-C2DL-MuSC/sz256/musc_crop256/fold-1_paper_ready_ranked.parquet
+      BF-C2DL-MuSC/fold-2: hpc_results/soft_hybrid_probe/hsc_musc_source_ranked_trainonly_caltrain/features/BF-C2DL-MuSC/sz256/musc_crop256/fold-2_paper_ready_ranked.parquet
+      DIC-C2DH-HeLa/fold-1: hpc_results/soft_hybrid_probe/hela_source_ranked_trainonly_caltrain/features/DIC-C2DH-HeLa/sz256/hela_crop256/fold-1_paper_ready_ranked.parquet
+      DIC-C2DH-HeLa/fold-2: hpc_results/soft_hybrid_probe/hela_source_ranked_trainonly_caltrain/features/DIC-C2DH-HeLa/sz256/hela_crop256/fold-2_paper_ready_ranked.parquet
+      Fluo-C2DL-MSC/fold-1: hpc_results/soft_hybrid_probe/msc_gowt1_source_ranked_trainonly_caltrain/features/Fluo-C2DL-MSC/sz1024/msc_crop1024/fold-1_paper_ready_ranked.parquet
+      Fluo-C2DL-MSC/fold-2: hpc_results/soft_hybrid_probe/msc_gowt1_source_ranked_trainonly_caltrain/features/Fluo-C2DL-MSC/sz1024/msc_crop1024/fold-2_paper_ready_ranked.parquet
+      Fluo-N2DH-GOWT1/fold-1: hpc_results/soft_hybrid_probe/msc_gowt1_source_ranked_trainonly_caltrain/features/Fluo-N2DH-GOWT1/sz160/gowt1_crop160/fold-1_paper_ready_ranked.parquet
+      Fluo-N2DH-GOWT1/fold-2: hpc_results/soft_hybrid_probe/msc_gowt1_source_ranked_trainonly_caltrain/features/Fluo-N2DH-GOWT1/sz160/gowt1_crop160/fold-2_paper_ready_ranked.parquet
+
+  # QANet smoke-pass (2-epoch CNN on raw+mask+boundary crops, 64px)
+  # Only MuSC and MSC were run for the smoke test; other datasets auto-skipped.
+  - name: qanet_smoke_2ep_64px
+    label: "QANet smoke (2 epochs, 64px crops)"
+    score_column: qanet_score
+    scored_candidates:
+      BF-C2DL-MuSC/fold-1: hpc_results/soft_hybrid_probe/qanet_filter_probe/BF-C2DL-MuSC/sz256/musc_crop256/fold-1/qanet_scored_candidates.csv
+      BF-C2DL-MuSC/fold-2: hpc_results/soft_hybrid_probe/qanet_filter_probe/BF-C2DL-MuSC/sz256/musc_crop256/fold-2/qanet_scored_candidates.csv
+      Fluo-C2DL-MSC/fold-1: hpc_results/soft_hybrid_probe/qanet_filter_probe/Fluo-C2DL-MSC/sz1024/msc_crop1024/fold-1/qanet_scored_candidates.csv
+      Fluo-C2DL-MSC/fold-2: hpc_results/soft_hybrid_probe/qanet_filter_probe/Fluo-C2DL-MSC/sz1024/msc_crop1024/fold-2/qanet_scored_candidates.csv
+
+  # QANet proper (20-epoch CNN on raw+mask+boundary crops, 64px, source identity).
+  # Trained per-dataset per-fold on train split; scored on all candidates.
+  # Paths populated by scripts/train_qanet_all_folds.py after training.
+  - name: qanet_20ep_64px
+    label: "QANet proper (20 epochs, 64px crops)"
+    score_column: qanet_score
+    scored_candidates:
+      # Paths are filled in after running: python scripts/train_qanet_all_folds.py
+      BF-C2DL-HSC/fold-1: hpc_results/soft_hybrid_probe/qanet_20ep_probe/BF-C2DL-HSC/sz64/baseline/fold-1/qanet_scored_candidates.csv
+      BF-C2DL-HSC/fold-2: hpc_results/soft_hybrid_probe/qanet_20ep_probe/BF-C2DL-HSC/sz64/baseline/fold-2/qanet_scored_candidates.csv
+      BF-C2DL-MuSC/fold-1: hpc_results/soft_hybrid_probe/qanet_20ep_probe/BF-C2DL-MuSC/sz256/musc_crop256/fold-1/qanet_scored_candidates.csv
+      BF-C2DL-MuSC/fold-2: hpc_results/soft_hybrid_probe/qanet_20ep_probe/BF-C2DL-MuSC/sz256/musc_crop256/fold-2/qanet_scored_candidates.csv
+      DIC-C2DH-HeLa/fold-1: hpc_results/soft_hybrid_probe/qanet_20ep_probe/DIC-C2DH-HeLa/sz256/hela_crop256/fold-1/qanet_scored_candidates.csv
+      DIC-C2DH-HeLa/fold-2: hpc_results/soft_hybrid_probe/qanet_20ep_probe/DIC-C2DH-HeLa/sz256/hela_crop256/fold-2/qanet_scored_candidates.csv
+      Fluo-C2DL-MSC/fold-1: hpc_results/soft_hybrid_probe/qanet_20ep_probe/Fluo-C2DL-MSC/sz1024/msc_crop1024/fold-1/qanet_scored_candidates.csv
+      Fluo-C2DL-MSC/fold-2: hpc_results/soft_hybrid_probe/qanet_20ep_probe/Fluo-C2DL-MSC/sz1024/msc_crop1024/fold-2/qanet_scored_candidates.csv
+      Fluo-N2DH-GOWT1/fold-1: hpc_results/soft_hybrid_probe/qanet_20ep_probe/Fluo-N2DH-GOWT1/sz160/gowt1_crop160/fold-1/qanet_scored_candidates.csv
+      Fluo-N2DH-GOWT1/fold-2: hpc_results/soft_hybrid_probe/qanet_20ep_probe/Fluo-N2DH-GOWT1/sz160/gowt1_crop160/fold-2/qanet_scored_candidates.csv
+
+  # --- Add new methods below this line ---
